@@ -38,7 +38,7 @@ export async function getCategories(): Promise<Category[]> {
     })
     if (!res.ok) return []
     const categories: Category[] = await res.json()
-    const map = new Map(categories.map((cat) => [cat.id, { ...cat, children: [] }]))
+    const map = new Map(categories.map((cat) => [cat.id, { ...cat, children: [] as Category[] }]))
     const roots: Category[] = []
     for (const category of map.values()) {
       if (category.parent_id && map.has(category.parent_id)) {

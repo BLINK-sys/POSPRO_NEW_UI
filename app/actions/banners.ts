@@ -55,7 +55,7 @@ export async function saveBanner(
     return {
       success: true,
       message: result.message || `Баннер ${id ? "обновлён" : "создан"}`,
-      banner: id ? { ...data, id, order: 0 } : { ...data, id: result.id, order: 0 },
+      banner: id ? { ...data, id, order: 0 } as Banner : { ...data, id: result.id, order: 0 } as Banner,
     }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }

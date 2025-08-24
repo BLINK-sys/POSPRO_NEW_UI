@@ -4,9 +4,13 @@ import { getProducts } from '../../../../app/actions/products'
 import { getCategories } from '../../../../app/actions/categories'
 import { getBrands, getStatuses } from '../../../../app/actions/meta'
 
-export default async function ProductsPage() {
+interface ProductsPageProps {
+  isSidebarCollapsed?: boolean
+}
+
+export default async function ProductsPage({ isSidebarCollapsed = false }: ProductsPageProps) {
   const [products, categories, brands, statuses] = await Promise.all([
-    getProducts({}), // Получаем все товары без фильтров изначально
+    getProducts(), // Получаем все товары без фильтров изначально
     getCategories(),
     getBrands(),
     getStatuses(),
@@ -24,6 +28,7 @@ export default async function ProductsPage() {
           categories={categories}
           brands={brands}
           statuses={statuses}
+          isSidebarCollapsed={isSidebarCollapsed}
         />
       </CardContent>
     </Card>

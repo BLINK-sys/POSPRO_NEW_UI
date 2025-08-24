@@ -4,14 +4,10 @@ import React from "react"
 
 import type { ReactNode } from "react"
 import { useState } from "react"
-import AdminSidebar from "../../components/admin-sidebar"
-import { Button } from "../../components/ui/button"
+import AdminSidebar from "@/components/admin-sidebar"
+import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { cn } from "../../lib/utils"
-
-// Отключаем статическую генерацию для admin страниц
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+import { cn } from "@/lib/utils"
 
 export default function AdminLayout({
   children,
