@@ -9,6 +9,10 @@ import { Button } from "../../components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "../../lib/utils"
 
+// Отключаем статическую генерацию для admin страниц
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default function AdminLayout({
   children,
 }: {

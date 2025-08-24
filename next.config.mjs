@@ -1,42 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'pospro-new-server.onrender.com',
         port: '',
-        pathname: '/**',
+        pathname: '/uploads/**',
       },
-      {
-        protocol: 'https',
-        hostname: '8e191e4bcc63.ngrok-free.app',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'a4550e922a9f.ngrok-free.app',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'hebbkx1anhila5yf.public.blob.vercel-storage.com',
-        port: '',
-        pathname: '/**',
-      }
     ],
-    unoptimized: true,
-    dangerouslyAllowSVG: true,
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-  }
-}
+  },
+  // Отключаем статическую генерацию для страниц с аутентификацией
+  experimental: {
+    // Отключаем автоматическую статическую оптимизацию
+    staticPageGenerationTimeout: 0,
+  },
+  // Настройки для страниц, которые не должны быть статическими
+  async generateStaticParams() {
+    return [];
+  },
+  // Отключаем статическую генерацию для всех страниц
+  output: 'standalone',
+};
 
-export default nextConfig
+export default nextConfig;

@@ -8,6 +8,10 @@ import { getHomepageData } from "./actions/public"
 import HomepageBanner from '../components/homepage-banner'
 import HomepageBlockComponent from '../components/homepage-block'
 
+// Отключаем статическую генерацию для главной страницы
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Компонент загрузки
 function LoadingSpinner() {
   return (
