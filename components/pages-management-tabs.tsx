@@ -1,6 +1,6 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import BannersTab from "./banners-tab"
 import MainBlocksTab from "./main-blocks-tab"
 import CardsTab from "./cards-tab"
