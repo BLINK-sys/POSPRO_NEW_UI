@@ -1,8 +1,8 @@
+"use client"
+
 // Отключаем статическую генерацию для страницы аутентификации
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-"use client"
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
