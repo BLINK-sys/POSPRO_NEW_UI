@@ -3,13 +3,13 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "./ui/button"
+import { Card, CardContent } from "./ui/card"
+import { Badge } from "./ui/badge"
 import { ShoppingCart } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
+import { useToast } from "../hooks/use-toast"
+import { FavoriteButton } from "./favorite-button"
+import { AddToCartButton } from "./add-to-cart-button"
 
 interface Favorite {
   id: number
