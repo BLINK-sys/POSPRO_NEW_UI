@@ -4,11 +4,11 @@ import { useState } from "react"
 import Image from "next/image"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { type Category, deleteCategory } from "@/app/actions/categories"
-import { API_BASE_URL } from "@/lib/api-address"
-import { Button } from "@/components/ui/button"
+import { type Category, deleteCategory } from '../app/actions/categories'
+import { API_BASE_URL } from '../lib/api-address'
+import { Button } from '../components/ui/button'
 import { GripVertical, ChevronRight, Pencil, Trash2, Plus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from '../lib/utils'
 import { CategoryEditDialog } from "./category-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"

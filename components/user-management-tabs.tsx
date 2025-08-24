@@ -1,7 +1,7 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { Client, SystemUser } from "@/app/actions/users"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import type { Client, SystemUser } from '../app/actions/users'
 import { ClientsTable } from "./clients-table"
 import { SystemUsersTable } from "./system-users-table"
 

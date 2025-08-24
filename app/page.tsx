@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
 import Image from "next/image"
 import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { getHomepageData } from "./actions/public"
-import HomepageBanner from "@/components/homepage-banner"
-import HomepageBlockComponent from "@/components/homepage-block"
+import HomepageBanner from '../components/homepage-banner'
+import HomepageBlockComponent from '../components/homepage-block'
 
 // Компонент загрузки
 function LoadingSpinner() {

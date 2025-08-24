@@ -2,14 +2,14 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Textarea } from '../components/ui/textarea'
+import { Label } from '../components/ui/label'
+import { Switch } from '../components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import Image from "next/image"
 import { toast } from "sonner"
 import { Upload, Trash2, ImageIcon, LinkIcon } from "lucide-react"
@@ -17,8 +17,8 @@ import {
   type SmallBanner,
   uploadSmallBannerImage,
   deleteSmallBannerImage,
-} from "@/app/actions/small-banners"
-import { API_BASE_URL } from "@/lib/api-address"
+} from '../app/actions/small-banners'
+import { API_BASE_URL } from '../lib/api-address'
 
 interface SmallBannerEditDialogProps {
   banner: Partial<SmallBanner> | null

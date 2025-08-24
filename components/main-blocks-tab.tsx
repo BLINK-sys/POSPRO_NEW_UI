@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { Switch } from '../components/ui/switch'
 import { GripVertical, Edit, Trash2, Plus, ListOrdered, Loader2, Grid3X3 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from '../hooks/use-toast'
 import {
   DndContext,
   closestCenter,
@@ -30,13 +30,13 @@ import {
   HomepageBlock, 
   HOMEPAGE_BLOCK_TYPE_LABELS, 
   HOMEPAGE_BLOCK_TYPES 
-} from "@/lib/constants"
+} from '../lib/constants'
 import { 
   getHomepageBlocks, 
   deleteHomepageBlock, 
   toggleHomepageBlock,
   reorderHomepageBlocks
-} from "@/app/actions/homepage-blocks"
+} from '../app/actions/homepage-blocks'
 import HomepageBlockEditDialog from "./homepage-block-edit-dialog"
 import HomepageBlockItemsReorderDialog from "./homepage-block-items-reorder-dialog"
 

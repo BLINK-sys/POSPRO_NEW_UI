@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Plus, Edit, Trash2, GripVertical } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from '../hooks/use-toast'
 import ProductAvailabilityStatusEditDialog from "./product-availability-status-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
@@ -18,7 +18,7 @@ import {
   reorderProductAvailabilityStatuses,
   type ProductAvailabilityStatus,
   type CreateProductAvailabilityStatusData
-} from "@/app/actions/product-availability-statuses"
+} from '../app/actions/product-availability-statuses'
 
 export default function ProductAvailabilityStatusesTab() {
   const [statuses, setStatuses] = useState<ProductAvailabilityStatus[]>([])

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../components/ui/card'
+import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
+import { Skeleton } from '../../../components/ui/skeleton'
 import { Package, Calendar, CreditCard, Truck, RefreshCw, AlertCircle } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { getOrders, cancelOrder } from "@/app/actions/orders"
-import { useAuth } from "@/context/auth-context"
+import { useToast } from '../../../hooks/use-toast'
+import { getOrders, cancelOrder } from '../../../app/actions/orders'
+import { useAuth } from '../../../context/auth-context'
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"

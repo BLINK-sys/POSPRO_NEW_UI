@@ -1,16 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { Switch } from '../components/ui/switch'
+import { Badge } from '../components/ui/badge'
 import { GripVertical, Edit, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
-import type { Banner } from "@/app/actions/banners"
-import { API_BASE_URL } from "@/lib/api-address"
+import type { Banner } from '../app/actions/banners'
+import { API_BASE_URL } from '../lib/api-address'
 
 interface SortableBannerItemProps {
   banner: Banner

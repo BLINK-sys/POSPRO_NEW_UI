@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { getApiUrl } from '@/lib/api-address'
+import { getApiUrl } from '../../lib/api-address'
 
 export interface OrderStatus {
   id: number

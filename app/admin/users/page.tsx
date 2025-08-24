@@ -1,6 +1,6 @@
-import { getClients, getSystemUsers } from "@/app/actions/users"
-import { UserManagementTabs } from "@/components/user-management-tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getClients, getSystemUsers } from '../../../app/actions/users'
+import { UserManagementTabs } from '../../../components/user-management-tabs'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card'
 
 export default async function UsersPage() {
   // Запрашиваем данные параллельно для ускорения загрузки

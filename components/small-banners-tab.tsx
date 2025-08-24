@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import { getApiUrl } from "@/lib/api-address"
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardTitle } from '../components/ui/card'
+import { useToast } from '../hooks/use-toast'
+import { apiClient } from '../lib/api-client'
+import { getApiUrl } from '../lib/api-address'
 import { Edit, Trash2, Plus } from "lucide-react"
 import Image from "next/image"
 import SmallBannerEditDialog from "./small-banner-edit-dialog"

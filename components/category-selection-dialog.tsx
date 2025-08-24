@@ -1,15 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Checkbox } from '../components/ui/checkbox'
+import { ScrollArea } from '../components/ui/scroll-area'
 import { Loader2, Search, ChevronRight, ChevronDown } from "lucide-react"
-import { getPublicCategories } from "@/app/actions/public"
-import { CategoryData } from "@/app/actions/public"
-import { cn } from "@/lib/utils"
+import { getPublicCategories } from '../app/actions/public'
+import { CategoryData } from '../app/actions/public'
+import { cn } from '../lib/utils'
 
 interface CategorySelectionDialogProps {
   open: boolean

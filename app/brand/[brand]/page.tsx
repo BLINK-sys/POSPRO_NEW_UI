@@ -2,19 +2,19 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
+import { Button } from '../../../components/ui/button'
+import { Badge } from '../../../components/ui/badge'
+import { Separator } from '../../../components/ui/separator'
 import { ArrowLeft, Filter, Package, ShoppingCart } from "lucide-react"
-import { getProductsByBrand, getCategoriesByBrand, getProductsByBrandAndCategory } from "@/app/actions/public"
-import { ProductData, CategoryData } from "@/app/actions/public"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
+import { getProductsByBrand, getCategoriesByBrand, getProductsByBrandAndCategory } from '../../../app/actions/public'
+import { ProductData, CategoryData } from '../../../app/actions/public'
+import { FavoriteButton } from '../../../components/favorite-button'
+import { AddToCartButton } from '../../../components/add-to-cart-button'
+import { ProductAvailabilityBadge } from '../../../components/product-availability-badge'
 import Image from "next/image"
 import Link from "next/link"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../../../lib/api-address'
 
 interface BrandPageData {
   brand: string

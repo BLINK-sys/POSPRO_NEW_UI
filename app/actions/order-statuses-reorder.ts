@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { getApiUrl } from '@/lib/api-address'
+import { getApiUrl } from '../../lib/api-address'
 
 export async function reorderOrderStatuses(statusIds: number[]) {
   const cookieStore = cookies()

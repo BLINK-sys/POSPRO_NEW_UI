@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
 import { Plus } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import { API_ENDPOINTS } from "@/lib/api-endpoints"
+import { useToast } from '../hooks/use-toast'
+import { apiClient } from '../lib/api-client'
+import { API_ENDPOINTS } from '../lib/api-endpoints'
 import BenefitEditDialog from "./benefit-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"

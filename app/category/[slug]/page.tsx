@@ -2,25 +2,25 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
+import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
+import { Input } from '../../../components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 import { Grid3X3, Package, Tag, Star, Info, Search, Filter, Grid, List, ArrowLeft, ShoppingCart } from "lucide-react"
-import { Category } from "@/app/actions/categories"
-import { Product } from "@/app/actions/products"
-import { Brand } from "@/app/actions/meta"
-import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
-import { getBrands } from "@/app/actions/brands"
-import { getCategoryData, ProductData } from "@/app/actions/public"
+import { Category } from '../../../app/actions/categories'
+import { Product } from '../../../app/actions/products'
+import { Brand } from '../../../app/actions/meta'
+import { getCategories } from '../../../app/actions/categories'
+import { getProducts } from '../../../app/actions/products'
+import { getBrands } from '../../../app/actions/brands'
+import { getCategoryData, ProductData } from '../../../app/actions/public'
 import Image from "next/image"
 import Link from "next/link"
-import { API_BASE_URL } from "@/lib/api-address"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
+import { API_BASE_URL } from '../../../lib/api-address'
+import { FavoriteButton } from '../../../components/favorite-button'
+import { AddToCartButton } from '../../../components/add-to-cart-button'
+import { ProductAvailabilityBadge } from '../../../components/product-availability-badge'
 
 interface CategoryPageData {
   category: Category

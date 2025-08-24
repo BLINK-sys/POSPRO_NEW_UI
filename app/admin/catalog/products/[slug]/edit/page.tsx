@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation"
-import { getProductBySlug } from "@/app/actions/products"
-import { getCategories } from "@/app/actions/categories"
-import { getBrands, getStatuses } from "@/app/actions/meta"
-import { ProductEditPage } from "@/components/product-edit-page"
+import { getProductBySlug } from '../../../../../../app/actions/products'
+import { getCategories } from '../../../../../../app/actions/categories'
+import { getBrands, getStatuses } from '../../../../../../app/actions/meta'
+import { ProductEditPage } from '../../../../../../components/product-edit-page'
 
 interface ProductEditPageProps {
   params: {

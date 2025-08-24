@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import type { Client, UserActionState } from "@/app/actions/users"
-import { saveClient } from "@/app/actions/users"
-import { Button } from "@/components/ui/button"
+import type { Client, UserActionState } from '../app/actions/users'
+import { saveClient } from '../app/actions/users'
+import { Button } from '../components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,11 +11,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useToast } from "@/components/ui/use-toast"
+} from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group'
+import { useToast } from '../components/ui/use-toast'
 
 interface ClientEditDialogProps {
   client?: Client | null

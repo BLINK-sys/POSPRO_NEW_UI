@@ -2,13 +2,13 @@
 
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
-import { getApiUrl } from "@/lib/api-address"
-import { API_ENDPOINTS } from "@/lib/api-endpoints"
+import { getApiUrl } from '../../lib/api-address'
+import { API_ENDPOINTS } from '../../lib/api-endpoints'
 import { 
   HomepageBlock, 
   CreateHomepageBlockData, 
   UpdateHomepageBlockData 
-} from "@/lib/constants"
+} from '../../lib/constants'
 
 interface ActionState {
   error?: string

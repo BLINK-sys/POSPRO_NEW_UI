@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { Heart } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/hooks/use-toast"
-import { toggleFavorite, checkFavoriteStatus } from "@/app/actions/favorites"
-import { useAuth } from "@/context/auth-context"
+import { Button } from '../components/ui/button'
+import { useToast } from '../hooks/use-toast'
+import { toggleFavorite, checkFavoriteStatus } from '../app/actions/favorites'
+import { useAuth } from '../context/auth-context'
 
 interface FavoriteButtonProps {
   productId: number

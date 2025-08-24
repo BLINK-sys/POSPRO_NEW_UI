@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { ScrollArea } from '../components/ui/scroll-area'
 import { Search } from "lucide-react"
-import { type Category } from "@/app/actions/categories"
+import { type Category } from '../app/actions/categories'
 import { CategoryTreeSelector } from "./category-tree-selector"
 
 interface ParentCategoryDialogProps {

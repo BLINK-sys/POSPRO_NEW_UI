@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Button } from '../components/ui/button'
 import { 
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '../components/ui/select'
 import { Search, Filter } from 'lucide-react'
 import { AdminOrdersTable } from './admin-orders-table'
 import { 
@@ -21,7 +21,7 @@ import {
   AdminOrder, 
   Manager, 
   OrderStatus 
-} from '@/app/actions/admin-orders'
+} from '../app/actions/admin-orders'
 
 interface AdminOrdersTabsProps {
   managers: Manager[]

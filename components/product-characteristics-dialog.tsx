@@ -11,7 +11,7 @@ import {
   addCharacteristic,
   deleteCharacteristic,
   reorderCharacteristics,
-} from "@/app/actions/products"
+} from '../app/actions/products'
 import {
   Dialog,
   DialogContent,
@@ -19,10 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { useToast } from "@/components/ui/use-toast"
+} from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { useToast } from '../components/ui/use-toast'
 import { Loader2, Plus, Trash2, GripVertical, Edit, Check, X } from "lucide-react"
 
 interface ProductCharacteristicsDialogProps {

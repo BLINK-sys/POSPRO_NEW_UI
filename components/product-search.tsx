@@ -2,16 +2,16 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { Search, X, Loader2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Input } from '../components/ui/input'
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import Image from "next/image"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
-import { ProductData, getAllProducts, searchProducts } from "@/app/actions/public"
-import { API_BASE_URL } from "@/lib/api-address"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
+import { cn } from '../lib/utils'
+import { ProductData, getAllProducts, searchProducts } from '../app/actions/public'
+import { API_BASE_URL } from '../lib/api-address'
+import { ProductAvailabilityBadge } from '../components/product-availability-badge'
 
 interface ProductSearchProps {
   className?: string

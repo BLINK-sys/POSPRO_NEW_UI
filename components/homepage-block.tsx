@@ -3,16 +3,16 @@
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
 import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
-import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
-import { API_BASE_URL } from "@/lib/api-address"
-import { getIcon } from "@/lib/icon-mapping"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
+import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from '../app/actions/public'
+import { API_BASE_URL } from '../lib/api-address'
+import { getIcon } from '../lib/icon-mapping'
+import { FavoriteButton } from '../components/favorite-button'
+import { AddToCartButton } from '../components/add-to-cart-button'
+import { ProductAvailabilityBadge } from '../components/product-availability-badge'
 
 interface HomepageBlockComponentProps {
   block: HomepageBlock

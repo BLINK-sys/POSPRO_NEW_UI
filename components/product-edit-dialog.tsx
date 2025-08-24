@@ -8,18 +8,18 @@ import {
   deleteProductDraft,
   finalizeProduct,
   updateProduct,
-} from "@/app/actions/products"
-import type { Category } from "@/app/actions/categories"
-import type { Brand, Status } from "@/app/actions/meta"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardDescription, CardHeader } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
+} from '../app/actions/products'
+import type { Category } from '../app/actions/categories'
+import type { Brand, Status } from '../app/actions/meta'
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Switch } from '../components/ui/switch'
+import { Card, CardDescription, CardHeader } from '../components/ui/card'
+import { useToast } from '../components/ui/use-toast'
 import { Loader2, List, ImageIcon, FileText, ChevronsUpDown } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"

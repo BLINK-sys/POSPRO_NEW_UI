@@ -1,8 +1,8 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { getApiUrl } from "@/lib/api-address"
-import { API_ENDPOINTS } from "@/lib/api-endpoints"
+import { getApiUrl } from '../../lib/api-address'
+import { API_ENDPOINTS } from '../../lib/api-endpoints'
 
 export interface Product {
   id: number

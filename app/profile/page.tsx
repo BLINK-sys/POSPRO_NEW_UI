@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getProfile } from "@/app/actions/auth"
-import { ProfileForm } from "@/components/profile-form"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { getProfile } from '../../app/actions/auth'
+import { ProfileForm } from '../../components/profile-form'
 
 export default async function ProfilePage() {
   const user = await getProfile()

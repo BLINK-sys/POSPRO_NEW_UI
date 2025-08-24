@@ -1,6 +1,6 @@
-import { AdminOrdersTabs } from "@/components/admin-orders-tabs"
-import { getManagers } from "@/app/actions/admin-orders"
-import { getOrderStatuses } from "@/app/actions/order-statuses"
+import { AdminOrdersTabs } from '../../../components/admin-orders-tabs'
+import { getManagers } from '../../../app/actions/admin-orders'
+import { getOrderStatuses } from '../../../app/actions/order-statuses'
 
 export default async function OrdersPage() {
   // Загружаем только справочные данные

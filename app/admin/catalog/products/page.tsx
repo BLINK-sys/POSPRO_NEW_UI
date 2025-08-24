@@ -1,8 +1,8 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ProductsTable } from "@/components/products-table"
-import { getProducts } from "@/app/actions/products"
-import { getCategories } from "@/app/actions/categories"
-import { getBrands, getStatuses } from "@/app/actions/meta"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card'
+import { ProductsTable } from '../../../../components/products-table'
+import { getProducts } from '../../../../app/actions/products'
+import { getCategories } from '../../../../app/actions/categories'
+import { getBrands, getStatuses } from '../../../../app/actions/meta'
 
 interface ProductsPageProps {
   isSidebarCollapsed?: boolean

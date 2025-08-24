@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
+import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs'
+import { Separator } from '../../../components/ui/separator'
 import { 
   ArrowLeft, 
   Package, 
@@ -19,14 +19,14 @@ import {
   Play,
   Image as ImageIcon
 } from "lucide-react"
-import { getProductBySlug } from "@/app/actions/products"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
-import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/actions/public"
+import { getProductBySlug } from '../../../app/actions/products'
+import { FavoriteButton } from '../../../components/favorite-button'
+import { AddToCartButton } from '../../../components/add-to-cart-button'
+import { ProductAvailabilityBadge } from '../../../components/product-availability-badge'
+import { getProductAvailabilityStatus, ProductAvailabilityStatus } from '../../../app/actions/public'
 import Image from "next/image"
 import Link from "next/link"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../../../lib/api-address'
 
 interface ProductDetail {
   id: number

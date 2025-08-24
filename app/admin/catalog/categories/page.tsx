@@ -1,6 +1,6 @@
-import { getCategories } from "@/app/actions/categories"
-import { CategoryList } from "@/components/category-list"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCategories } from '../../../../app/actions/categories'
+import { CategoryList } from '../../../../components/category-list'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card'
 
 export default async function CategoriesPage() {
   const initialCategories = await getCategories()

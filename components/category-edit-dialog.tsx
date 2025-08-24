@@ -11,16 +11,16 @@ import {
   deleteCategoryImage,
   setCategoryImageUrl,
   getCategories,
-} from "@/app/actions/categories"
-import { API_BASE_URL } from "@/lib/api-address"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useToast } from "@/components/ui/use-toast"
+} from '../app/actions/categories'
+import { API_BASE_URL } from '../lib/api-address'
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group'
+import { useToast } from '../components/ui/use-toast'
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ChevronDown } from "lucide-react"
 

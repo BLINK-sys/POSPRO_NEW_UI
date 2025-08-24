@@ -1,7 +1,7 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import type { ProductAvailabilityStatus } from "@/app/actions/public"
+import { Badge } from '../components/ui/badge'
+import type { ProductAvailabilityStatus } from '../app/actions/public'
 
 interface ProductAvailabilityBadgeProps {
   availabilityStatus: ProductAvailabilityStatus | null

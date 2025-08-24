@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
 import { Plus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -18,8 +18,8 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { SortableBannerItem } from "./sortable-banner-item"
 import BannerEditDialog from "./banner-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
-import { apiClient } from "@/lib/api-client"
-import { API_ENDPOINTS } from "@/lib/api-endpoints"
+import { apiClient } from '../lib/api-client'
+import { API_ENDPOINTS } from '../lib/api-endpoints'
 
 export interface Banner {
   id: number

@@ -1,6 +1,6 @@
 "use server"
 
-import { getApiUrl } from "@/lib/api-address"
+import { getApiUrl } from '../../lib/api-address'
 
 // Типы данных
 export interface PublicHomepageData {

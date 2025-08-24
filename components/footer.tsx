@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Instagram, Send, MessageCircle, Loader2 } from "lucide-react"
-import { getFooterSettings, FooterSettings } from "@/app/actions/public"
+import { getFooterSettings, FooterSettings } from '../app/actions/public'
 
 export default function Footer() {
   const [settings, setSettings] = useState<FooterSettings | null>(null)

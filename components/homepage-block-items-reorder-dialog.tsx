@@ -1,18 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { ScrollArea } from '../components/ui/scroll-area'
 import { GripVertical, Package, Tag, Star, Info, Grid3X3, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from '../hooks/use-toast'
 import Image from "next/image"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../lib/api-address'
 import { 
   HOMEPAGE_BLOCK_TYPES, 
   HOMEPAGE_BLOCK_TYPE_LABELS, 
   HomepageBlock 
-} from "@/lib/constants"
+} from '../lib/constants'
 import {
   DndContext,
   closestCenter,
@@ -32,12 +32,12 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
-import { getBrands } from "@/app/actions/brands"
-import { getBenefits } from "@/app/actions/benefits"
-import { getSmallBanners } from "@/app/actions/small-banners"
-import { reorderHomepageBlockItems } from "@/app/actions/homepage-blocks"
+import { getCategories } from '../app/actions/categories'
+import { getProducts } from '../app/actions/products'
+import { getBrands } from '../app/actions/brands'
+import { getBenefits } from '../app/actions/benefits'
+import { getSmallBanners } from '../app/actions/small-banners'
+import { reorderHomepageBlockItems } from '../app/actions/homepage-blocks'
 
 interface HomepageBlockItemsReorderDialogProps {
   block: HomepageBlock | null

@@ -1,23 +1,23 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Switch } from '../components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Loader2, Plus } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from '../hooks/use-toast'
 import { 
   HOMEPAGE_BLOCK_TYPES, 
   HOMEPAGE_BLOCK_TYPE_LABELS, 
   TITLE_ALIGN_OPTIONS,
   HomepageBlock, 
   CreateHomepageBlockData 
-} from "@/lib/constants"
-import { createHomepageBlock, updateHomepageBlock } from "@/app/actions/homepage-blocks"
-import { Badge } from "@/components/ui/badge"
+} from '../lib/constants'
+import { createHomepageBlock, updateHomepageBlock } from '../app/actions/homepage-blocks'
+import { Badge } from '../components/ui/badge'
 import { ElementsSelectionDialog } from "./elements-selection-dialog"
 import { SelectedElementsDisplay } from "./selected-elements-display"
 

@@ -3,22 +3,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { type Product, deleteProduct, type ProductActionState } from "@/app/actions/products"
-import type { Category } from "@/app/actions/categories"
-import type { Brand, Status } from "@/app/actions/meta"
-import { API_BASE_URL } from "@/lib/api-address"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { type Product, deleteProduct, type ProductActionState } from '../app/actions/products'
+import type { Category } from '../app/actions/categories'
+import type { Brand, Status } from '../app/actions/meta'
+import { API_BASE_URL } from '../lib/api-address'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '../components/ui/dropdown-menu'
 import {
   Pagination,
   PaginationContent,
@@ -27,7 +27,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
+} from '../components/ui/pagination'
 import { MoreHorizontal, PlusCircle, Search, Filter } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"

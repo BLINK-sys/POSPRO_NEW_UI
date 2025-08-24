@@ -3,15 +3,15 @@
 import type React from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Card, CardContent, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardTitle } from '../components/ui/card'
+import { Button } from '../components/ui/button'
 import {
   Edit,
   Trash2,
   GripVertical,
 } from "lucide-react"
 import type { Benefit } from "./benefits-tab"
-import { getIcon } from "@/lib/icon-mapping"
+import { getIcon } from '../lib/icon-mapping'
 
 interface SortableBenefitItemProps {
   benefit: Benefit

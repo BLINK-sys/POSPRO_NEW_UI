@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../../lib/api-address'
 const API_URL = `${API_BASE_URL}/api/admin/banners`
 
 export interface Banner {

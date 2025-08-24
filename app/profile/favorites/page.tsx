@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { getFavorites, type Favorite } from "@/app/actions/favorites"
-import { FavoritesGrid } from "@/components/favorites-grid"
-import { useAuth } from "@/context/auth-context"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../components/ui/card'
+import { getFavorites, type Favorite } from '../../../app/actions/favorites'
+import { FavoritesGrid } from '../../../components/favorites-grid'
+import { useAuth } from '../../../context/auth-context'
 import { useRouter } from "next/navigation"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
+import { Skeleton } from '../../../components/ui/skeleton'
+import { Button } from '../../../components/ui/button'
 import { RefreshCw } from "lucide-react"
 
 export default function ProfileFavoritesPage() {

@@ -1,7 +1,7 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { Brand, Status } from "@/app/actions/meta"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import type { Brand, Status } from '../app/actions/meta'
 import { BrandsList } from "./brands-list"
 import { StatusesList } from "./statuses-list"
 import { OrderStatusesTab } from "./order-statuses-tab"

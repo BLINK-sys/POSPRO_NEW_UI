@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import { ChevronRight, ChevronDown, Check } from "lucide-react"
-import { type Category } from "@/app/actions/categories"
-import { cn } from "@/lib/utils"
+import { type Category } from '../app/actions/categories'
+import { cn } from '../lib/utils'
 
 interface CategoryTreeSelectorProps {
   categories: Category[]

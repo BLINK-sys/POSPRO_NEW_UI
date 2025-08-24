@@ -1,8 +1,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { getCartCount } from '@/app/actions/cart'
-import { useAuth } from '@/context/auth-context'
+import { getCartCount } from '../app/actions/cart'
+import { useAuth } from '../context/auth-context'
 
 interface CartContextType {
   cartCount: number

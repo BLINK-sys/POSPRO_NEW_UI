@@ -3,14 +3,14 @@
 import type React from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
 import {
   Edit,
   Trash2,
   GripVertical,
 } from "lucide-react"
-import type { ProductAvailabilityStatus } from "@/app/actions/product-availability-statuses"
+import type { ProductAvailabilityStatus } from '../app/actions/product-availability-statuses'
 
 interface SortableProductAvailabilityStatusItemProps {
   status: ProductAvailabilityStatus

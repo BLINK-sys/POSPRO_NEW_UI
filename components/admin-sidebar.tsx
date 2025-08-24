@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Button } from "@/components/ui/button"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion'
+import { Button } from '../components/ui/button'
 import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Store, Tags, FileText, LogOut } from "lucide-react"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/context/auth-context"
+import { cn } from '../lib/utils'
+import { useAuth } from '../context/auth-context'
 
 interface AdminSidebarProps {
   isCollapsed: boolean

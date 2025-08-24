@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import type { SystemUser } from "@/app/actions/users"
-import { deleteSystemUser } from "@/app/actions/users"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+import type { SystemUser } from '../app/actions/users'
+import { deleteSystemUser } from '../app/actions/users'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { Button } from '../components/ui/button'
 import { MoreHorizontal, PlusCircle } from "lucide-react"
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '../components/ui/dropdown-menu'
 import { SystemUserEditDialog } from "./system-user-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"

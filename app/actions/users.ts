@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../../lib/api-address'
 
 interface ActionState {
   error?: string

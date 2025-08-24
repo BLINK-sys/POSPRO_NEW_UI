@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { useToast } from "@/components/ui/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useToast } from '../components/ui/use-toast'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
 import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus } from "lucide-react"
 import {
   getDocuments,
@@ -19,7 +19,7 @@ import {
   deleteDriver,
   type Document,
   type Driver,
-} from "@/app/actions/products"
+} from '../app/actions/products'
 
 interface ProductDocumentsDriversDialogProps {
   productId: number

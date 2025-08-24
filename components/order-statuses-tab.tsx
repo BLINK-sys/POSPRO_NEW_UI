@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
+import { Switch } from '../components/ui/switch'
+import { Badge } from '../components/ui/badge'
+import { Skeleton } from '../components/ui/skeleton'
 import { 
   Dialog, 
   DialogContent, 
@@ -17,7 +17,7 @@ import {
   DialogHeader, 
   DialogTitle,
   DialogTrigger 
-} from '@/components/ui/dialog'
+} from '../components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,13 +27,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from '../components/ui/alert-dialog'
 import { Plus, Edit, Trash2, GripVertical } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '../hooks/use-toast'
 import { 
   getOrderStatuses, 
   createOrderStatus, 
@@ -41,8 +41,8 @@ import {
   deleteOrderStatus,
   type OrderStatus,
   type CreateOrderStatusData
-} from '@/app/actions/order-statuses'
-import { reorderOrderStatuses } from '@/app/actions/order-statuses-reorder'
+} from '../app/actions/order-statuses'
+import { reorderOrderStatuses } from '../app/actions/order-statuses-reorder'
 
 // Компонент для сортируемого элемента статуса заказа
 interface SortableOrderStatusItemProps {

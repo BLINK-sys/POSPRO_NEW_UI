@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import type { SystemUser, UserActionState } from "@/app/actions/users"
-import { saveSystemUser } from "@/app/actions/users"
-import { Button } from "@/components/ui/button"
+import type { SystemUser, UserActionState } from '../app/actions/users'
+import { saveSystemUser } from '../app/actions/users'
+import { Button } from '../components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,11 +11,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { useToast } from "@/components/ui/use-toast"
+} from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Checkbox } from '../components/ui/checkbox'
+import { useToast } from '../components/ui/use-toast'
 
 interface SystemUserEditDialogProps {
   user?: SystemUser | null

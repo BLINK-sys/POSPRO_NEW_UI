@@ -2,11 +2,11 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { cn } from "@/lib/utils"
-import { AuthProvider } from "@/context/auth-context"
-import { CartProvider } from "@/context/cart-context"
+import { cn } from '../lib/utils'
+import { AuthProvider } from '../context/auth-context'
+import { CartProvider } from '../context/cart-context'
 import { getProfile } from "./actions/auth"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from '../components/ui/toaster'
 import ConditionalLayout from "./conditional-layout"
 
 const inter = Inter({ subsets: ["latin"] })

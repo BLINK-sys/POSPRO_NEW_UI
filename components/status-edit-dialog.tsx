@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { saveStatus, type Status, type MetaActionState } from "@/app/actions/meta"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { saveStatus, type Status, type MetaActionState } from '../app/actions/meta'
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { useToast } from '../components/ui/use-toast'
 
 interface StatusEditDialogProps {
   status?: Status | null

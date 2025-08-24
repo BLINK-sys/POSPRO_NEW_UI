@@ -4,8 +4,8 @@ import { useState, useCallback } from "react"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import type { DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { type Category, reorderCategories, getCategories } from "@/app/actions/categories"
-import { Button } from "@/components/ui/button"
+import { type Category, reorderCategories, getCategories } from '../app/actions/categories'
+import { Button } from '../components/ui/button'
 import { PlusCircle } from "lucide-react"
 import { CategoryTreeItem } from "./category-tree-item"
 import { CategoryEditDialog } from "./category-edit-dialog"

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Truck, Shield, Clock, Headphones } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import BenefitsTab from "./benefits-tab"
 import SmallBannersTab from "./small-banners-tab"
 

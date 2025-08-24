@@ -10,21 +10,21 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu"
-import { Button } from "@/components/ui/button"
+} from '../components/ui/navigation-menu'
+import { Button } from '../components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
+} from '../components/ui/dropdown-menu'
 import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/context/auth-context"
-import { useCart } from "@/context/cart-context"
-import { getPublicCategories, CategoryData } from "@/app/actions/public"
-import { API_BASE_URL } from "@/lib/api-address"
+import { cn } from '../lib/utils'
+import { useAuth } from '../context/auth-context'
+import { useCart } from '../context/cart-context'
+import { getPublicCategories, CategoryData } from '../app/actions/public'
+import { API_BASE_URL } from '../lib/api-address'
 import ProductSearch from "./product-search"
 
 export default function Header() {

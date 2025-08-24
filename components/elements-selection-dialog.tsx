@@ -1,27 +1,27 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Checkbox } from '../components/ui/checkbox'
+import { ScrollArea } from '../components/ui/scroll-area'
+import { Badge } from '../components/ui/badge'
 import { Loader2, Search, ChevronRight, ChevronDown, Check } from "lucide-react"
-import { getIcon } from "@/lib/icon-mapping"
-import { useToast } from "@/hooks/use-toast"
+import { getIcon } from '../lib/icon-mapping'
+import { useToast } from '../hooks/use-toast'
 import Image from "next/image"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../lib/api-address'
 import { 
   HOMEPAGE_BLOCK_TYPES, 
   HOMEPAGE_BLOCK_TYPE_LABELS 
-} from "@/lib/constants"
-import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
-import { getBrands } from "@/app/actions/brands"
-import { getBenefits } from "@/app/actions/benefits"
-import { getSmallBanners } from "@/app/actions/small-banners"
-import { cn } from "@/lib/utils"
+} from '../lib/constants'
+import { getCategories } from '../app/actions/categories'
+import { getProducts } from '../app/actions/products'
+import { getBrands } from '../app/actions/brands'
+import { getBenefits } from '../app/actions/benefits'
+import { getSmallBanners } from '../app/actions/small-banners'
+import { cn } from '../lib/utils'
 
 interface ElementsSelectionDialogProps {
   open: boolean

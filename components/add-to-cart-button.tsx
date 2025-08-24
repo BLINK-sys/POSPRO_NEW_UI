@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '../components/ui/button'
 import { ShoppingCart, Loader2 } from 'lucide-react'
-import { addToCart } from '@/app/actions/cart'
-import { useToast } from '@/hooks/use-toast'
-import { useAuth } from '@/context/auth-context'
-import { useCart } from '@/context/cart-context'
+import { addToCart } from '../app/actions/cart'
+import { useToast } from '../hooks/use-toast'
+import { useAuth } from '../context/auth-context'
+import { useCart } from '../context/cart-context'
 import { useRouter } from 'next/navigation'
 
 interface AddToCartButtonProps {

@@ -3,8 +3,8 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { API_ENDPOINTS } from "@/lib/api-endpoints"
-import { getApiUrl } from "@/lib/api-address"
+import { API_ENDPOINTS } from '../../lib/api-endpoints'
+import { getApiUrl } from '../../lib/api-address'
 
 interface ActionState {
   error?: string

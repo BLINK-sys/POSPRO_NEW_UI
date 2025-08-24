@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { type Status, deleteStatus } from "@/app/actions/meta"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { type Status, deleteStatus } from '../app/actions/meta'
+import { Card } from '../components/ui/card'
+import { Button } from '../components/ui/button'
 import { StatusEditDialog } from "./status-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"

@@ -1,4 +1,4 @@
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card'
 import { DollarSign, Users, CreditCard, Activity } from "lucide-react"
 
 export default function AdminDashboardPage() {

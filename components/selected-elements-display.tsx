@@ -1,25 +1,25 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import { ScrollArea } from '../components/ui/scroll-area'
 import React from "react"
 import { Loader2, X } from "lucide-react"
-import { getIcon } from "@/lib/icon-mapping"
-import { useToast } from "@/hooks/use-toast"
+import { getIcon } from '../lib/icon-mapping'
+import { useToast } from '../hooks/use-toast'
 import Image from "next/image"
-import { API_BASE_URL } from "@/lib/api-address"
+import { API_BASE_URL } from '../lib/api-address'
 import { 
   HOMEPAGE_BLOCK_TYPES, 
   HOMEPAGE_BLOCK_TYPE_LABELS 
-} from "@/lib/constants"
-import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
-import { getBrands } from "@/app/actions/brands"
-import { getBenefits } from "@/app/actions/benefits"
-import { getSmallBanners } from "@/app/actions/small-banners"
-import { cn } from "@/lib/utils"
+} from '../lib/constants'
+import { getCategories } from '../app/actions/categories'
+import { getProducts } from '../app/actions/products'
+import { getBrands } from '../app/actions/brands'
+import { getBenefits } from '../app/actions/benefits'
+import { getSmallBanners } from '../app/actions/small-banners'
+import { cn } from '../lib/utils'
 
 interface SelectedElementsDisplayProps {
   blockType: string

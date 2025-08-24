@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { logoutAction } from "@/app/actions/auth"
+import { logoutAction } from '../app/actions/auth'
 
 interface User {
   id: number

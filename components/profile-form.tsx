@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { updateProfileAction } from "@/app/actions/auth"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { updateProfileAction } from '../app/actions/auth'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { useToast } from '../components/ui/use-toast'
 
 // Определяем тип для начальных данных
 interface UserProfile {

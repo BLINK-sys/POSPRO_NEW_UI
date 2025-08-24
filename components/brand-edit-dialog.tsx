@@ -4,15 +4,15 @@ import type React from "react"
 
 import { useState, useEffect, useTransition } from "react"
 import Image from "next/image"
-import { saveBrand, uploadBrandImage, type Brand } from "@/app/actions/meta"
-import { API_BASE_URL } from "@/lib/api-address"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { saveBrand, uploadBrandImage, type Brand } from '../app/actions/meta'
+import { API_BASE_URL } from '../lib/api-address'
+import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
+import { useToast } from '../components/ui/use-toast'
+import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group'
 import { Trash2 } from "lucide-react"
 
 type ImageSource = "url" | "upload"

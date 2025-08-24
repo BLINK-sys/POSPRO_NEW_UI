@@ -8,17 +8,17 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
+} from '../components/ui/table'
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import { Label } from '../components/ui/label'
 import { 
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '../components/ui/select'
 import { 
   Dialog,
   DialogContent,
@@ -26,11 +26,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
+} from '../components/ui/dialog'
 import { Eye, UserCheck, CreditCard, Package } from 'lucide-react'
 import Image from 'next/image'
-import { API_BASE_URL } from '@/lib/api-address'
-import { useToast } from '@/hooks/use-toast'
+import { API_BASE_URL } from '../lib/api-address'
+import { useToast } from '../hooks/use-toast'
 import { 
   AdminOrder, 
   Manager, 
@@ -46,7 +46,7 @@ import {
   getCompletedOrders,
   acceptOrder,
   transferOrder
-} from '@/app/actions/admin-orders'
+} from '../app/actions/admin-orders'
 
 interface AdminOrdersTableProps {
   initialOrders: AdminOrder[]

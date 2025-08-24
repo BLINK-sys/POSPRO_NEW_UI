@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react"
 import Image from "next/image"
-import { type Brand, deleteBrand } from "@/app/actions/meta"
-import { getImageUrl } from "@/lib/constants"
-import { Button } from "@/components/ui/button"
+import { type Brand, deleteBrand } from '../app/actions/meta'
+import { getImageUrl } from '../lib/constants'
+import { Button } from '../components/ui/button'
 import { PlusCircle, Edit, Trash2 } from "lucide-react"
 import { BrandEditDialog } from "./brand-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"

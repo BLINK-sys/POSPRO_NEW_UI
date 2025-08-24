@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
+import { Button } from '../components/ui/button'
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { Banner } from "@/app/actions/public"
-import { API_BASE_URL } from "@/lib/api-address"
+import { Banner } from '../app/actions/public'
+import { API_BASE_URL } from '../lib/api-address'
 
 interface HomepageBannerProps {
   banners: Banner[]
