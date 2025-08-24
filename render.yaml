@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: pospro-shop-ui
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://pospro-new-server.onrender.com
+      - key: PORT
+        value: 10000
