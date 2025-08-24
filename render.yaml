@@ -12,3 +12,5 @@ services:
         value: https://pospro-new-server.onrender.com
       - key: PORT
         value: 10000
+      - key: NODE_VERSION
+        value: 18.17.0

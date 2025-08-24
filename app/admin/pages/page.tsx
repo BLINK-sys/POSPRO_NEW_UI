@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import PagesManagementTabs from "@/components/pages-management-tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card"
+import PagesManagementTabs from "../../../components/pages-management-tabs"
 
 export default function PagesPage() {
   return (
