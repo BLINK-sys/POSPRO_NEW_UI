@@ -61,6 +61,8 @@
     "sonner": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.5",
     "typescript": "5.9.2",
     "@types/node": "22.17.2",
     "@types/react": "18.3.24",
@@ -69,7 +71,5 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "postcss": "^8.5",
-    "tailwindcss": "^3.4.17"
   }
 }
