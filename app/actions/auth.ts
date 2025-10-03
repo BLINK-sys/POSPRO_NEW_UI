@@ -110,6 +110,8 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
 export async function registerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const data = Object.fromEntries(formData.entries())
+    
+    console.log("Registration form data:", data)
 
     console.log("Attempting registration to:", getApiUrl(API_ENDPOINTS.AUTH.REGISTER))
 

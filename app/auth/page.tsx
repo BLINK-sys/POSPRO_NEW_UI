@@ -220,6 +220,9 @@ export default function AuthPage() {
             >
               <div className="pt-3">
                 <form id="register-form" action={handleRegister} className="space-y-4">
+                    {/* Скрытое поле для типа организации */}
+                    <input type="hidden" name="organizationType" value={organizationType} />
+                    
                     {/* Тип организации - на всю ширину */}
                     <div className="space-y-3 text-center">
                       <Label className="text-sm">Тип организации</Label>
