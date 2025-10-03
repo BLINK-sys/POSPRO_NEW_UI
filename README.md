@@ -42,10 +42,16 @@ yarn install
 pnpm install
 ```
 
-3. Настройте переменные окружения:
+3. Настройте переменные окружения (опционально):
 ```bash
-# Создайте файл .env.local
-NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+# Скопируйте пример файла
+cp env.local.example .env.local
+
+# Для локальной разработки (по умолчанию используется Render сервер)
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:5000
+
+# Для продакшена (по умолчанию)
+NEXT_PUBLIC_API_BASE_URL=https://pospro-new-server.onrender.com
 ```
 
 4. Запустите сервер разработки:
@@ -137,6 +143,8 @@ Frontend взаимодействует с backend API через:
 ## Переменные окружения
 
 - `NEXT_PUBLIC_API_BASE_URL` - Базовый URL backend API
+  - По умолчанию: `https://pospro-new-server.onrender.com`
+  - Для локальной разработки: `http://127.0.0.1:5000`
 
 ## Стилизация
 
@@ -150,9 +158,14 @@ Frontend взаимодействует с backend API через:
 
 ### На Render (статический сайт)
 
-1. Настройте переменную окружения `NEXT_PUBLIC_API_BASE_URL`
-2. Используйте команду сборки: `npm run build`
-3. Укажите папку публикации: `out`
+1. Создайте Static Site на Render
+2. Подключите репозиторий `POSPRO_NEW_UI`
+3. Настройте переменную окружения:
+   ```
+   NEXT_PUBLIC_API_BASE_URL=https://pospro-new-server.onrender.com
+   ```
+4. Build Command: `npm run build`
+5. Publish Directory: `out`
 
 ### На Vercel
 

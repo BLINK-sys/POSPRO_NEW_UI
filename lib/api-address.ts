@@ -1,5 +1,5 @@
 // Centralized API address configuration
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:5000"
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new-server.onrender.com"
 
 // Helper function to construct full API URLs
 export const getApiUrl = (endpoint: string): string => {
