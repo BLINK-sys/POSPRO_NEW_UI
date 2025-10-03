@@ -260,17 +260,18 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
     const file = e.target.files?.[0]
     if (!file) return
 
-    const formData = new FormData()
-    formData.append("product_id", String(productId))
-    formData.append("file", file)
-
     startTransition(async () => {
-      const result = await uploadProductFile(formData)
-      if (result.success) {
+      try {
+        await uploadProductFile(productId, file)
         toast({ title: "Файл загружен" })
         fetchMedia()
-      } else {
-        toast({ variant: "destructive", title: "Ошибка загрузки", description: result.error })
+      } catch (error) {
+        console.error("Error uploading file:", error)
+        toast({ 
+          variant: "destructive", 
+          title: "Ошибка загрузки", 
+          description: error instanceof Error ? error.message : "Не удалось загрузить файл" 
+        })
       }
     })
     e.target.value = "" // Reset file input
@@ -278,12 +279,17 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
 
   const handleDelete = (id: number) => {
     startTransition(async () => {
-      const result = await deleteMedia(id)
-      if (result.success) {
+      try {
+        await deleteMedia(productId, id)
         toast({ title: "Медиа удалено" })
         fetchMedia()
-      } else {
-        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      } catch (error) {
+        console.error("Error deleting media:", error)
+        toast({ 
+          variant: "destructive", 
+          title: "Ошибка", 
+          description: error instanceof Error ? error.message : "Не удалось удалить медиа" 
+        })
       }
     })
   }
