@@ -225,7 +225,7 @@ export async function finalizeProduct(id: number, data: Partial<Product>): Promi
     }
 
     const response = await fetch(getApiUrl(API_ENDPOINTS.PRODUCTS.FINALIZE(id)), {
-      method: "POST",
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
