@@ -9,6 +9,8 @@ import HomepageBlockComponent from "@/components/homepage-block"
 
 import HomepageBanner from "@/components/homepage-banner"
 
+export const dynamic = 'force-dynamic'
+
 // Компонент загрузки
 function LoadingSpinner() {
   return (

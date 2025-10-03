@@ -16,6 +16,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
 
+
 interface BrandPageData {
   brand: string
   products: ProductData[]

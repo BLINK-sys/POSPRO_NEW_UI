@@ -1,6 +1,8 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { DollarSign, Users, CreditCard, Activity } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
+
 export default function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-4">

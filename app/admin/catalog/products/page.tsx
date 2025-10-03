@@ -4,6 +4,8 @@ import { getProducts } from "@/app/actions/products"
 import { getCategories } from "@/app/actions/categories"
 import { getBrands, getStatuses } from "@/app/actions/meta"
 
+export const dynamic = 'force-dynamic'
+
 interface ProductsPageProps {
   isSidebarCollapsed?: boolean
 }

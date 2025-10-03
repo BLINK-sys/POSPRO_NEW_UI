@@ -14,6 +14,8 @@ import Link from "next/link"
 import Image from "next/image"
 import OrderCard from "@/components/order-card"
 
+export const dynamic = 'force-dynamic'
+
 interface OrderItem {
   id: number
   product_name: string

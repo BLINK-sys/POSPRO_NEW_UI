@@ -22,6 +22,7 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 
+
 interface CategoryPageData {
   category: Category
   subcategories: Category[]

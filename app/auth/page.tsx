@@ -11,6 +11,8 @@ import { loginAction, registerAction } from "@/app/actions/auth"
 import { useToast } from "@/components/ui/use-toast"
 import { motion, AnimatePresence } from "framer-motion"
 
+export const dynamic = 'force-dynamic'
+
 type OrganizationType = "individual" | "ip" | "too"
 type AuthMode = "login" | "register"
 

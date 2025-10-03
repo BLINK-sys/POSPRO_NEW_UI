@@ -2,6 +2,8 @@ import { getClients, getSystemUsers, getWholesaleClients } from "@/app/actions/u
 import { UserManagementTabs } from "@/components/user-management-tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+export const dynamic = 'force-dynamic'
+
 export default async function UsersPage() {
   // Запрашиваем данные параллельно для ускорения загрузки
   const [clients, systemUsers, wholesaleClients] = await Promise.all([
