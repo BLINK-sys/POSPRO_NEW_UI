@@ -402,6 +402,7 @@ export async function uploadProductFile(productId: number, file: File): Promise<
 
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("product_id", String(productId))
 
     const response = await fetch(getApiUrl(`/upload/upload_product`), {
       method: "POST",
