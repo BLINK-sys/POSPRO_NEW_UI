@@ -1,0 +1,157 @@
+```typescriptreact file="components/header.tsx"
+[v0-no-op-code-block-prefix]"use client"
+
+import React from "react"
+
+import Link from "next/link"
+import Image from "next/image"
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "@/components/ui/navigation-menu"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Search, User, ShoppingCart, Menu } from 'lucide-react'
+import { cn } from "@/lib/utils"
+
+const categories = [
+  {
+    title: "Электроника",
+    href: "/catalog/electronics",
+    description: "Смартфоны, ноутбуки, телевизоры и другая техника.",
+    subcategories: [
+      { title: "Смартфоны", href: "/catalog/electronics/smartphones" },
+      { title: "Ноутбуки", href: "/catalog/electronics/laptops" },
+      { title: "Аксессуары", href: "/catalog/electronics/accessories" },
+    ],
+  },
+  {
+    title: "Одежда",
+    href: "/catalog/clothing",
+    description: "Мужская, женская и детская одежда на любой сезон.",
+    subcategories: [
+      { title: "Мужская", href: "/catalog/clothing/men" },
+      { title: "Женская", href: "/catalog/clothing/women" },
+      { title: "Детская", href: "/catalog/clothing/kids" },
+    ],
+  },
+  {
+    title: "Дом и сад",
+    href: "/catalog/home-garden",
+    description: "Товары для уюта в вашем доме и красоты в саду.",
+    subcategories: [
+      { title: "Мебель", href: "/catalog/home-garden/furniture" },
+      { title: "Декор", href: "/catalog/home-garden/decor" },
+      { title: "Садовый инвентарь", href: "/catalog/home-garden/tools" },
+    ],
+  },
+]
+
+export default function Header() {
+  return (
+    <header className="bg-white dark:bg-gray-950 shadow-sm sticky top-0 z-50">
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="flex items-center justify-between h-20">
+          <Link href="/" className="flex items-center" prefetch={false}>
+            <Image src="/logo.png" alt="PosPro Logo" width={120} height={40} />
+          </Link>
+
+          <NavigationMenu className="hidden lg:flex">
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuTrigger className="bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 data-[active]:bg-yellow-500/90 data-[state=open]:bg-yellow-500/90">
+                  <Menu className="h-5 w-5 mr-2" />
+                  Каталог
+                </NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <div className="grid w-[600px] grid-cols-3 gap-4 p-4">
+                    {categories.map((category) => (
+                      <div key={category.title} className="flex flex-col">
+                        <NavigationMenuLink asChild>
+                          <Link href={category.href} className="font-bold text-lg mb-2 hover:text-brand-yellow">
+                            {category.title}
+                          </Link>
+                        </NavigationMenuLink>
+                        {category.subcategories.map((sub) => (
+                          <ListItem key={sub.title} href={sub.href} title={sub.title} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+
+          <div className="hidden md:flex flex-1 max-w-lg items-center">
+            <div className="relative w-full">
+              <Input type="search" placeholder="Я ищу..." className="w-full pl-10 rounded-lg" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <User className="h-6 w-6" />
+                  <span className="sr-only">Профиль</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <Link href="/profile/orders">Заказы</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Link href="/profile/settings">Настройки</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="ghost" size="icon" className="rounded-full relative">
+              <ShoppingCart className="h-6 w-6" />
+              <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                3
+              </span>
+              <span className="sr-only">Корзина</span>
+            </Button>
+
+            <Link href="/auth">
+              <Button className="hidden sm:inline-flex bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                Войти
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+const ListItem = (React as any).forwardRef<React.ElementRef<"a">, React.ComponentPropsWithoutRef<"a">>(
+  ({ className, title, children, ...props }, ref) => {
+    return (
+      <li>
+        <NavigationMenuLink asChild>
+          <a
+            ref={ref}
+            className={cn(
+              "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+              className,
+            )}
+            {...props}
+          >
+            <div className="text-sm font-medium leading-none">{title}</div>
+            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{children}</p>
+          </a>
+        </NavigationMenuLink>
+      </li>
+    )
+  },
+)
+ListItem.displayName = "ListItem"
