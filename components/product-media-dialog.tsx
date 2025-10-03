@@ -240,13 +240,18 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
     }
 
     startTransition(async () => {
-      const result = await addMediaByUrl(productId, { url: url.trim(), media_type: mediaType })
-      if (result.success) {
+      try {
+        await addMediaByUrl(productId, url.trim(), mediaType)
         toast({ title: "Медиа добавлено" })
         setUrl("")
         fetchMedia()
-      } else {
-        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      } catch (error) {
+        console.error("Error adding media:", error)
+        toast({ 
+          variant: "destructive", 
+          title: "Ошибка", 
+          description: error instanceof Error ? error.message : "Не удалось добавить медиа" 
+        })
       }
     })
   }

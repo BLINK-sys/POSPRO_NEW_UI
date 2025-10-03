@@ -654,6 +654,7 @@ export async function uploadDocumentFile(productId: number, file: File): Promise
 
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("product_id", String(productId))
 
     const response = await fetch(getApiUrl(`/upload/documents/upload`), {
       method: "POST",
@@ -746,6 +747,7 @@ export async function uploadDriverFile(productId: number, file: File): Promise<P
 
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("product_id", String(productId))
 
     const response = await fetch(getApiUrl(`/upload/drivers/upload`), {
       method: "POST",

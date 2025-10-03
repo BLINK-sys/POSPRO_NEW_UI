@@ -71,30 +71,27 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
     }
 
     startTransition(async () => {
-      const formData = new FormData()
-      formData.append("file", documentFile)
-      formData.append("product_id", String(productId))
+      try {
+        const result = await uploadDocumentFile(productId, documentFile)
 
-      const result = await uploadDocumentFile(formData)
-
-      if (result.success) {
+        // Обновляем только список документов
+        const updatedDocuments = await getDocuments(productId)
+        setDocuments(updatedDocuments)
+        
         toast({
           title: "Успех",
-          description: result.message || "Документ загружен",
+          description: "Документ загружен",
         })
         setDocumentFile(null)
         // Сбрасываем input
         const fileInput = document.getElementById("document-file") as HTMLInputElement
         if (fileInput) fileInput.value = ""
-
-        // Обновляем только список документов
-        const updatedDocuments = await getDocuments(productId)
-        setDocuments(updatedDocuments)
-      } else {
+      } catch (error) {
+        console.error("Error uploading document:", error)
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: result.error || "Не удалось загрузить документ",
+          description: error instanceof Error ? error.message : "Не удалось загрузить документ",
         })
       }
     })
@@ -111,30 +108,27 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
     }
 
     startTransition(async () => {
-      const formData = new FormData()
-      formData.append("file", driverFile)
-      formData.append("product_id", String(productId))
+      try {
+        const result = await uploadDriverFile(productId, driverFile)
 
-      const result = await uploadDriverFile(formData)
-
-      if (result.success) {
+        // Обновляем только список драйверов
+        const updatedDrivers = await getDrivers(productId)
+        setDrivers(updatedDrivers)
+        
         toast({
           title: "Успех",
-          description: result.message || "Драйвер загружен",
+          description: "Драйвер загружен",
         })
         setDriverFile(null)
         // Сбрасываем input
         const fileInput = document.getElementById("driver-file") as HTMLInputElement
         if (fileInput) fileInput.value = ""
-
-        // Обновляем только список драйверов
-        const updatedDrivers = await getDrivers(productId)
-        setDrivers(updatedDrivers)
-      } else {
+      } catch (error) {
+        console.error("Error uploading driver:", error)
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: result.error || "Не удалось загрузить драйвер",
+          description: error instanceof Error ? error.message : "Не удалось загрузить драйвер",
         })
       }
     })
