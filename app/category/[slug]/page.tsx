@@ -399,7 +399,7 @@ export default function CategoryPage() {
                               src={getImageUrl(product.image_url)}
                               alt={product.name}
                               fill
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              className="object-contain group-hover:scale-105 transition-transform duration-300"
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full">
@@ -501,7 +501,7 @@ export default function CategoryPage() {
                             src={getImageUrl(product.image_url)}
                             alt={product.name}
                             fill
-                            className="object-cover"
+                            className="object-contain"
                           />
                         ) : (
                           <div className="flex items-center justify-center h-full">

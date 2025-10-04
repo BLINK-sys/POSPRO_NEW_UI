@@ -209,7 +209,7 @@ export default function ProductSearch({
                                 src={getImageUrl(product.image_url)}
                                 alt={product.name}
                                 fill
-                                className="object-cover"
+                                className="object-contain"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement
                                   target.src = "/placeholder.svg"

@@ -154,7 +154,7 @@ export default function OrderCard({ order, onCancelOrder, isCancelling }: OrderC
                       src={getImageUrl(item.product.image_url)}
                       alt={item.product_name}
                       fill
-                      className="object-cover hover:opacity-80 transition-opacity cursor-pointer"
+                      className="object-contain hover:opacity-80 transition-opacity cursor-pointer"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer">
@@ -169,7 +169,7 @@ export default function OrderCard({ order, onCancelOrder, isCancelling }: OrderC
                       src={getImageUrl(item.product.image_url)}
                       alt={item.product_name}
                       fill
-                      className="object-cover"
+                      className="object-contain"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">

@@ -86,6 +86,7 @@ export default function ProductPage() {
   const [thumbnailErrors, setThumbnailErrors] = useState<Set<string>>(new Set())
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set())
   const [showBrandTooltip, setShowBrandTooltip] = useState(false)
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
   // Функция для получения правильного URL изображения
   const getImageUrl = (url: string | null | undefined): string => {
@@ -98,6 +99,7 @@ export default function ProductPage() {
     }
     
     if (url.startsWith("/uploads/")) {
+      // Сервер обслуживает файлы через /uploads/, а не /disk/
       return `${API_BASE_URL}${url}`
     }
     
@@ -110,6 +112,7 @@ export default function ProductPage() {
       return url
     }
     
+    // Сервер обслуживает файлы через /uploads/, а не /disk/
     return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`
   }
 
@@ -143,12 +146,19 @@ export default function ProductPage() {
       
       // Создаем скрытую ссылку для скачивания
       const link = document.createElement('a')
-      link.href = getFileUrl(url)
+      const fileUrl = getFileUrl(url)
+      link.href = fileUrl
       link.download = filename
       link.style.display = 'none'
       link.style.position = 'absolute'
       link.style.left = '-9999px'
       link.style.top = '-9999px'
+      
+      console.log('Downloading file:', {
+        originalUrl: url,
+        finalUrl: fileUrl,
+        filename: filename
+      })
       
       document.body.appendChild(link)
       link.click()
@@ -204,12 +214,11 @@ export default function ProductPage() {
 
         // Проверяем, доступен ли текущий активный таб
         const availableTabs = []
-        if (productData.description && productData.description.trim() !== '') availableTabs.push('description')
         if (productData.characteristics.length > 0) availableTabs.push('characteristics')
         if (productData.documents.length > 0) availableTabs.push('documents')
         if (productData.drivers.length > 0) availableTabs.push('drivers')
 
-        if (!availableTabs.includes(activeTab) && availableTabs.length > 0) {
+        if (availableTabs.length > 0) {
           setActiveTab(availableTabs[0]) // Первый доступный таб
         }
       } catch (err) {
@@ -282,11 +291,13 @@ export default function ProductPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Родительская карточка для всех элементов */}
+      <Card className="p-6 shadow-lg">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Левая колонка - Медиа */}
         <div className="space-y-4">
           {/* Основное медиа */}
-          <div className={`relative bg-gray-100 rounded-lg overflow-hidden transition-all duration-300 ${
+          <div className={`relative bg-white rounded-lg overflow-hidden transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.15)] ${
             activeMedia?.media_type === 'video' ? 'aspect-video' : 'aspect-square'
           }`}>
             {activeMedia ? (
@@ -295,7 +306,7 @@ export default function ProductPage() {
                   src={getImageUrl(activeMedia.url)}
                   alt={product.name}
                   fill
-                  className="object-cover"
+                  className="object-contain"
                 />
               ) : activeMedia.media_type === 'video' ? (
                 <div className="w-full h-full flex items-center justify-center bg-black">
@@ -369,8 +380,10 @@ export default function ProductPage() {
                 <button
                   key={media.id}
                   onClick={() => setActiveMediaIndex(index)}
-                  className={`aspect-square relative bg-gray-100 rounded-lg overflow-hidden border-2 transition-colors ${
-                    index === activeMediaIndex ? 'border-blue-500' : 'border-transparent'
+                  className={`aspect-square relative bg-white rounded-lg overflow-hidden transition-all duration-200 ${
+                    index === activeMediaIndex 
+                      ? 'shadow-[-4px_-4px_8px_rgba(0,0,0,0.1)]' 
+                      : 'shadow-[4px_4px_8px_rgba(0,0,0,0.1)] hover:shadow-[6px_6px_12px_rgba(0,0,0,0.15)]'
                   }`}
                 >
                   {media.media_type === 'image' ? (
@@ -378,7 +391,7 @@ export default function ProductPage() {
                       src={getImageUrl(media.url)}
                       alt={`${product.name} - изображение ${index + 1}`}
                       fill
-                      className="object-cover"
+                      className="object-contain"
                     />
                   ) : media.media_type === 'video' ? (
                     <div className="w-full h-full relative">
@@ -390,7 +403,7 @@ export default function ProductPage() {
                               src={getYouTubeThumbnail(media.url)}
                               alt="YouTube превью"
                               fill
-                              className="object-cover"
+                              className="object-contain"
                               onError={() => {
                                 setThumbnailErrors(prev => new Set(prev).add(media.url))
                               }}
@@ -422,247 +435,269 @@ export default function ProductPage() {
 
         {/* Правая колонка - Информация о товаре */}
         <div className="space-y-6">
-          {/* Основная информация о товаре */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                {/* Название товара */}
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 mb-4">{product.name}</h1>
-                </div>
+          {/* Название товара */}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">{product.name}</h1>
+          </div>
 
-                {/* Информация о товаре */}
-                <div className="space-y-3">
-                  {product.brand && product.brand !== 'no' && (
-                    <div className="text-sm text-gray-600 relative">
-                      <span className="font-medium">Бренд:</span>{" "}
-                      <Link
-                        href={`/brand/${encodeURIComponent(product.brand)}`}
-                        className="inline-block px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md shadow-sm hover:shadow-md transition-all duration-200 text-xs font-medium"
-                        onMouseEnter={() => setShowBrandTooltip(true)}
-                        onMouseLeave={() => setShowBrandTooltip(false)}
-                      >
-                        {product.brand}
-                      </Link>
-                      
-                      {/* Кастомная подсказка */}
-                      {showBrandTooltip && (
-                        <div className="absolute z-50 px-3 py-2 bg-white text-black text-xs rounded-lg shadow-lg border border-gray-200 -top-12 left-0 whitespace-nowrap">
-                          Посмотрите все товары бренда "{product.brand}"
-                          {/* Стрелка вниз */}
-                          <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {product.country && (
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Страна производитель:</span> {product.country}
-                    </div>
-                  )}
-                  
-                  {/* Статус наличия */}
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Наличие:</span>{" "}
-                    {product.availability_status ? (
-                      <span
-                        style={{
-                          backgroundColor: product.availability_status.background_color,
-                          color: product.availability_status.text_color,
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "12px",
-                          fontWeight: "500"
-                        }}
-                      >
-                        {product.availability_status.status_name}
-                      </span>
-                    ) : (
-                      <span>{product.quantity} шт.</span>
-                    )}
+          {/* Информация о товаре */}
+          <div className="space-y-3">
+            {product.brand && product.brand !== 'no' && (
+              <div className="text-sm text-gray-600 relative">
+                <span className="font-medium">Бренд:</span>{" "}
+                <Link
+                  href={`/brand/${encodeURIComponent(product.brand)}`}
+                  className="inline-block px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md shadow-sm hover:shadow-md transition-all duration-200 text-xs font-medium"
+                  onMouseEnter={() => setShowBrandTooltip(true)}
+                  onMouseLeave={() => setShowBrandTooltip(false)}
+                >
+                  {product.brand}
+                </Link>
+                
+                {/* Кастомная подсказка */}
+                {showBrandTooltip && (
+                  <div className="absolute z-50 px-3 py-2 bg-white text-black text-xs rounded-lg shadow-lg border border-gray-200 -top-12 left-0 whitespace-nowrap">
+                    Посмотрите все товары бренда "{product.brand}"
+                    {/* Стрелка вниз */}
+                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
                   </div>
-                </div>
-
-                {/* Цены */}
-                <div className="pt-2 border-t border-gray-200 space-y-2">
-                  {product.price > 0 && (
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
-                    </div>
-                  )}
-                  
-                  {product.wholesale_price && product.wholesale_price > 0 && (
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Оптовая цена:</span> {product.wholesale_price.toLocaleString()} тг
-                    </div>
-                  )}
-                </div>
-
-                {/* Кнопки действий */}
-                <div className="flex gap-3 pt-4">
-                  <AddToCartButton
-                    productId={product.id}
-                    productName={product.name}
-                    className="flex-1 bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-3 px-6 rounded-lg"
-                  >
-                    <ShoppingCart className="h-5 w-5 mr-2" />
-                    Добавить в корзину
-                  </AddToCartButton>
-                  
-                  <FavoriteButton
-                    productId={product.id}
-                    productName={product.name}
-                    className="flex-shrink-0 border border-gray-200 rounded-lg py-3 px-3"
-                    variant="ghost"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Табы с дополнительной информацией */}
-          {activeTabsCount > 0 ? (
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className={`grid w-full grid-cols-${Math.max(1, activeTabsCount)}`}>
-                {product.description && product.description.trim() !== '' && (
-                  <TabsTrigger value="description">Описание</TabsTrigger>
                 )}
+              </div>
+            )}
+            
+            {product.country && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Страна производитель:</span> {product.country}
+              </div>
+            )}
+            
+            {/* Статус наличия */}
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">Наличие:</span>{" "}
+              {product.availability_status ? (
+                <span
+                  style={{
+                    backgroundColor: product.availability_status.background_color,
+                    color: product.availability_status.text_color,
+                    padding: "4px 8px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: "500"
+                  }}
+                >
+                  {product.availability_status.status_name}
+                </span>
+              ) : (
+                <span>{product.quantity} шт.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Цены */}
+          <div className="pt-2 border-t border-gray-200 space-y-2">
+            {product.price > 0 && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
+              </div>
+            )}
+            
+            {product.wholesale_price && product.wholesale_price > 0 && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Оптовая цена:</span> {product.wholesale_price.toLocaleString()} тг
+              </div>
+            )}
+          </div>
+
+          {/* Описание товара */}
+          {product.description && product.description.trim() !== '' && (
+            <div className="pt-4 border-t border-gray-200">
+              <div className="relative">
+                <div 
+                  className={`text-gray-700 whitespace-pre-wrap transition-all duration-300 ${
+                    isDescriptionExpanded ? '' : 'max-h-24 overflow-hidden'
+                  }`}
+                >
+                  {product.description}
+                </div>
+                {!isDescriptionExpanded && product.description.length > 200 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent">
+                    <div className="flex justify-start items-end h-full pb-2 pl-0">
+                      <span
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        className="text-sm text-black hover:underline transition-colors font-medium cursor-pointer"
+                      >
+                        Показать описание полностью
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {isDescriptionExpanded && product.description.length > 200 && (
+                  <div className="flex justify-start mt-4">
+                    <span
+                      onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      className="text-sm text-black hover:underline transition-colors font-medium cursor-pointer"
+                    >
+                      Скрыть описание
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Кнопки действий */}
+          <div className="flex gap-3 pt-4">
+            <AddToCartButton
+              productId={product.id}
+              productName={product.name}
+              className="flex-1 bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-3 px-6 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <ShoppingCart className="h-5 w-5 mr-2" />
+              Добавить в корзину
+            </AddToCartButton>
+            
+            <FavoriteButton
+              productId={product.id}
+              productName={product.name}
+              className="flex-shrink-0 border border-gray-200 rounded-full p-3 shadow-md hover:shadow-lg transition-all duration-200"
+              variant="ghost"
+            />
+          </div>
+
+        </div>
+        </div>
+
+        {/* Табы с дополнительной информацией - внизу страницы */}
+        {activeTabsCount > 0 ? (
+          <div className="mt-8 pt-8 border-t border-gray-200">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-3 rounded-full shadow-md h-12 p-1">
                 {product.characteristics.length > 0 && (
-                  <TabsTrigger value="characteristics">Характеристики</TabsTrigger>
+                  <TabsTrigger value="characteristics" className="rounded-full data-[state=active]:shadow-md mx-1">Характеристики</TabsTrigger>
                 )}
                 {product.documents.length > 0 && (
-                  <TabsTrigger value="documents">Документы</TabsTrigger>
+                  <TabsTrigger value="documents" className="rounded-full data-[state=active]:shadow-md mx-1">Документы</TabsTrigger>
                 )}
                 {product.drivers.length > 0 && (
-                  <TabsTrigger value="drivers">Драйверы</TabsTrigger>
+                  <TabsTrigger value="drivers" className="rounded-full data-[state=active]:shadow-md mx-1">Драйверы</TabsTrigger>
                 )}
               </TabsList>
 
-            <TabsContent value="description" className="mt-4">
-              <Card>
-                <CardContent className="p-4">
-                  {product.description ? (
-                    <div className="prose max-w-none">
-                      <p className="text-gray-700 whitespace-pre-wrap">{product.description}</p>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 italic">Описание товара отсутствует</p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-
-
             <TabsContent value="characteristics" className="mt-4">
-              <Card>
-                <CardContent className="p-4">
-                  {product.characteristics.length > 0 ? (
-                    <div className="space-y-3">
-                      {product.characteristics
-                        .sort((a, b) => a.sort_order - b.sort_order)
-                        .map((char) => (
-                          <div key={char.id} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0">
-                            <span className="font-medium text-gray-700">{char.key}</span>
-                            <span className="text-gray-600">{char.value}</span>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 italic">Характеристики товара отсутствуют</p>
-                  )}
-                </CardContent>
-              </Card>
+              {product.characteristics.length > 0 ? (
+                <div className="relative">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                    {product.characteristics
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((char, index) => (
+                        <div key={char.id} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0">
+                          <span className="font-medium text-gray-700">{char.key}</span>
+                          <span className="text-gray-600">{char.value}</span>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gray-200 transform -translate-x-1/2"></div>
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">Характеристики товара отсутствуют</p>
+              )}
             </TabsContent>
 
             <TabsContent value="documents" className="mt-4">
-              <Card>
-                <CardContent className="p-4">
-                  {product.documents.length > 0 ? (
-                    <div className="space-y-3">
-                      {product.documents.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-gray-500" />
-                            <div>
-                              <p className="font-medium text-gray-900">{doc.filename}</p>
-                              <p className="text-sm text-gray-500">{doc.mime_type}</p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadFile(doc.url, doc.filename)}
-                            disabled={downloadingFiles.has(`${doc.url}-${doc.filename}`)}
-                          >
-                            {downloadingFiles.has(`${doc.url}-${doc.filename}`) ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                                Скачивание...
-                              </>
-                            ) : (
-                              <>
-                                <Download className="h-4 w-4 mr-2" />
-                                Скачать
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ))}
+              {product.documents.length > 0 ? (
+                <div className="space-y-3">
+                  {product.documents.map((doc) => (
+                    <div key={doc.id} className="flex items-start gap-4 p-4 bg-gray-100 rounded-lg shadow-md">
+                      {/* Черная карточка с логотипом - 20% ширины, 60% высоты */}
+                      <div className="w-1/5 bg-black rounded-lg flex items-center justify-center flex-shrink-0 relative shadow-md" style={{ height: '60%', aspectRatio: '5/3' }}>
+                        <Image
+                          src="/ui/for_docs_driver.png"
+                          alt="Document"
+                          fill
+                          className="object-contain p-6"
+                        />
+                      </div>
+                      
+                      {/* Информация о документе */}
+                      <div className="flex-1 flex flex-col">
+                        <p className="font-medium text-gray-900 text-lg mb-3">{doc.filename}</p>
+                        
+                        {/* Кнопка скачать под названием */}
+                        <Button
+                          onClick={() => downloadFile(doc.url, doc.filename)}
+                          disabled={downloadingFiles.has(`${doc.url}-${doc.filename}`)}
+                          className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200 self-start"
+                        >
+                          {downloadingFiles.has(`${doc.url}-${doc.filename}`) ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                              Скачивание...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-2" />
+                              Скачать
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-gray-500 italic">Документы отсутствуют</p>
-                  )}
-                </CardContent>
-              </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">Документы отсутствуют</p>
+              )}
             </TabsContent>
 
             <TabsContent value="drivers" className="mt-4">
-              <Card>
-                <CardContent className="p-4">
-                  {product.drivers.length > 0 ? (
-                    <div className="space-y-3">
-                      {product.drivers.map((driver) => (
-                        <div key={driver.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <Package className="h-5 w-5 text-gray-500" />
-                            <div>
-                              <p className="font-medium text-gray-900">{driver.filename}</p>
-                              <p className="text-sm text-gray-500">{driver.mime_type}</p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadFile(driver.url, driver.filename)}
-                            disabled={downloadingFiles.has(`${driver.url}-${driver.filename}`)}
-                          >
-                            {downloadingFiles.has(`${driver.url}-${driver.filename}`) ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                                Скачивание...
-                              </>
-                            ) : (
-                              <>
-                                <Download className="h-4 w-4 mr-2" />
-                                Скачать
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ))}
+              {product.drivers.length > 0 ? (
+                <div className="space-y-3">
+                  {product.drivers.map((driver) => (
+                    <div key={driver.id} className="flex items-start gap-4 p-4 bg-gray-100 rounded-lg shadow-md">
+                      {/* Черная карточка с логотипом - 20% ширины, 60% высоты */}
+                      <div className="w-1/5 bg-black rounded-lg flex items-center justify-center flex-shrink-0 relative shadow-md" style={{ height: '60%', aspectRatio: '5/3' }}>
+                        <Image
+                          src="/ui/for_docs_driver.png"
+                          alt="Driver"
+                          fill
+                          className="object-contain p-6"
+                        />
+                      </div>
+                      
+                      {/* Информация о драйвере */}
+                      <div className="flex-1 flex flex-col">
+                        <p className="font-medium text-gray-900 text-lg mb-3">{driver.filename}</p>
+                        
+                        {/* Кнопка скачать под названием */}
+                        <Button
+                          onClick={() => downloadFile(driver.url, driver.filename)}
+                          disabled={downloadingFiles.has(`${driver.url}-${driver.filename}`)}
+                          className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200 self-start"
+                        >
+                          {downloadingFiles.has(`${driver.url}-${driver.filename}`) ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                              Скачивание...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-2" />
+                              Скачать
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-gray-500 italic">Драйверы отсутствуют</p>
-                  )}
-                </CardContent>
-              </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">Драйверы отсутствуют</p>
+              )}
             </TabsContent>
           </Tabs>
-          ) : null}
-        </div>
-      </div>
+          </div>
+        ) : null}
+      </Card>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus } from "lucide-react"
 import { mediaApi } from "@/lib/api-client"
+import { API_BASE_URL } from "@/lib/api-address"
 
 type Document = {
   id: number
@@ -249,6 +250,51 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
     }
   }
 
+  // Функция для получения URL файла
+  const getFileUrl = (url: string): string => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url
+    }
+    
+    // Сервер обслуживает файлы через /uploads/, а не /disk/
+    return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`
+  }
+
+  // Функция для скачивания файлов
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      // Создаем скрытую ссылку для скачивания
+      const link = document.createElement('a')
+      const fileUrl = getFileUrl(url)
+      link.href = fileUrl
+      link.download = filename
+      link.style.display = 'none'
+      link.style.position = 'absolute'
+      link.style.left = '-9999px'
+      link.style.top = '-9999px'
+      
+      console.log('Downloading file:', {
+        originalUrl: url,
+        finalUrl: fileUrl,
+        filename: filename
+      })
+      
+      document.body.appendChild(link)
+      link.click()
+      
+      // Удаляем ссылку после небольшой задержки
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link)
+        }
+      }, 1000)
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error)
+      // Fallback: открываем в новой вкладке
+      window.open(getFileUrl(url), '_blank', 'noopener,noreferrer')
+    }
+  }
+
   if (isLoading) {
     return (
       <Dialog open={true} onOpenChange={onClose}>
@@ -349,7 +395,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => window.open(doc.url, "_blank")}>
+                          <Button variant="outline" size="sm" onClick={() => downloadFile(doc.url, doc.filename)}>
                             <Download className="h-4 w-4" />
                           </Button>
                           <Button
@@ -439,7 +485,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => window.open(driver.url, "_blank")}>
+                          <Button variant="outline" size="sm" onClick={() => downloadFile(driver.url, driver.filename)}>
                             <Download className="h-4 w-4" />
                           </Button>
                           <Button

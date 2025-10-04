@@ -352,7 +352,7 @@ export default function Header() {
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2">
+                    <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200">
                       <User className="h-5 w-5" />
                       Личный кабинет
                     </Button>
