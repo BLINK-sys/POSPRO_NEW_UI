@@ -18,19 +18,13 @@ import {
 } from "@/app/actions/small-banners"
 import { apiClient } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 
 interface SmallBannerEditDialogProps {
   banner: Partial<SmallBanner> | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: (data: Partial<Omit<SmallBanner, "id" | "order">>) => void
-}
-
-const getImageUrl = (imageUrl: string | null | undefined): string => {
-  if (!imageUrl) return ""
-  if (imageUrl.startsWith("http")) return imageUrl
-  if (imageUrl.startsWith("/uploads/")) return `${API_BASE_URL}${imageUrl}`
-  return imageUrl
 }
 
 export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSave }: SmallBannerEditDialogProps) {

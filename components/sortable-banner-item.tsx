@@ -10,20 +10,13 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
 import type { Banner } from "@/app/actions/banners"
-import { API_BASE_URL } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 
 interface SortableBannerItemProps {
   banner: Banner
   onEdit: (banner: Banner) => void
   onDelete: (id: number) => void
   onToggleActive: (id: number, active: boolean) => void
-}
-
-const getImageUrl = (imageUrl: string | null | undefined): string => {
-  if (!imageUrl) return ""
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl
-  if (imageUrl.startsWith("/uploads/")) return `${API_BASE_URL}${imageUrl}`
-  return imageUrl
 }
 
 export function SortableBannerItem({ banner, onEdit, onDelete, onToggleActive }: SortableBannerItemProps) {

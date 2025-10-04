@@ -10,6 +10,7 @@ import { getIcon } from "@/lib/icon-mapping"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { API_BASE_URL } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 import { 
   HOMEPAGE_BLOCK_TYPES, 
   HOMEPAGE_BLOCK_TYPE_LABELS 
@@ -40,32 +41,6 @@ function SelectedElementsDisplay({
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
-  // Функция для получения URL изображения
-  const getImageUrl = useCallback((url: string | null | undefined): string => {
-    try {
-      if (!url || typeof url !== 'string' || url.trim() === "") {
-        return "/placeholder.svg"
-      }
-      
-      const trimmedUrl = url.trim()
-      
-      // Если URL уже полный
-      if (trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
-        return trimmedUrl
-      }
-      
-      // Если URL начинается с /uploads/, добавляем префикс API сервера
-      if (trimmedUrl.startsWith("/uploads/")) {
-        return `${API_BASE_URL}${trimmedUrl}`
-      }
-      
-      // Для остальных относительных ссылок также добавляем префикс
-      return `${API_BASE_URL}${trimmedUrl.startsWith("/") ? trimmedUrl : `/${trimmedUrl}`}`
-    } catch (error) {
-      console.error("Error processing image URL:", url, error)
-      return "/placeholder.svg"
-    }
-  }, [])
 
   // Загрузка элементов по ID
   useEffect(() => {

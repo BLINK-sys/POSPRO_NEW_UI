@@ -6,23 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-
-// Функция для получения правильного URL изображения
-const getImageUrl = (url: string | null | undefined): string => {
-  if (!url || typeof url !== 'string' || url.trim() === "") {
-    return "/placeholder.svg"
-  }
-  
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url
-  }
-  
-  if (url.startsWith("/uploads/")) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${url}`
-  }
-  
-  return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${url.startsWith("/") ? url : `/${url}`}`
-}
+import { getImageUrl } from "@/lib/image-utils"
 
 interface Banner {
   id: number

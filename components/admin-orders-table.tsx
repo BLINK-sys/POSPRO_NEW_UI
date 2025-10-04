@@ -30,6 +30,7 @@ import {
 import { Eye, UserCheck, CreditCard, Package } from 'lucide-react'
 import Image from 'next/image'
 import { API_BASE_URL } from '@/lib/api-address'
+import { getImageUrl } from "@/lib/image-utils"
 import { useToast } from '@/hooks/use-toast'
 import { 
   AdminOrder, 
@@ -185,32 +186,6 @@ function OrderDetailsDialog({ orderId, orderNumber, isOpen, onClose }: OrderDeta
     return Math.round(price).toLocaleString('ru-RU')
   }
 
-  // Функция для получения валидного URL изображения
-  const getImageUrl = (imageUrl: string | null | undefined): string => {
-    try {
-      if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === "") {
-        return "/placeholder.svg"
-      }
-      
-      const trimmedUrl = imageUrl.trim()
-      
-      // Если URL уже полный
-      if (trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")) {
-        return trimmedUrl
-      }
-      
-      // Если URL начинается с /uploads/, добавляем префикс API сервера
-      if (trimmedUrl.startsWith("/uploads/")) {
-        return `${API_BASE_URL}${trimmedUrl}`
-      }
-      
-      // Для остальных относительных ссылок также добавляем префикс
-      return `${API_BASE_URL}${trimmedUrl.startsWith("/") ? trimmedUrl : `/${trimmedUrl}`}`
-    } catch (error) {
-      console.error("Error processing image URL:", imageUrl, error)
-      return "/placeholder.svg"
-    }
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
