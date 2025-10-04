@@ -144,22 +144,23 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
   const handleDeleteDocument = (documentId: number) => {
     startTransition(async () => {
-      const result = await deleteDocument(documentId)
-
-      if (result.success) {
+      try {
+        await deleteDocument(productId, documentId)
+        
         toast({
           title: "Успех",
-          description: result.message || "Документ удален",
+          description: "Документ удален",
         })
 
         // Обновляем только список документов
         const updatedDocuments = await getDocuments(productId)
         setDocuments(updatedDocuments)
-      } else {
+      } catch (error) {
+        console.error("Error deleting document:", error)
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: result.error || "Не удалось удалить документ",
+          description: error instanceof Error ? error.message : "Не удалось удалить документ",
         })
       }
     })
@@ -167,22 +168,23 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
   const handleDeleteDriver = (driverId: number) => {
     startTransition(async () => {
-      const result = await deleteDriver(driverId)
-
-      if (result.success) {
+      try {
+        await deleteDriver(productId, driverId)
+        
         toast({
           title: "Успех",
-          description: result.message || "Драйвер удален",
+          description: "Драйвер удален",
         })
 
         // Обновляем только список драйверов
         const updatedDrivers = await getDrivers(productId)
         setDrivers(updatedDrivers)
-      } else {
+      } catch (error) {
+        console.error("Error deleting driver:", error)
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: result.error || "Не удалось удалить драйвер",
+          description: error instanceof Error ? error.message : "Не удалось удалить драйвер",
         })
       }
     })
