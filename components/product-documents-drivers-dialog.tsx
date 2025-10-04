@@ -46,6 +46,27 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
     setIsLoading(true)
     try {
       const [documentsData, driversData] = await Promise.all([getDocuments(productId), getDrivers(productId)])
+      
+      console.log("Documents from backend:", documentsData)
+      documentsData.forEach((doc, index) => {
+        console.log(`Document ${index}:`, {
+          id: doc.id,
+          filename: doc.filename,
+          filenameBytes: doc.filename ? new TextEncoder().encode(doc.filename) : null,
+          url: doc.url
+        })
+      })
+      
+      console.log("Drivers from backend:", driversData)
+      driversData.forEach((driver, index) => {
+        console.log(`Driver ${index}:`, {
+          id: driver.id,
+          filename: driver.filename,
+          filenameBytes: driver.filename ? new TextEncoder().encode(driver.filename) : null,
+          url: driver.url
+        })
+      })
+      
       setDocuments(documentsData)
       setDrivers(driversData)
     } catch (error) {
