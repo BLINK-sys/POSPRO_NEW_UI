@@ -135,5 +135,30 @@ export const mediaApi = {
   // Upload product file
   async uploadProductFile(formData: FormData): Promise<any> {
     return apiClient.uploadFile("/upload/upload_product", formData)
+  },
+
+  // Documents and drivers management
+  async getDocuments(productId: number): Promise<any[]> {
+    return apiClient.get(`/upload/documents/${productId}`)
+  },
+
+  async getDrivers(productId: number): Promise<any[]> {
+    return apiClient.get(`/upload/drivers/${productId}`)
+  },
+
+  async uploadDocument(formData: FormData): Promise<any> {
+    return apiClient.uploadFile("/upload/documents/upload", formData)
+  },
+
+  async uploadDriver(formData: FormData): Promise<any> {
+    return apiClient.uploadFile("/upload/drivers/upload", formData)
+  },
+
+  async deleteDocument(documentId: number): Promise<void> {
+    return apiClient.delete(`/upload/documents/${documentId}`)
+  },
+
+  async deleteDriver(driverId: number): Promise<void> {
+    return apiClient.delete(`/upload/drivers/${driverId}`)
   }
 }

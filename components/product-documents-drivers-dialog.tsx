@@ -10,16 +10,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus } from "lucide-react"
-import {
-  getDocuments,
-  getDrivers,
-  uploadDocumentFile,
-  uploadDriverFile,
-  deleteDocument,
-  deleteDriver,
-  type Document,
-  type Driver,
-} from "@/app/actions/products"
+import { mediaApi } from "@/lib/api-client"
+
+type Document = {
+  id: number
+  filename: string
+  url: string
+  file_type: string
+  mime_type: string
+}
+
+type Driver = {
+  id: number
+  filename: string
+  url: string
+  file_type: string
+  mime_type: string
+}
 
 interface ProductDocumentsDriversDialogProps {
   productId: number
@@ -45,7 +52,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [documentsData, driversData] = await Promise.all([getDocuments(productId), getDrivers(productId)])
+      const [documentsData, driversData] = await Promise.all([mediaApi.getDocuments(productId), mediaApi.getDrivers(productId)])
       
       console.log("Documents from backend:", documentsData)
       documentsData.forEach((doc, index) => {
@@ -97,10 +104,10 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         formData.append("file", documentFile)
         formData.append("product_id", String(productId))
         
-        const result = await uploadDocumentFile(formData)
+               const result = await mediaApi.uploadDocument(formData)
 
         // Обновляем только список документов
-        const updatedDocuments = await getDocuments(productId)
+        const updatedDocuments = await mediaApi.getDocuments(productId)
         setDocuments(updatedDocuments)
         
         toast({
@@ -138,10 +145,10 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         formData.append("file", driverFile)
         formData.append("product_id", String(productId))
         
-        const result = await uploadDriverFile(formData)
+               const result = await mediaApi.uploadDriver(formData)
 
         // Обновляем только список драйверов
-        const updatedDrivers = await getDrivers(productId)
+        const updatedDrivers = await mediaApi.getDrivers(productId)
         setDrivers(updatedDrivers)
         
         toast({
@@ -166,7 +173,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
   const handleDeleteDocument = (documentId: number) => {
     startTransition(async () => {
       try {
-        await deleteDocument(productId, documentId)
+        await mediaApi.deleteDocument(documentId)
         
         toast({
           title: "Успех",
@@ -174,7 +181,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         })
 
         // Обновляем только список документов
-        const updatedDocuments = await getDocuments(productId)
+        const updatedDocuments = await mediaApi.getDocuments(productId)
         setDocuments(updatedDocuments)
       } catch (error) {
         console.error("Error deleting document:", error)
@@ -190,7 +197,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
   const handleDeleteDriver = (driverId: number) => {
     startTransition(async () => {
       try {
-        await deleteDriver(productId, driverId)
+        await mediaApi.deleteDriver(driverId)
         
         toast({
           title: "Успех",
@@ -198,7 +205,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         })
 
         // Обновляем только список драйверов
-        const updatedDrivers = await getDrivers(productId)
+        const updatedDrivers = await mediaApi.getDrivers(productId)
         setDrivers(updatedDrivers)
       } catch (error) {
         console.error("Error deleting driver:", error)
