@@ -121,8 +121,7 @@ export const mediaApi = {
 
   // Add media by URL
   async addMediaByUrl(productId: number, url: string, mediaType: string): Promise<any> {
-    return apiClient.post("/upload/media", {
-      product_id: productId,
+    return apiClient.post(`/upload/media/${productId}`, {
       url,
       media_type: mediaType
     })
