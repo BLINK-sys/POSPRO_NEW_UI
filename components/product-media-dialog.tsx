@@ -201,6 +201,8 @@ function MediaViewer({ media }: { media: Media | null }) {
 }
 
 export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogProps) {
+  console.log("ProductMediaDialog rendered with productId:", productId)
+  
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
   const [isLoading, setIsLoading] = useState(true)
@@ -251,9 +253,14 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
     const file = e.target.files?.[0]
     if (!file) return
 
+    console.log("File selected:", file.name, file.size, file.type)
+    console.log("ProductId for upload:", productId)
+
     startTransition(async () => {
       try {
-        await uploadProductFile(productId, file)
+        console.log("Starting file upload...")
+        const result = await uploadProductFile(productId, file)
+        console.log("Upload result:", result)
         toast({ title: "Файл загружен" })
         fetchMedia()
       } catch (error) {

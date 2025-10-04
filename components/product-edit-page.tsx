@@ -75,6 +75,9 @@ function generateSlug(text: string): string {
 }
 
 export function ProductEditPage({ product, categories, brands, statuses }: ProductEditPageProps) {
+  console.log("ProductEditPage rendered with product:", product)
+  console.log("Product ID:", product.id)
+  
   const { toast } = useToast()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -470,7 +473,12 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
       {showCharacteristicsDialog && (
         <ProductCharacteristicsDialog productId={product.id} onClose={() => setShowCharacteristicsDialog(false)} />
       )}
-      {showMediaDialog && <ProductMediaDialog productId={product.id} onClose={() => setShowMediaDialog(false)} />}
+      {showMediaDialog && (
+        <ProductMediaDialog 
+          productId={product.id} 
+          onClose={() => setShowMediaDialog(false)} 
+        />
+      )}
       {showDocumentsDriversDialog && (
         <ProductDocumentsDriversDialog productId={product.id} onClose={() => setShowDocumentsDriversDialog(false)} />
       )}

@@ -393,6 +393,8 @@ export async function addMediaByUrl(productId: number, url: string, mediaType: s
 // Загрузить файл медиа
 export async function uploadProductFile(productId: number, file: File): Promise<ProductMedia> {
   try {
+    console.log("uploadProductFile called with:", { productId, fileName: file.name, fileSize: file.size, fileType: file.type })
+    
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
 
@@ -404,6 +406,8 @@ export async function uploadProductFile(productId: number, file: File): Promise<
     formData.append("file", file)
     formData.append("product_id", String(productId))
 
+    console.log("FormData prepared, uploading to:", getApiUrl(`/upload/upload_product`))
+
     const response = await fetch(getApiUrl(`/upload/upload_product`), {
       method: "POST",
       headers: {
@@ -412,12 +416,17 @@ export async function uploadProductFile(productId: number, file: File): Promise<
       body: formData,
     })
 
+    console.log("Upload response status:", response.status)
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      console.error("Upload failed:", errorData)
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }
 
-    return await response.json()
+    const result = await response.json()
+    console.log("Upload successful:", result)
+    return result
   } catch (error) {
     console.error("Error uploading product file:", error)
     throw new Error("Ошибка загрузки файла")
