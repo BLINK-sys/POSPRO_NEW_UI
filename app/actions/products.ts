@@ -391,9 +391,12 @@ export async function addMediaByUrl(productId: number, url: string, mediaType: s
 }
 
 // Загрузить файл медиа
-export async function uploadProductFile(productId: number, file: File): Promise<ProductMedia> {
+export async function uploadProductFile(formData: FormData): Promise<ProductMedia> {
   try {
-    console.log("uploadProductFile called with:", { productId, fileName: file.name, fileSize: file.size, fileType: file.type })
+    const productId = formData.get('product_id') as string
+    const file = formData.get('file') as File
+    
+    console.log("uploadProductFile called with:", { productId, fileName: file?.name, fileSize: file?.size, fileType: file?.type })
     
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -401,10 +404,6 @@ export async function uploadProductFile(productId: number, file: File): Promise<
     if (!token) {
       throw new Error("Не авторизован")
     }
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("product_id", String(productId))
 
     console.log("FormData prepared, uploading to:", getApiUrl(`/upload/upload_product`))
 
@@ -653,7 +652,7 @@ export async function getDocuments(productId: number): Promise<ProductDocument[]
 }
 
 // Загрузить документ
-export async function uploadDocumentFile(productId: number, file: File): Promise<ProductDocument> {
+export async function uploadDocumentFile(formData: FormData): Promise<ProductDocument> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -661,10 +660,6 @@ export async function uploadDocumentFile(productId: number, file: File): Promise
     if (!token) {
       throw new Error("Не авторизован")
     }
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("product_id", String(productId))
 
     const response = await fetch(getApiUrl(`/upload/documents/upload`), {
       method: "POST",
@@ -746,7 +741,7 @@ export async function getDrivers(productId: number): Promise<ProductDriver[]> {
 }
 
 // Загрузить драйвер
-export async function uploadDriverFile(productId: number, file: File): Promise<ProductDriver> {
+export async function uploadDriverFile(formData: FormData): Promise<ProductDriver> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -754,10 +749,6 @@ export async function uploadDriverFile(productId: number, file: File): Promise<P
     if (!token) {
       throw new Error("Не авторизован")
     }
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("product_id", String(productId))
 
     const response = await fetch(getApiUrl(`/upload/drivers/upload`), {
       method: "POST",

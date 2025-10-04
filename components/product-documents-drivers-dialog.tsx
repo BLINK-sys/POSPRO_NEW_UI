@@ -72,7 +72,11 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
     startTransition(async () => {
       try {
-        const result = await uploadDocumentFile(productId, documentFile)
+        const formData = new FormData()
+        formData.append("file", documentFile)
+        formData.append("product_id", String(productId))
+        
+        const result = await uploadDocumentFile(formData)
 
         // Обновляем только список документов
         const updatedDocuments = await getDocuments(productId)
@@ -109,7 +113,11 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
     startTransition(async () => {
       try {
-        const result = await uploadDriverFile(productId, driverFile)
+        const formData = new FormData()
+        formData.append("file", driverFile)
+        formData.append("product_id", String(productId))
+        
+        const result = await uploadDriverFile(formData)
 
         // Обновляем только список драйверов
         const updatedDrivers = await getDrivers(productId)

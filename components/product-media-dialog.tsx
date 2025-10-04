@@ -259,7 +259,12 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
     startTransition(async () => {
       try {
         console.log("Starting file upload...")
-        const result = await uploadProductFile(productId, file)
+        
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("product_id", String(productId))
+        
+        const result = await uploadProductFile(formData)
         console.log("Upload result:", result)
         toast({ title: "Файл загружен" })
         fetchMedia()
