@@ -8,14 +8,14 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import type { DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, useSortable, rectSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import {
-  type Media,
-  getMedia,
-  addMediaByUrl,
-  uploadProductFile,
-  deleteMedia,
-  reorderMedia,
-} from "@/app/actions/products"
+import { mediaApi } from "@/lib/api-client"
+
+type Media = {
+  id: number
+  url: string
+  media_type: string
+  order: number
+}
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -213,14 +213,24 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
 
   const fetchMedia = useCallback(async () => {
     setIsLoading(true)
-    const mediaFiles = await getMedia(productId)
-    setMedia(mediaFiles)
-    // Если выбранный медиафайл был удален, сбрасываем выбор
-    if (selectedMedia && !mediaFiles.find((m) => m.id === selectedMedia.id)) {
-      setSelectedMedia(null)
+    try {
+      const mediaFiles = await mediaApi.getMedia(productId)
+      setMedia(mediaFiles)
+      // Если выбранный медиафайл был удален, сбрасываем выбор
+      if (selectedMedia && !mediaFiles.find((m) => m.id === selectedMedia.id)) {
+        setSelectedMedia(null)
+      }
+    } catch (error) {
+      console.error("Error fetching media:", error)
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Не удалось загрузить медиафайлы"
+      })
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
-  }, [productId, selectedMedia])
+  }, [productId, selectedMedia, toast])
 
   useEffect(() => {
     fetchMedia()
@@ -234,7 +244,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
 
     startTransition(async () => {
       try {
-        await addMediaByUrl(productId, url.trim(), mediaType)
+        await mediaApi.addMediaByUrl(productId, url.trim(), mediaType)
         toast({ title: "Медиа добавлено" })
         setUrl("")
         fetchMedia()
@@ -264,7 +274,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
         formData.append("file", file)
         formData.append("product_id", String(productId))
         
-        const result = await uploadProductFile(formData)
+        const result = await mediaApi.uploadProductFile(formData)
         console.log("Upload result:", result)
         toast({ title: "Файл загружен" })
         fetchMedia()
@@ -283,7 +293,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
   const handleDelete = (id: number) => {
     startTransition(async () => {
       try {
-        await deleteMedia(productId, id)
+        await mediaApi.deleteMedia(id)
         toast({ title: "Медиа удалено" })
         fetchMedia()
       } catch (error) {
@@ -309,7 +319,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
 
       const orderPayload = newMedia.map((m, index) => ({ id: m.id, order: index + 1 }))
       startTransition(async () => {
-        await reorderMedia(productId, orderPayload)
+        await mediaApi.reorderMedia(productId, orderPayload)
       })
     }
   }

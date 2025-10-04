@@ -106,3 +106,35 @@ export class ApiClient {
 
 // Export a singleton instance
 export const apiClient = new ApiClient()
+
+// Client-side functions for media management
+export const mediaApi = {
+  // Delete media file
+  async deleteMedia(mediaId: number): Promise<void> {
+    return apiClient.delete(`/upload/media/${mediaId}`)
+  },
+
+  // Get media for product
+  async getMedia(productId: number): Promise<any[]> {
+    return apiClient.get(`/upload/media/${productId}`)
+  },
+
+  // Add media by URL
+  async addMediaByUrl(productId: number, url: string, mediaType: string): Promise<any> {
+    return apiClient.post("/upload/media", {
+      product_id: productId,
+      url,
+      media_type: mediaType
+    })
+  },
+
+  // Reorder media
+  async reorderMedia(productId: number, items: { id: number; order: number }[]): Promise<void> {
+    return apiClient.post(`/upload/media/reorder/${productId}`, { items })
+  },
+
+  // Upload product file
+  async uploadProductFile(formData: FormData): Promise<any> {
+    return apiClient.uploadFile("/upload/upload_product", formData)
+  }
+}
