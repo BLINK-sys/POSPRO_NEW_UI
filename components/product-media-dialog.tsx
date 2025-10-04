@@ -17,6 +17,7 @@ import {
   reorderMedia,
 } from "@/app/actions/products"
 import { API_BASE_URL } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,19 +35,9 @@ interface ProductMediaDialogProps {
 // Helper function to get proper media URL
 const getMediaUrl = (url: string): string => {
   if (!url) return "/placeholder.svg"
-
-  // If URL already starts with http/https, return as is
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url
-  }
-
-  // If URL starts with /uploads, add the API base URL
-  if (url.startsWith("/uploads/")) {
-    return `${API_BASE_URL}${url}`
-  }
-
-  // For other relative URLs, add the API base URL
-  return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`
+  
+  // Use the centralized image URL utility
+  return getImageUrl(url)
 }
 
 // Helper function to convert YouTube URL to embed URL

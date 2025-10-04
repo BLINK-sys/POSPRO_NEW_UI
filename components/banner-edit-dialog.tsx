@@ -96,6 +96,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     try {
       const uploadData = new FormData()
       uploadData.append("file", file) // API expects "file" field
+      uploadData.append("banner_id", String(banner.id)) // Добавляем ID баннера
 
       const response = await fetch(`${API_BASE_URL}/api/admin/upload-image`, {
         method: "POST",

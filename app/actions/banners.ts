@@ -96,9 +96,13 @@ export async function reorderBanners(
 }
 
 export async function uploadBannerImage(
+  bannerId: number,
   formData: FormData,
 ): Promise<{ success: boolean; url?: string; message?: string; error?: string }> {
   try {
+    // Добавляем banner_id в FormData
+    formData.append("banner_id", String(bannerId))
+    
     const response = await fetch(`${API_BASE_URL}/api/admin/upload-image`, {
       method: "POST",
       body: formData,
