@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
 import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 import { getIcon } from "@/lib/icon-mapping"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
@@ -68,22 +69,6 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     items: block.items
   })
 
-  // Функция для получения URL изображения
-  const getImageUrl = (url: string | null | undefined): string => {
-    if (!url || typeof url !== 'string' || url.trim() === "") {
-      return "/placeholder.svg"
-    }
-    
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      return url
-    }
-    
-    if (url.startsWith("/uploads/")) {
-      return `${API_BASE_URL}${url}`
-    }
-    
-    return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`
-  }
 
   // Функция для форматирования цены
   const formatPrice = (price: number): string => {

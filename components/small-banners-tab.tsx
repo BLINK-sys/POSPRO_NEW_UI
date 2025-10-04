@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
+import { getImageUrl } from "@/lib/image-utils"
 import { getApiUrl } from "@/lib/api-address"
 import { Edit, Trash2, Plus } from "lucide-react"
 import Image from "next/image"
@@ -85,10 +86,6 @@ export default function SmallBannersTab() {
     }
   }
 
-  const getImageUrl = (url: string) => {
-    if (!url) return "/placeholder.svg"
-    return url.startsWith("http") ? url : getApiUrl(url)
-  }
 
   if (isLoading) return <div>Загрузка информационных карточек...</div>
 
