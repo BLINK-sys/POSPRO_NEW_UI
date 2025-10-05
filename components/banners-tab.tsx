@@ -56,7 +56,13 @@ export default function BannersTab() {
       console.log("Fetched banners data:", data) // Debug log
 
       // API returns array directly, not wrapped in object
-      setBanners(Array.isArray(data) ? data : [])
+      // Map server field 'image' to client field 'image_url'
+      const mappedData = Array.isArray(data) ? data.map(banner => ({
+        ...banner,
+        image_url: banner.image,
+        description: banner.description || ""
+      })) : []
+      setBanners(mappedData)
     } catch (error: any) {
       console.error("Error fetching banners:", error)
       toast.error(`Ошибка загрузки баннеров: ${error.message}`)

@@ -9,8 +9,20 @@ import { GripVertical, Edit, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
-import type { Banner } from "@/app/actions/banners"
 import { getImageUrl } from "@/lib/image-utils"
+import { API_BASE_URL } from "@/lib/api-address"
+
+interface Banner {
+  id: number
+  title: string
+  subtitle: string
+  description: string
+  image_url: string
+  button_text: string
+  button_link: string
+  active: boolean
+  order: number
+}
 
 interface SortableBannerItemProps {
   banner: Banner
@@ -46,7 +58,7 @@ export function SortableBannerItem({ banner, onEdit, onDelete, onToggleActive }:
         body: JSON.stringify({
           title: banner.title,
           subtitle: banner.subtitle,
-          image: banner.image,
+          image: banner.image_url,
           active: checked,
           button_text: banner.button_text,
           button_link: banner.button_link,
@@ -89,13 +101,13 @@ export function SortableBannerItem({ banner, onEdit, onDelete, onToggleActive }:
 
             {/* Image - 2:1 ratio */}
             <div className="w-32 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-              {banner.image ? (
+              {banner.image_url ? (
                 <img
-                  src={getImageUrl(banner.image) || "/placeholder.svg"}
+                  src={getImageUrl(banner.image_url) || "/placeholder.svg"}
                   alt={banner.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    console.error("Banner image failed to load:", banner.image)
+                    console.error("Banner image failed to load:", banner.image_url)
                     e.currentTarget.src = "/placeholder.svg?height=64&width=128"
                   }}
                 />
