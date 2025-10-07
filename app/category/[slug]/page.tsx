@@ -393,7 +393,7 @@ export default function CategoryPage() {
                      // Сетка
                      <div className="group relative">
                                                {/* Изображение товара */}
-                        <div className="aspect-square relative bg-gray-100 rounded-lg overflow-hidden mb-3">
+                        <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
                           {product.image_url ? (
                             <Image
                               src={getImageUrl(product.image_url)}

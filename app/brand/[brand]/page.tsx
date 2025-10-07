@@ -318,7 +318,7 @@ export default function BrandPage() {
                       <CardContent className="p-3">
                         <div className="relative">
                           {/* Изображение товара */}
-                          <div className="aspect-square relative bg-gray-50 rounded-lg overflow-hidden mb-3">
+                          <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
                             {product.image_url ? (
                               <Image
                                 src={getImageUrl(product.image_url)}
