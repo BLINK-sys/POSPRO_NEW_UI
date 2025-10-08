@@ -176,6 +176,9 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
         button_text: formData.button_text,
         button_link: formData.button_link,
         show_button: formData.show_button,
+        open_in_new_tab: formData.open_in_new_tab,
+        button_color: formData.button_color,
+        button_text_color: formData.button_text_color,
       }
 
       const response = await fetch(url, {

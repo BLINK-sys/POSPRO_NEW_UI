@@ -16,6 +16,9 @@ interface Banner {
   button_text: string
   button_link: string
   show_button: boolean
+  open_in_new_tab?: boolean
+  button_color?: string
+  button_text_color?: string
   order: number
 }
 
@@ -84,10 +87,17 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                               {firstBanner.show_button && firstBanner.button_text && (
                                 <Button
                                   size="lg"
-                                  className="bg-brand-yellow text-black hover:bg-yellow-500"
+                                  style={{
+                                    backgroundColor: firstBanner.button_color || "#fbbf24",
+                                    color: firstBanner.button_text_color || "#000000"
+                                  }}
                                   asChild
                                 >
-                                  <Link href={firstBanner.button_link || "#"}>
+                                  <Link 
+                                    href={firstBanner.button_link || "#"}
+                                    target={firstBanner.open_in_new_tab ? "_blank" : "_self"}
+                                    rel={firstBanner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                  >
                                     {firstBanner.button_text}
                                   </Link>
                                 </Button>
@@ -113,10 +123,17 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                             {firstBanner.show_button && firstBanner.button_text && (
                               <Button
                                 size="lg"
-                                className="bg-brand-yellow text-black hover:bg-yellow-500"
+                                style={{
+                                  backgroundColor: firstBanner.button_color || "#fbbf24",
+                                  color: firstBanner.button_text_color || "#000000"
+                                }}
                                 asChild
                               >
-                                <Link href={firstBanner.button_link || "#"}>
+                                <Link 
+                                  href={firstBanner.button_link || "#"}
+                                  target={firstBanner.open_in_new_tab ? "_blank" : "_self"}
+                                  rel={firstBanner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                >
                                   {firstBanner.button_text}
                                 </Link>
                               </Button>
@@ -186,10 +203,17 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                                     {banner.show_button && banner.button_text && (
                                       <Button
                                         size="lg"
-                                        className="bg-brand-yellow text-black hover:bg-yellow-500"
+                                        style={{
+                                          backgroundColor: banner.button_color || "#fbbf24",
+                                          color: banner.button_text_color || "#000000"
+                                        }}
                                         asChild
                                       >
-                                        <Link href={banner.button_link || "#"}>
+                                        <Link 
+                                          href={banner.button_link || "#"}
+                                          target={banner.open_in_new_tab ? "_blank" : "_self"}
+                                          rel={banner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                        >
                                           {banner.button_text}
                                         </Link>
                                       </Button>
@@ -215,10 +239,17 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                                   {banner.show_button && banner.button_text && (
                                     <Button
                                       size="lg"
-                                      className="bg-brand-yellow text-black hover:bg-yellow-500"
+                                      style={{
+                                        backgroundColor: banner.button_color || "#fbbf24",
+                                        color: banner.button_text_color || "#000000"
+                                      }}
                                       asChild
                                     >
-                                      <Link href={banner.button_link || "#"}>
+                                      <Link 
+                                        href={banner.button_link || "#"}
+                                        target={banner.open_in_new_tab ? "_blank" : "_self"}
+                                        rel={banner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                      >
                                         {banner.button_text}
                                       </Link>
                                     </Button>
