@@ -984,7 +984,11 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                 }}
                 asChild
               >
-                <a href={banner.button_link || "#"}>
+                <a 
+                  href={banner.button_link || "#"}
+                  target={banner.open_in_new_tab ? "_blank" : "_self"}
+                  rel={banner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                >
                   {banner.button_text}
                 </a>
               </Button>

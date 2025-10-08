@@ -94,6 +94,7 @@ export interface SmallBannerData {
   button_text_color: string
   button_bg_color: string
   button_link: string
+  open_in_new_tab?: boolean
 }
 
 export interface FooterSettings {

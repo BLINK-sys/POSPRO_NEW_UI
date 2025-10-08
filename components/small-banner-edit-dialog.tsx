@@ -50,6 +50,7 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
           button_link: "",
           card_bg_color: "#f8f9fa",
           show_button: true,
+          open_in_new_tab: false,
         },
       )
     }
@@ -67,6 +68,14 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleSetStandardColors = () => {
+    setFormData((prev) => ({
+      ...prev,
+      button_bg_color: "#fbbf24", // Желтый цвет как у кнопки "Личный кабинет"
+      button_text_color: "#000000" // Черный текст
+    }))
   }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -418,6 +427,26 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
               </div>
               {formData.show_button && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="open_in_new_tab"
+                        checked={!!formData.open_in_new_tab}
+                        onCheckedChange={(checked) => handleInputChange("open_in_new_tab", checked)}
+                      />
+                      <Label htmlFor="open_in_new_tab">Открывать в новой вкладке</Label>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSetStandardColors}
+                      className="text-xs"
+                    >
+                      Стандартный цвет
+                    </Button>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="button_text">Текст кнопки</Label>
                     <Input
