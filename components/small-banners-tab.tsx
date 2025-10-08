@@ -26,6 +26,7 @@ interface SmallBanner {
   button_link: string
   card_bg_color: string
   show_button: boolean
+  open_in_new_tab?: boolean  // ✅ Новое поле
 }
 
 export default function SmallBannersTab() {

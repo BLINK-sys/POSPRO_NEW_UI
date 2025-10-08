@@ -37,7 +37,21 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
   useEffect(() => {
     if (open) {
       setFormData(
-        banner || {
+        banner ? {
+          title: banner.title || "",
+          description: banner.description || "",
+          image_url: banner.image_url || "",
+          background_image_url: banner.background_image_url || "",
+          title_text_color: banner.title_text_color || "#000000",
+          description_text_color: banner.description_text_color || "#666666",
+          button_text: banner.button_text || "Подробнее",
+          button_text_color: banner.button_text_color || "#ffffff",
+          button_bg_color: banner.button_bg_color || "#007bff",
+          button_link: banner.button_link || "",
+          card_bg_color: banner.card_bg_color || "#f8f9fa",
+          show_button: banner.show_button ?? true,
+          open_in_new_tab: banner.open_in_new_tab ?? false,
+        } : {
           title: "",
           description: "",
           image_url: "",
