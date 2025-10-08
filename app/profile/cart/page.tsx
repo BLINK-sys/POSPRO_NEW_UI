@@ -12,6 +12,7 @@ import { createOrder } from '@/app/actions/orders'
 import { useAuth } from '@/context/auth-context'
 import { getDeliveryAddress } from '@/app/actions/auth'
 import { useCart } from '@/context/cart-context'
+import { getImageUrl } from '@/lib/image-utils'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -48,6 +49,7 @@ export default function ProfileCartPage() {
   const [cartData, setCartData] = useState<CartData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState<number | null>(null)
+  const [localQuantities, setLocalQuantities] = useState<Record<number, number>>({})
 
   const [orderForm, setOrderForm] = useState({
     customer_name: '',
@@ -134,17 +136,35 @@ export default function ProfileCartPage() {
   const handleQuantityChange = async (itemId: number, newQuantity: number) => {
     if (newQuantity < 1) return
     
-    setIsUpdating(itemId)
+    // Оптимистичное обновление UI
+    setLocalQuantities(prev => ({ ...prev, [itemId]: newQuantity }))
+    
+    // Обновляем локальное состояние корзины
+    if (cartData) {
+      setCartData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          items: prev.items.map(item => 
+            item.id === itemId 
+              ? { ...item, quantity: newQuantity, total_price: item.product.price * newQuantity }
+              : item
+          ),
+          total_amount: prev.items.reduce((sum, item) => 
+            sum + (item.id === itemId ? item.product.price * newQuantity : item.total_price), 0
+          )
+        }
+      })
+    }
+    
+    // Отправляем на сервер в фоновом режиме
     try {
       const result = await updateCartItemQuantity(itemId, newQuantity)
       if (result.success) {
-        toast({
-          title: 'Успешно',
-          description: 'Количество товара обновлено'
-        })
-        fetchCart() // Перезагружаем корзину
         await updateCartCount() // Обновляем счетчик в header
       } else {
+        // Откатываем изменения при ошибке
+        fetchCart()
         toast({
           title: 'Ошибка',
           description: result.message,
@@ -152,27 +172,52 @@ export default function ProfileCartPage() {
         })
       }
     } catch (error) {
+      // Откатываем изменения при ошибке
+      fetchCart()
       toast({
         title: 'Ошибка',
         description: 'Не удалось обновить количество',
         variant: 'destructive'
       })
-    } finally {
-      setIsUpdating(null)
     }
   }
 
   const handleRemoveItem = async (itemId: number) => {
+    // Оптимистичное обновление UI - сразу убираем товар из списка
+    if (cartData) {
+      const removedItem = cartData.items.find(item => item.id === itemId)
+      if (removedItem) {
+        setCartData(prev => {
+          if (!prev) return prev
+          const newItems = prev.items.filter(item => item.id !== itemId)
+          const newTotalAmount = newItems.reduce((sum, item) => sum + item.total_price, 0)
+          const newItemsCount = newItems.length
+          
+          return {
+            ...prev,
+            items: newItems,
+            total_amount: newTotalAmount,
+            items_count: newItemsCount
+          }
+        })
+        
+        // Убираем из локального состояния количества
+        setLocalQuantities(prev => {
+          const newQuantities = { ...prev }
+          delete newQuantities[itemId]
+          return newQuantities
+        })
+      }
+    }
+    
+    // Отправляем на сервер в фоновом режиме
     try {
       const result = await removeFromCart(itemId)
       if (result.success) {
-        toast({
-          title: 'Успешно',
-          description: 'Товар удален из корзины'
-        })
-        fetchCart() // Перезагружаем корзину
         await updateCartCount() // Обновляем счетчик в header
       } else {
+        // Откатываем изменения при ошибке
+        fetchCart()
         toast({
           title: 'Ошибка',
           description: result.message,
@@ -180,6 +225,8 @@ export default function ProfileCartPage() {
         })
       }
     } catch (error) {
+      // Откатываем изменения при ошибке
+      fetchCart()
       toast({
         title: 'Ошибка',
         description: 'Не удалось удалить товар',
@@ -189,16 +236,28 @@ export default function ProfileCartPage() {
   }
 
   const handleClearCart = async () => {
+    // Оптимистичное обновление UI - сразу очищаем корзину
+    setCartData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: [],
+        total_amount: 0,
+        items_count: 0
+      }
+    })
+    
+    // Очищаем локальное состояние количества
+    setLocalQuantities({})
+    
+    // Отправляем на сервер в фоновом режиме
     try {
       const result = await clearCart()
       if (result.success) {
-        toast({
-          title: 'Успешно',
-          description: 'Корзина очищена'
-        })
-        fetchCart() // Перезагружаем корзину
         await updateCartCount() // Обновляем счетчик в header
       } else {
+        // Откатываем изменения при ошибке
+        fetchCart()
         toast({
           title: 'Ошибка',
           description: result.message,
@@ -206,6 +265,8 @@ export default function ProfileCartPage() {
         })
       }
     } catch (error) {
+      // Откатываем изменения при ошибке
+      fetchCart()
       toast({
         title: 'Ошибка',
         description: 'Не удалось очистить корзину',
@@ -307,109 +368,147 @@ export default function ProfileCartPage() {
         <Button 
           variant="outline" 
           onClick={handleClearCart}
-          className="text-red-600 hover:text-red-700"
+          className="bg-gray-200 hover:bg-white hover:text-red-600 hover:border-red-600 text-black shadow-sm rounded-full"
         >
-          <Trash2 className="h-4 w-4 mr-2" />
           Очистить корзину
         </Button>
       </div>
+
+      {/* Разделительная полоса */}
+      <div className="border-b border-gray-200 mb-6"></div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Список товаров */}
         <div className="lg:col-span-2 space-y-4">
           {cartData.items.map((item) => (
-            <Card key={item.id}>
+            <Card key={item.id} className="shadow-md">
               <CardContent className="p-6">
                 <div className="flex gap-4">
-                  {/* Изображение товара */}
-                  <div className="relative w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-                    {item.product.image_url ? (
-                      <Image
-                        src={item.product.image_url}
-                        alt={item.product.name}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <ShoppingCart className="h-8 w-8" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    {/* Информация о товаре */}
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <Link href={`/product/${item.product.slug}`}>
-                          <h3 className="font-semibold hover:text-blue-600 transition-colors">
-                            {item.product.name}
-                          </h3>
-                        </Link>
-                        <p className="text-sm text-gray-600">Артикул: {item.product.article}</p>
-                        {item.product.status && (
-                          <Badge 
-                            className="mt-1 text-xs"
-                            style={{
-                              backgroundColor: item.product.status.background_color,
-                              color: item.product.status.text_color
-                            }}
-                          >
-                            {item.product.status.name}
-                          </Badge>
+                  {/* Серая панель с информацией */}
+                  <div className="bg-gray-100 p-4 rounded-lg shadow-md flex-1">
+                    <div className="flex gap-4">
+                      {/* Изображение товара - кликабельное */}
+                      <Link href={`/product/${item.product.slug}`} className="relative w-24 h-24 bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow flex-shrink-0">
+                        {item.product.image_url ? (
+                          <Image
+                            src={getImageUrl(item.product.image_url)}
+                            alt={item.product.name}
+                            fill
+                            className="object-contain"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <ShoppingCart className="h-8 w-8" />
+                          </div>
                         )}
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                      </Link>
 
-                    {/* Количество и цена */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                          disabled={item.quantity <= 1 || isUpdating === item.id}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        
-                        <span className="w-12 text-center font-medium">
-                          {item.quantity}
-                        </span>
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                          disabled={item.quantity >= item.product.quantity_available || isUpdating === item.id}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        
-                        <span className="text-sm text-gray-600 ml-2">
-                          (доступно: {item.product.quantity_available})
-                        </span>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-lg font-semibold">
-                          {item.total_price.toLocaleString()} тг
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-600">Наименование</span>
+                          <span className="text-sm font-medium text-gray-600">Цена</span>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          {item.product.price.toLocaleString()} тг за шт.
+                        
+                        <div className="flex items-center justify-between">
+                          {/* Название товара как кнопка */}
+                          <Link href={`/product/${item.product.slug}`}>
+                            <Button
+                              variant="outline"
+                              className="w-fit bg-gray-200 hover:bg-yellow-400 hover:text-black text-black font-medium shadow-sm"
+                            >
+                              {item.product.name}
+                            </Button>
+                          </Link>
+                          
+                          <div className="text-right">
+                            <div className="text-lg font-semibold">
+                              {(localQuantities[item.id] ?? item.quantity)}x{item.product.price.toLocaleString()} тг
+                            </div>
+                            
+                            {/* Счетчик количества под ценой */}
+                            <div className="flex items-center gap-2 mt-2 justify-end">
+                              <span className="text-sm text-gray-600">Заказ (колич.)</span>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleQuantityChange(item.id, (localQuantities[item.id] ?? item.quantity) - 1)}
+                                  disabled={(localQuantities[item.id] ?? item.quantity) <= 1}
+                                  className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 text-black"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                
+                                <input
+                                  type="text"
+                                  value={localQuantities[item.id] ?? item.quantity}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    // Разрешаем только цифры
+                                    if (/^\d*$/.test(value)) {
+                                      setLocalQuantities(prev => ({ ...prev, [item.id]: parseInt(value) || 0 }))
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const newQuantity = parseInt(e.target.value) || 1
+                                    if (newQuantity >= 1 && newQuantity <= item.product.quantity_available && newQuantity !== item.quantity) {
+                                      handleQuantityChange(item.id, newQuantity)
+                                    } else if (newQuantity < 1) {
+                                      // Если ввели 0 или пустое значение, возвращаем к исходному
+                                      setLocalQuantities(prev => ({ ...prev, [item.id]: item.quantity }))
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const newQuantity = parseInt((e.target as HTMLInputElement).value) || 1
+                                      if (newQuantity >= 1 && newQuantity <= item.product.quantity_available && newQuantity !== item.quantity) {
+                                        handleQuantityChange(item.id, newQuantity)
+                                      } else if (newQuantity < 1) {
+                                        setLocalQuantities(prev => ({ ...prev, [item.id]: item.quantity }))
+                                      }
+                                    }
+                                  }}
+                                  className="w-12 text-center font-medium border-0 bg-transparent focus:outline-none"
+                                  style={{ direction: 'ltr' }}
+                                />
+                                
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleQuantityChange(item.id, (localQuantities[item.id] ?? item.quantity) + 1)}
+                                  disabled={(localQuantities[item.id] ?? item.quantity) >= item.product.quantity_available}
+                                  className="w-8 h-8 rounded-full bg-yellow-400 hover:bg-yellow-500 text-black"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Нижняя часть родительской карточки */}
+                <div className="flex items-center justify-between mt-4">
+                  {/* Логотип слева */}
+                  <div className="flex items-center">
+                    <img 
+                      src="/ui/Logo.png" 
+                      alt="Logo" 
+                      className="h-8 w-8"
+                    />
+                  </div>
+                  
+                  {/* Кнопка удаления справа */}
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="bg-gray-200 hover:bg-white hover:text-red-600 hover:border-red-600 text-black shadow-sm rounded-full"
+                  >
+                    Удалить из корзины
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -418,7 +517,7 @@ export default function ProfileCartPage() {
 
         {/* Итоги заказа */}
         <div className="lg:col-span-1">
-          <Card className="sticky top-4">
+          <Card className="sticky top-4 shadow-md">
             <CardHeader>
               <CardTitle>Итоги заказа</CardTitle>
             </CardHeader>
@@ -440,7 +539,7 @@ export default function ProfileCartPage() {
           </Card>
 
           {/* Форма оформления заказа */}
-          <Card className="sticky top-4 mt-6">
+          <Card className="sticky top-4 mt-6 shadow-md">
             <CardHeader>
               <CardTitle>Оформление заказа</CardTitle>
             </CardHeader>
@@ -452,6 +551,8 @@ export default function ProfileCartPage() {
                   value={orderForm.customer_phone}
                   onChange={(e) => setOrderForm(prev => ({ ...prev, customer_phone: e.target.value }))}
                   placeholder="+7 (___) ___-__-__"
+                  className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                  style={{ outline: 'none', boxShadow: 'none' }}
                 />
               </div>
               
@@ -461,7 +562,7 @@ export default function ProfileCartPage() {
                   value={orderForm.payment_method}
                   onValueChange={(value) => setOrderForm(prev => ({ ...prev, payment_method: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300" style={{ outline: 'none', boxShadow: 'none' }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -478,7 +579,7 @@ export default function ProfileCartPage() {
                   value={orderForm.delivery_method}
                   onValueChange={handleDeliveryMethodChange}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300" style={{ outline: 'none', boxShadow: 'none' }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,6 +598,8 @@ export default function ProfileCartPage() {
                     onChange={(e) => setOrderForm(prev => ({ ...prev, delivery_address: e.target.value }))}
                     placeholder="Укажите адрес доставки"
                     rows={3}
+                    className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                    style={{ outline: 'none', boxShadow: 'none' }}
                   />
                 </div>
               )}
@@ -509,13 +612,15 @@ export default function ProfileCartPage() {
                   onChange={(e) => setOrderForm(prev => ({ ...prev, customer_comment: e.target.value }))}
                   placeholder="Дополнительные пожелания..."
                   rows={3}
+                  className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                  style={{ outline: 'none', boxShadow: 'none' }}
                 />
               </div>
 
 
 
-              <Button 
-                className="w-full"
+              <Button
+                className="w-full bg-yellow-400 hover:bg-yellow-500 text-black shadow-md"
                 size="lg"
                 onClick={handleCreateOrder}
                 disabled={isCreatingOrder || !orderForm.customer_phone.trim() || (orderForm.delivery_method === 'delivery' && !orderForm.delivery_address.trim())}

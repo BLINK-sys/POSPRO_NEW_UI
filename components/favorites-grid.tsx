@@ -10,6 +10,7 @@ import { ShoppingCart } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { getImageUrl } from "@/lib/image-utils"
 
 interface Favorite {
   id: number
@@ -43,11 +44,6 @@ interface FavoritesGridProps {
 export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridProps) {
   const { toast } = useToast()
 
-  const getImageUrl = (imageUrl?: string) => {
-    if (!imageUrl) return "/placeholder.jpg"
-    if (imageUrl.startsWith("http")) return imageUrl
-    return `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:5000"}${imageUrl}`
-  }
 
   // Создаем FavoriteButton для страницы избранного (как на главной странице)
   const FavoriteButtonForFavoritePage = ({ productId, productName }: { productId: number, productName: string }) => {
