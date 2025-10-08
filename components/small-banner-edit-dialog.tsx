@@ -477,38 +477,61 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                       onChange={(e) => handleInputChange("button_link", e.target.value)}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="button_bg_color">Цвет фона кнопки</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="button_bg_color"
-                          type="color"
-                          value={formData.button_bg_color || "#007bff"}
-                          onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
-                          className="p-1 h-10 w-14 block"
-                        />
-                        <Input
-                          value={formData.button_bg_color || "#007bff"}
-                          onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
-                        />
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Левая колонка - настройки цветов */}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="button_bg_color">Цвет фона кнопки</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="button_bg_color"
+                            type="color"
+                            value={formData.button_bg_color || "#007bff"}
+                            onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
+                            className="p-1 h-10 w-14 block"
+                          />
+                          <Input
+                            value={formData.button_bg_color || "#007bff"}
+                            onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="button_text_color">Цвет текста кнопки</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="button_text_color"
+                            type="color"
+                            value={formData.button_text_color || "#ffffff"}
+                            onChange={(e) => handleInputChange("button_text_color", e.target.value)}
+                            className="p-1 h-10 w-14 block"
+                          />
+                          <Input
+                            value={formData.button_text_color || "#ffffff"}
+                            onChange={(e) => handleInputChange("button_text_color", e.target.value)}
+                          />
+                        </div>
                       </div>
                     </div>
+
+                    {/* Правая колонка - превью кнопки */}
                     <div className="space-y-2">
-                      <Label htmlFor="button_text_color">Цвет текста кнопки</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="button_text_color"
-                          type="color"
-                          value={formData.button_text_color || "#ffffff"}
-                          onChange={(e) => handleInputChange("button_text_color", e.target.value)}
-                          className="p-1 h-10 w-14 block"
-                        />
-                        <Input
-                          value={formData.button_text_color || "#ffffff"}
-                          onChange={(e) => handleInputChange("button_text_color", e.target.value)}
-                        />
-                      </div>
+                      <Label>Превью кнопки</Label>
+                      <Card className="p-6 bg-gray-50 h-full flex items-center justify-center">
+                        <Button
+                          size="lg"
+                          style={{
+                            backgroundColor: formData.button_bg_color || "#007bff",
+                            color: formData.button_text_color || "#ffffff",
+                            boxShadow: 'none',
+                            filter: 'none',
+                            opacity: 1
+                          }}
+                          className="pointer-events-none"
+                        >
+                          {formData.button_text || "Текст кнопки"}
+                        </Button>
+                      </Card>
                     </div>
                   </div>
                 </div>
