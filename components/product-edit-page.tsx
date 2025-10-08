@@ -14,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft } from "lucide-react"
+import { Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft, BookOpen } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
+import { CharacteristicsListDialog } from "./characteristics-list-dialog"
 
 interface ProductEditPageProps {
   product: Product
@@ -111,6 +112,7 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
   const [showCharacteristicsDialog, setShowCharacteristicsDialog] = useState(false)
   const [showMediaDialog, setShowMediaDialog] = useState(false)
   const [showDocumentsDriversDialog, setShowDocumentsDriversDialog] = useState(false)
+  const [showCharacteristicsListDialog, setShowCharacteristicsListDialog] = useState(false)
 
   useEffect(() => {
     const findCategoryName = (id: string, cats: Category[]): string => {
@@ -382,9 +384,12 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
                 <CardDescription>Управление списком характеристик для товара и их очередностью</CardDescription>
               </div>
             </CardHeader>
-            <CardContent className="flex justify-center">
+            <CardContent className="flex justify-center gap-2">
               <Button variant="outline" onClick={() => setShowCharacteristicsDialog(true)} disabled={isPending}>
                 <List className="mr-2 h-4 w-4" /> Характеристики
+              </Button>
+              <Button variant="outline" onClick={() => setShowCharacteristicsListDialog(true)} disabled={isPending}>
+                <BookOpen className="mr-2 h-4 w-4" /> Справочник
               </Button>
             </CardContent>
           </Card>
@@ -482,6 +487,11 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
       {showDocumentsDriversDialog && (
         <ProductDocumentsDriversDialog productId={product.id} onClose={() => setShowDocumentsDriversDialog(false)} />
       )}
+      
+      <CharacteristicsListDialog
+        open={showCharacteristicsListDialog}
+        onOpenChange={setShowCharacteristicsListDialog}
+      />
     </div>
   )
 }

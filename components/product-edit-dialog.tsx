@@ -20,11 +20,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Card, CardDescription, CardHeader } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, List, ImageIcon, FileText, ChevronsUpDown } from "lucide-react"
+import { Loader2, List, ImageIcon, FileText, ChevronsUpDown, BookOpen } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
+import { CharacteristicsListDialog } from "./characteristics-list-dialog"
 
 interface ProductEditDialogProps {
   product?: Product | null
@@ -129,6 +130,7 @@ export function ProductEditDialog({
   const [showCharacteristicsDialog, setShowCharacteristicsDialog] = useState(false)
   const [showMediaDialog, setShowMediaDialog] = useState(false)
   const [showDocumentsDriversDialog, setShowDocumentsDriversDialog] = useState(false)
+  const [showCharacteristicsListDialog, setShowCharacteristicsListDialog] = useState(false)
 
   const isEditMode = !!product
 
@@ -502,13 +504,22 @@ export function ProductEditDialog({
                   <CardDescription>
                     Тут вы можете управлять списком характеристик для товара, и их очерёдностью
                   </CardDescription>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowCharacteristicsDialog(true)}
-                    disabled={isPending || !draftId}
-                  >
-                    <List className="mr-2 h-4 w-4" /> Характеристики
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCharacteristicsDialog(true)}
+                      disabled={isPending || !draftId}
+                    >
+                      <List className="mr-2 h-4 w-4" /> Характеристики
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCharacteristicsListDialog(true)}
+                      disabled={isPending}
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" /> Справочник
+                    </Button>
+                  </div>
                 </CardHeader>
               </Card>
 
@@ -568,6 +579,11 @@ export function ProductEditDialog({
       {showDocumentsDriversDialog && draftId && (
         <ProductDocumentsDriversDialog productId={draftId} onClose={() => setShowDocumentsDriversDialog(false)} />
       )}
+      
+      <CharacteristicsListDialog
+        open={showCharacteristicsListDialog}
+        onOpenChange={setShowCharacteristicsListDialog}
+      />
     </>
   )
 }

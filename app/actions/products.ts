@@ -58,9 +58,11 @@ export interface ProductMedia {
 
 export interface ProductCharacteristic {
   id: number
-  name: string
+  key: string
   value: string
   order: number
+  characteristic_id?: number
+  unit_of_measurement?: string
 }
 
 export interface ProductDocument {
@@ -516,9 +518,11 @@ export async function getCharacteristics(productId: number): Promise<ProductChar
     const data = await response.json()
     return data.map((item: any) => ({
       id: item.id,
-      name: item.key,
+      key: item.key,
       value: item.value,
-      order: item.sort_order
+      order: item.sort_order,
+      characteristic_id: item.characteristic_id,
+      unit_of_measurement: item.unit_of_measurement || ''
     }))
   } catch (error) {
     console.error("Error fetching characteristics:", error)
@@ -527,7 +531,7 @@ export async function getCharacteristics(productId: number): Promise<ProductChar
 }
 
 // Добавить характеристику
-export async function addCharacteristic(productId: number, name: string, value: string): Promise<ProductCharacteristic> {
+export async function addCharacteristic(productId: number, characteristicId: number, value: string): Promise<ProductCharacteristic> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -542,7 +546,7 @@ export async function addCharacteristic(productId: number, name: string, value: 
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ key: name, value }),
+      body: JSON.stringify({ characteristic_id: characteristicId, value }),
     })
 
     if (!response.ok) {
@@ -553,9 +557,11 @@ export async function addCharacteristic(productId: number, name: string, value: 
     const data = await response.json()
     return {
       id: data.id,
-      name: data.key,
+      key: data.key,
       value: data.value,
-      order: data.sort_order
+      order: data.sort_order,
+      characteristic_id: data.characteristic_id,
+      unit_of_measurement: data.unit_of_measurement || ''
     }
   } catch (error) {
     console.error("Error adding characteristic:", error)
@@ -564,13 +570,13 @@ export async function addCharacteristic(productId: number, name: string, value: 
 }
 
 // Удалить характеристику
-export async function deleteCharacteristic(productId: number, characteristicId: number): Promise<void> {
+export async function deleteCharacteristic(productId: number, characteristicId: number): Promise<{ success: boolean; error?: string }> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
 
     if (!token) {
-      throw new Error("Не авторизован")
+      return { success: false, error: "Не авторизован" }
     }
 
     const response = await fetch(getApiUrl(`/characteristics/${characteristicId}`), {
@@ -583,16 +589,18 @@ export async function deleteCharacteristic(productId: number, characteristicId: 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      return { success: false, error: errorData.message || `HTTP error! status: ${response.status}` }
     }
+
+    return { success: true }
   } catch (error) {
     console.error("Error deleting characteristic:", error)
-    throw new Error("Ошибка удаления характеристики")
+    return { success: false, error: "Ошибка удаления характеристики" }
   }
 }
 
 // Изменить порядок характеристик
-export async function reorderCharacteristics(productId: number, characteristicIds: number[]): Promise<void> {
+export async function reorderCharacteristics(productId: number, orderPayload: { id: number; sort_order: number }[]): Promise<void> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -607,7 +615,7 @@ export async function reorderCharacteristics(productId: number, characteristicId
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(characteristicIds.map((id, index) => ({ id, sort_order: index }))),
+      body: JSON.stringify(orderPayload),
     })
 
     if (!response.ok) {

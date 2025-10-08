@@ -12,6 +12,7 @@ import {
   deleteCharacteristic,
   reorderCharacteristics,
 } from "@/app/actions/products"
+import { getCharacteristicsList, type CharacteristicsListItem } from "@/app/actions/characteristics-list"
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Plus, Trash2, GripVertical, Edit, Check, X } from "lucide-react"
 
@@ -32,7 +34,7 @@ interface ProductCharacteristicsDialogProps {
 
 interface EditableCharacteristic extends Characteristic {
   isEditing?: boolean
-  tempKey?: string
+  tempCharacteristicId?: number
   tempValue?: string
   isNew?: boolean // Флаг для новых характеристик
 }
@@ -45,14 +47,16 @@ function SortableCharacteristicItem({
   onCancel,
   onTempUpdate,
   isPending,
+  characteristicsList,
 }: {
   char: EditableCharacteristic
   onDelete: (id: number) => void
   onEdit: (id: number) => void
   onSave: (id: number) => void
   onCancel: (id: number) => void
-  onTempUpdate: (id: number, field: "key" | "value", value: string) => void
+  onTempUpdate: (id: number, field: "characteristicId" | "value", value: string | number) => void
   isPending: boolean
+  characteristicsList: CharacteristicsListItem[]
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: char.id })
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined }
@@ -65,20 +69,34 @@ function SortableCharacteristicItem({
 
       {char.isEditing ? (
         <>
-          <Input
-            placeholder="Название (например, Экран)"
-            value={char.tempKey ?? char.key}
-            onChange={(e) => onTempUpdate(char.id, "key", e.target.value)}
-            className="flex-1"
+          <Select
+            value={char.tempCharacteristicId?.toString() || ""}
+            onValueChange={(value) => onTempUpdate(char.id, "characteristicId", parseInt(value))}
             disabled={isPending}
-          />
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Выберите характеристику" />
+            </SelectTrigger>
+            <SelectContent>
+              {characteristicsList.map((item) => (
+                <SelectItem key={item.id} value={item.id.toString()}>
+                  {item.characteristic_key} {item.unit_of_measurement && `(${item.unit_of_measurement})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
-            placeholder="Значение (например, 6.1 дюйма)"
+            placeholder="Значение"
             value={char.tempValue ?? char.value}
             onChange={(e) => onTempUpdate(char.id, "value", e.target.value)}
             className="flex-1"
             disabled={isPending}
           />
+          <div className="text-sm text-gray-500 min-w-[60px]">
+            {char.tempCharacteristicId ? 
+              characteristicsList.find(cl => cl.id === char.tempCharacteristicId)?.unit_of_measurement || '' 
+              : char.unit_of_measurement || ''}
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -105,6 +123,9 @@ function SortableCharacteristicItem({
           </div>
           <div className="flex-1 px-3 py-2 text-sm">
             {char.value || <span className="text-gray-400">Без значения</span>}
+          </div>
+          <div className="text-sm text-gray-500 min-w-[60px]">
+            {char.unit_of_measurement || ''}
           </div>
           <Button
             variant="ghost"
@@ -135,7 +156,7 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
   const [isPending, startTransition] = useTransition()
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [characteristics, setCharacteristics] = useState<EditableCharacteristic[]>([])
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [characteristicsList, setCharacteristicsList] = useState<CharacteristicsListItem[]>([])
   const [nextTempId, setNextTempId] = useState(-1) // Для временных ID новых характеристик
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -146,12 +167,23 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
     const chars = await getCharacteristics(productId)
     setCharacteristics(chars.map((c) => ({ ...c, isEditing: false })))
     setIsInitialLoading(false)
-    setHasUnsavedChanges(false)
   }, [productId, isInitialLoading])
+
+  const fetchCharacteristicsList = useCallback(async () => {
+    try {
+      const result = await getCharacteristicsList()
+      if (result.success && result.data) {
+        setCharacteristicsList(result.data)
+      }
+    } catch (error) {
+      console.error('Error fetching characteristics list:', error)
+    }
+  }, [])
 
   useEffect(() => {
     fetchChars()
-  }, [fetchChars])
+    fetchCharacteristicsList()
+  }, [fetchChars, fetchCharacteristicsList])
 
   const handleAdd = () => {
     const newOrder = characteristics.length > 0 ? Math.max(...characteristics.map((c) => c.sort_order)) + 1 : 1
@@ -162,7 +194,7 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
       sort_order: newOrder,
       isEditing: true,
       isNew: true,
-      tempKey: "",
+      tempCharacteristicId: undefined,
       tempValue: "",
     }
 
@@ -181,7 +213,7 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
 
     // Если это существующая характеристика, удаляем на сервере
     startTransition(async () => {
-      const result = await deleteCharacteristic(id)
+      const result = await deleteCharacteristic(productId, id)
       if (result.success) {
         toast({ title: "Характеристика удалена" })
         await fetchChars()
@@ -193,7 +225,7 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
 
   const handleEdit = (id: number) => {
     setCharacteristics((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, isEditing: true, tempKey: c.key, tempValue: c.value } : c)),
+      prev.map((c) => (c.id === id ? { ...c, isEditing: true, tempCharacteristicId: c.characteristic_id, tempValue: c.value } : c)),
     )
   }
 
@@ -201,22 +233,23 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
     const char = characteristics.find((c) => c.id === id)
     if (!char) return
 
-    const key = char.tempKey || char.key
+    const characteristicId = char.tempCharacteristicId
     const value = char.tempValue || char.value
+
+    if (!characteristicId) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Выберите характеристику из списка" })
+      return
+    }
 
     if (char.isNew) {
       // Создаем новую характеристику на сервере
       startTransition(async () => {
-        const result = await addCharacteristic(productId, {
-          key,
-          value,
-          sort_order: char.sort_order,
-        })
-        if (result.success) {
+        try {
+          const result = await addCharacteristic(productId, characteristicId, value)
           toast({ title: "Характеристика добавлена" })
           await fetchChars()
-        } else {
-          toast({ variant: "destructive", title: "Ошибка", description: result.error })
+        } catch (error) {
+          toast({ variant: "destructive", title: "Ошибка", description: "Не удалось добавить характеристику" })
         }
       })
     } else {
@@ -226,17 +259,16 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
           c.id === id
             ? {
                 ...c,
-                key,
+                key: characteristicsList.find(cl => cl.id === characteristicId)?.characteristic_key || c.key,
                 value,
                 isEditing: false,
-                tempKey: undefined,
+                tempCharacteristicId: undefined,
                 tempValue: undefined,
               }
             : c,
         ),
       )
-      setHasUnsavedChanges(true)
-      toast({ title: "Изменения сохранены локально", description: "Нажмите 'Сохранить' для отправки на сервер" })
+      toast({ title: "Изменения сохранены" })
     }
   }
 
@@ -249,28 +281,17 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
     } else {
       // Если это существующая характеристика, просто отменяем редактирование
       setCharacteristics((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, isEditing: false, tempKey: undefined, tempValue: undefined } : c)),
+        prev.map((c) => (c.id === id ? { ...c, isEditing: false, tempCharacteristicId: undefined, tempValue: undefined } : c)),
       )
     }
   }
 
-  const handleTempUpdate = (id: number, field: "key" | "value", value: string) => {
+  const handleTempUpdate = (id: number, field: "characteristicId" | "value", value: string | number) => {
     setCharacteristics((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [field === "key" ? "tempKey" : "tempValue"]: value } : c)),
+      prev.map((c) => (c.id === id ? { ...c, [field === "characteristicId" ? "tempCharacteristicId" : "tempValue"]: value } : c)),
     )
   }
 
-  const handleSaveAll = () => {
-    startTransition(async () => {
-      // Сохраняем только существующие характеристики (не новые)
-      const existingChars = characteristics.filter((c) => !c.isNew)
-      const orderPayload = existingChars.map((c, index) => ({ id: c.id, sort_order: index + 1 }))
-
-      await reorderCharacteristics(productId, orderPayload)
-      toast({ title: "Все изменения сохранены" })
-      await fetchChars()
-    })
-  }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -285,7 +306,26 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
       const [movedItem] = newChars.splice(oldIndex, 1)
       newChars.splice(newIndex, 0, movedItem)
       setCharacteristics(newChars)
-      setHasUnsavedChanges(true)
+      
+      // Сразу отправляем изменения на сервер
+      startTransition(async () => {
+        try {
+          // Создаем payload для реордера (только существующие характеристики)
+          const existingChars = newChars.filter((c) => !c.isNew)
+          const orderPayload = existingChars.map((c, index) => ({ id: c.id, sort_order: index + 1 }))
+          
+          await reorderCharacteristics(productId, orderPayload)
+          toast({ title: "Порядок характеристик обновлен" })
+        } catch (error) {
+          toast({ 
+            variant: "destructive", 
+            title: "Ошибка", 
+            description: "Не удалось обновить порядок характеристик" 
+          })
+          // Откатываем изменения при ошибке
+          await fetchChars()
+        }
+      })
     }
   }
 
@@ -315,6 +355,7 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
                       onCancel={handleCancelEdit}
                       onTempUpdate={handleTempUpdate}
                       isPending={isPending}
+                      characteristicsList={characteristicsList}
                     />
                   ))}
                   {characteristics.length === 0 && (
@@ -329,18 +370,9 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
           <Button onClick={handleAdd} disabled={isPending}>
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleSaveAll}
-              disabled={isPending || !hasUnsavedChanges}
-              variant={hasUnsavedChanges ? "default" : "secondary"}
-            >
-              Сохранить
-            </Button>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Отмена
-            </Button>
-          </div>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Закрыть
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

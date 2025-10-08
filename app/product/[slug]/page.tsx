@@ -50,6 +50,7 @@ interface ProductDetail {
     key: string
     value: string
     sort_order: number
+    unit_of_measurement?: string
   }>
   media: Array<{
     id: number
@@ -592,7 +593,12 @@ export default function ProductPage() {
                       .map((char, index) => (
                         <div key={char.id} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0">
                           <span className="font-medium text-gray-700">{char.key}</span>
-                          <span className="text-gray-600">{char.value}</span>
+                          <span className="text-gray-600">
+                            {char.value}
+                            {char.unit_of_measurement && (
+                              <span className="text-gray-400 ml-1">({char.unit_of_measurement})</span>
+                            )}
+                          </span>
                         </div>
                       ))}
                   </div>
