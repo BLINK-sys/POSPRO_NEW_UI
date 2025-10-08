@@ -85,6 +85,14 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  const handleSetStandardColors = () => {
+    setFormData((prev) => ({
+      ...prev,
+      button_color: "#fbbf24", // Желтый цвет как у кнопки "Личный кабинет"
+      button_text_color: "#000000" // Черный текст
+    }))
+  }
+
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -316,13 +324,24 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
 
               {formData.show_button && (
                 <>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="open_in_new_tab"
-                      checked={formData.open_in_new_tab}
-                      onCheckedChange={(checked) => handleInputChange("open_in_new_tab", checked)}
-                    />
-                    <Label htmlFor="open_in_new_tab">Открывать в новой вкладке</Label>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="open_in_new_tab"
+                        checked={formData.open_in_new_tab}
+                        onCheckedChange={(checked) => handleInputChange("open_in_new_tab", checked)}
+                      />
+                      <Label htmlFor="open_in_new_tab">Открывать в новой вкладке</Label>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSetStandardColors}
+                      className="text-xs"
+                    >
+                      Стандартный цвет
+                    </Button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
