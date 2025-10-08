@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Banner } from "@/app/actions/banners"
@@ -39,6 +40,9 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     button_text: "",
     button_link: "",
     show_button: true,
+    open_in_new_tab: false,
+    button_color: "#000000",
+    button_text_color: "#ffffff",
     active: true,
   })
   const [isUploading, setIsUploading] = useState(false)
@@ -54,6 +58,9 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
         button_text: banner.button_text || "",
         button_link: banner.button_link || "",
         show_button: banner.show_button ?? true,
+        open_in_new_tab: banner.open_in_new_tab ?? false,
+        button_color: banner.button_color || "#000000",
+        button_text_color: banner.button_text_color || "#ffffff",
         active: banner.active ?? true,
       })
       setImagePreview(getImageUrl(banner.image))
@@ -65,6 +72,9 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
         button_text: "",
         button_link: "",
         show_button: true,
+        open_in_new_tab: false,
+        button_color: "#000000",
+        button_text_color: "#ffffff",
         active: true,
       })
       setImagePreview("")
@@ -202,144 +212,205 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
           <DialogTitle>{banner ? "Редактировать баннер" : "Создать баннер"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Image Upload */}
-          <div className="space-y-4">
-            <Label>Изображение баннера</Label>
+        <Tabs defaultValue="content" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="content">Контент</TabsTrigger>
+            <TabsTrigger value="button">Кнопка</TabsTrigger>
+          </TabsList>
 
-            {imagePreview ? (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="relative">
-                    <img
-                      src={imagePreview || "/placeholder.svg"}
-                      alt="Preview"
-                      className="w-full h-48 object-cover rounded-lg"
-                      onError={(e) => {
-                        console.error("Image preview failed to load:", imagePreview)
-                        e.currentTarget.src = "/placeholder.svg?height=192&width=384"
-                      }}
-                    />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-2 right-2"
-                      onClick={handleRemoveImage}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="p-8">
-                  <div className="text-center">
-                    <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600">Загрузите изображение баннера</p>
-                      <p className="text-xs text-gray-400">PNG, JPG до 5MB</p>
+          <TabsContent value="content" className="space-y-6 mt-6">
+            {/* Image Upload */}
+            <div className="space-y-4">
+              <Label>Изображение баннера</Label>
+
+              {imagePreview ? (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="relative">
+                      <img
+                        src={imagePreview || "/placeholder.svg"}
+                        alt="Preview"
+                        className="w-full h-48 object-cover rounded-lg"
+                        onError={(e) => {
+                          console.error("Image preview failed to load:", imagePreview)
+                          e.currentTarget.src = "/placeholder.svg?height=192&width=384"
+                        }}
+                      />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      disabled={isUploading}
-                      className="mt-4"
-                    />
-                    {isUploading && (
-                      <div className="flex items-center justify-center mt-2">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        <span className="text-sm">Загрузка...</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label htmlFor="title">Заголовок *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="Введите заголовок баннера"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="subtitle">Подзаголовок</Label>
-              <Textarea
-                id="subtitle"
-                value={formData.subtitle}
-                onChange={(e) => handleInputChange("subtitle", e.target.value)}
-                placeholder="Введите подзаголовок баннера"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="show_button"
-                checked={formData.show_button}
-                onCheckedChange={(checked) => handleInputChange("show_button", checked)}
-              />
-              <Label htmlFor="show_button">Показать кнопку</Label>
-            </div>
-
-            {formData.show_button && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="button_text">Текст кнопки</Label>
-                  <Input
-                    id="button_text"
-                    value={formData.button_text}
-                    onChange={(e) => handleInputChange("button_text", e.target.value)}
-                    placeholder="Подробнее"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="button_link">Ссылка кнопки</Label>
-                  <Input
-                    id="button_link"
-                    value={formData.button_link}
-                    onChange={(e) => handleInputChange("button_link", e.target.value)}
-                    placeholder="/category/electronics"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="active"
-                checked={formData.active}
-                onCheckedChange={(checked) => handleInputChange("active", checked)}
-              />
-              <Label htmlFor="active">Активен</Label>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-              Отмена
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Сохранение...
-                </>
+                  </CardContent>
+                </Card>
               ) : (
-                "Сохранить"
+                <Card className="border-dashed">
+                  <CardContent className="p-8">
+                    <div className="text-center">
+                      <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">Загрузите изображение баннера</p>
+                        <p className="text-xs text-gray-400">PNG, JPG до 5MB</p>
+                      </div>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={isUploading}
+                        className="mt-4"
+                      />
+                      {isUploading && (
+                        <div className="flex items-center justify-center mt-2">
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <span className="text-sm">Загрузка...</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-            </Button>
-          </div>
+            </div>
+
+            {/* Content Fields */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="title">Заголовок *</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  placeholder="Введите заголовок баннера"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="subtitle">Подзаголовок</Label>
+                <Textarea
+                  id="subtitle"
+                  value={formData.subtitle}
+                  onChange={(e) => handleInputChange("subtitle", e.target.value)}
+                  placeholder="Введите подзаголовок баннера"
+                  rows={3}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="button" className="space-y-6 mt-6">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="show_button"
+                  checked={formData.show_button}
+                  onCheckedChange={(checked) => handleInputChange("show_button", checked)}
+                />
+                <Label htmlFor="show_button">Показать кнопку</Label>
+              </div>
+
+              {formData.show_button && (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="open_in_new_tab"
+                      checked={formData.open_in_new_tab}
+                      onCheckedChange={(checked) => handleInputChange("open_in_new_tab", checked)}
+                    />
+                    <Label htmlFor="open_in_new_tab">Открывать в новой вкладке</Label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="button_text">Текст кнопки</Label>
+                      <Input
+                        id="button_text"
+                        value={formData.button_text}
+                        onChange={(e) => handleInputChange("button_text", e.target.value)}
+                        placeholder="Подробнее"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="button_link">Ссылка кнопки</Label>
+                      <Input
+                        id="button_link"
+                        value={formData.button_link}
+                        onChange={(e) => handleInputChange("button_link", e.target.value)}
+                        placeholder="/category/electronics"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="button_color">Цвет кнопки</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          id="button_color"
+                          type="color"
+                          value={formData.button_color}
+                          onChange={(e) => handleInputChange("button_color", e.target.value)}
+                          className="w-16 h-10 p-1 border rounded"
+                        />
+                        <Input
+                          value={formData.button_color}
+                          onChange={(e) => handleInputChange("button_color", e.target.value)}
+                          placeholder="#000000"
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="button_text_color">Цвет текста кнопки</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          id="button_text_color"
+                          type="color"
+                          value={formData.button_text_color}
+                          onChange={(e) => handleInputChange("button_text_color", e.target.value)}
+                          className="w-16 h-10 p-1 border rounded"
+                        />
+                        <Input
+                          value={formData.button_text_color}
+                          onChange={(e) => handleInputChange("button_text_color", e.target.value)}
+                          placeholder="#ffffff"
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="active"
+                  checked={formData.active}
+                  onCheckedChange={(checked) => handleInputChange("active", checked)}
+                />
+                <Label htmlFor="active">Активен</Label>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Actions */}
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Отмена
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Сохранение...
+              </>
+            ) : (
+              "Сохранить"
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

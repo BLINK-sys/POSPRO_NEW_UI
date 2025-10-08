@@ -14,6 +14,9 @@ export interface Banner {
   button_text: string
   button_link: string
   show_button: boolean
+  open_in_new_tab?: boolean
+  button_color?: string
+  button_text_color?: string
   active: boolean
 }
 
