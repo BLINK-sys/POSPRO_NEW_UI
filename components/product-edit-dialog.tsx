@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
+import type { Supplier } from "@/app/actions/suppliers"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,7 @@ interface ProductEditDialogProps {
   categories: Category[]
   brands: Brand[]
   statuses: Status[]
+  suppliers: Supplier[]
   onClose: () => void
   onUpdate: () => void
 }
@@ -88,6 +90,7 @@ export function ProductEditDialog({
   categories,
   brands,
   statuses,
+  suppliers,
   onClose,
   onUpdate,
 }: ProductEditDialogProps) {
@@ -123,6 +126,9 @@ export function ProductEditDialog({
   const [description, setDescription] = useState(product?.description ?? "")
   const [categoryId, setCategoryId] = useState(String(product?.category_id ?? "0"))
   const [categoryName, setCategoryName] = useState("")
+  const [supplierId, setSupplierId] = useState(
+    product?.supplier_id ? String(product.supplier_id) : "no-supplier"
+  )
 
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(!!product?.slug)
 
@@ -260,6 +266,7 @@ export function ProductEditDialog({
         brand: brandName === "no-brand" ? "no" : brandName,
         description: description?.trim() || null,
         category_id: categoryId === "0" ? null : Number(categoryId),
+        supplier_id: supplierId === "no-supplier" ? null : Number(supplierId),
       }
 
       let result
@@ -473,6 +480,23 @@ export function ProductEditDialog({
                   <span>{categoryName}</span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="supplier_id">Поставщик</Label>
+                <Select value={supplierId} onValueChange={setSupplierId} disabled={isPending}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите поставщика" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-supplier">Без поставщика</SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <Card>

@@ -6,6 +6,7 @@ import Image from "next/image"
 import { type Product, deleteProduct, type ProductActionState } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
+import type { Supplier } from "@/app/actions/suppliers"
 import { API_BASE_URL } from "@/lib/api-address"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,7 @@ interface ProductsTableProps {
   categories: Category[]
   brands: Brand[]
   statuses: Status[]
+  suppliers: Supplier[]
   isSidebarCollapsed?: boolean
 }
 
@@ -46,6 +48,7 @@ export function ProductsTable({
   categories,
   brands,
   statuses,
+  suppliers,
   isSidebarCollapsed = false,
 }: ProductsTableProps) {
   const [allProducts] = useState<Product[]>(initialProducts) // Все товары (не изменяются)
@@ -817,6 +820,7 @@ export function ProductsTable({
           categories={categories}
           brands={brands}
           statuses={statuses}
+          suppliers={suppliers}
           onClose={() => setIsCreating(false)}
           onUpdate={handleProductUpdate}
         />

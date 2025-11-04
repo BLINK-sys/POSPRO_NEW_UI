@@ -15,6 +15,8 @@ export interface Product {
   is_visible: boolean
   country?: string
   brand?: string
+  postavka?: string
+  supplier_id?: number
   description?: string
   status?: string
   is_draft: boolean

@@ -3,6 +3,7 @@ import { ProductsTable } from "@/components/products-table"
 import { getProducts } from "@/app/actions/products"
 import { getCategories } from "@/app/actions/categories"
 import { getBrands, getStatuses } from "@/app/actions/meta"
+import { getSuppliers } from "@/app/actions/suppliers"
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +12,12 @@ interface ProductsPageProps {
 }
 
 export default async function ProductsPage({ isSidebarCollapsed = false }: ProductsPageProps) {
-  const [products, categories, brands, statuses] = await Promise.all([
+  const [products, categories, brands, statuses, suppliers] = await Promise.all([
     getProducts({}), // Получаем все товары без фильтров изначально
     getCategories(),
     getBrands(),
     getStatuses(),
+    getSuppliers(),
   ])
 
   return (
@@ -30,6 +32,7 @@ export default async function ProductsPage({ isSidebarCollapsed = false }: Produ
           categories={categories}
           brands={brands}
           statuses={statuses}
+          suppliers={suppliers}
           isSidebarCollapsed={isSidebarCollapsed}
         />
       </CardContent>

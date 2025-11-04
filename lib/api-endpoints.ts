@@ -85,6 +85,13 @@ export const API_ENDPOINTS = {
       UPDATE: (id: number) => `/meta/statuses/${id}`,
       DELETE: (id: number) => `/meta/statuses/${id}`,
     },
+    SUPPLIERS: {
+      LIST: "/meta/suppliers",
+      GET: (id: number) => `/meta/suppliers/${id}`,
+      CREATE: "/meta/suppliers",
+      UPDATE: (id: number) => `/meta/suppliers/${id}`,
+      DELETE: (id: number) => `/meta/suppliers/${id}`,
+    },
   },
 
   // Users endpoints

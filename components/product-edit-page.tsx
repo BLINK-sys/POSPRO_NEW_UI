@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { type Product, updateProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
+import type { Supplier } from "@/app/actions/suppliers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +27,7 @@ interface ProductEditPageProps {
   categories: Category[]
   brands: Brand[]
   statuses: Status[]
+  suppliers: Supplier[]
 }
 
 function generateSlug(text: string): string {
@@ -75,7 +77,7 @@ function generateSlug(text: string): string {
     .replace(/^-+|-+$/g, "")
 }
 
-export function ProductEditPage({ product, categories, brands, statuses }: ProductEditPageProps) {
+export function ProductEditPage({ product, categories, brands, statuses, suppliers }: ProductEditPageProps) {
   console.log("ProductEditPage rendered with product:", product)
   console.log("Product ID:", product.id)
   
@@ -105,6 +107,9 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
   const [description, setDescription] = useState(product.description ?? "")
   const [categoryId, setCategoryId] = useState(String(product.category_id ?? "0"))
   const [categoryName, setCategoryName] = useState("")
+  const [supplierId, setSupplierId] = useState(
+    product.supplier_id ? String(product.supplier_id) : "no-supplier"
+  )
 
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(true)
 
@@ -187,6 +192,7 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
         brand: brandName === "no-brand" ? "no" : brandName,
         description: description?.trim() || null,
         category_id: categoryId === "0" ? null : Number(categoryId),
+        supplier_id: supplierId === "no-supplier" ? null : Number(supplierId),
       }
 
       const result = await updateProduct(product.id, payload)
@@ -371,6 +377,29 @@ export function ProductEditPage({ product, categories, brands, statuses }: Produ
                 <span>{categoryName}</span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Поставщик</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Select value={supplierId} onValueChange={setSupplierId} disabled={isPending}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите поставщика" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-supplier">Без поставщика</SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
         </div>
