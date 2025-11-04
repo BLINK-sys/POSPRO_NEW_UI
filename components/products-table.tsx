@@ -60,6 +60,7 @@ export function ProductsTable({
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [brandFilter, setBrandFilter] = useState("all")
+  const [supplierFilter, setSupplierFilter] = useState("all")
   const [visibilityFilter, setVisibilityFilter] = useState("all")
   const [quantityFilter, setQuantityFilter] = useState("all")
 
@@ -119,6 +120,14 @@ export function ProductsTable({
       filtered = filtered.filter((product) => product.brand === brandFilter)
     }
 
+    // Фильтр по поставщику
+    if (supplierFilter !== "all") {
+      filtered = filtered.filter((product) => {
+        const productSupplierId = product.supplier_id ? String(product.supplier_id) : "no-supplier"
+        return productSupplierId === supplierFilter
+      })
+    }
+
     // Фильтр по видимости
     if (visibilityFilter !== "all") {
       filtered = filtered.filter((product) => String(product.is_visible) === visibilityFilter)
@@ -134,7 +143,7 @@ export function ProductsTable({
     }
 
     return filtered
-  }, [allProducts, searchQuery, categoryFilter, statusFilter, brandFilter, visibilityFilter, quantityFilter])
+  }, [allProducts, searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter])
 
   // Пагинация
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
@@ -145,7 +154,7 @@ export function ProductsTable({
   // Сброс страницы при изменении фильтров
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, categoryFilter, statusFilter, brandFilter, visibilityFilter, quantityFilter, itemsPerPage])
+  }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, itemsPerPage])
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
@@ -210,7 +219,7 @@ export function ProductsTable({
 
   // Компонент фильтров
   const FiltersComponent = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
         <SelectTrigger>
           <SelectValue placeholder="Категория" />
@@ -255,12 +264,27 @@ export function ProductsTable({
         </SelectContent>
       </Select>
 
+      <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+        <SelectTrigger>
+          <SelectValue placeholder="Поставщик" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Все поставщики</SelectItem>
+          <SelectItem value="no-supplier">Без поставщика</SelectItem>
+          {suppliers.map((supplier) => (
+            <SelectItem key={supplier.id} value={String(supplier.id)}>
+              {supplier.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
       <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
         <SelectTrigger>
           <SelectValue placeholder="Видимость" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
+          <SelectItem value="all">Любая видимость</SelectItem>
           <SelectItem value="true">Виден</SelectItem>
           <SelectItem value="false">Скрыт</SelectItem>
         </SelectContent>
@@ -271,7 +295,7 @@ export function ProductsTable({
           <SelectValue placeholder="Наличие" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
+          <SelectItem value="all">Любое наличие</SelectItem>
           <SelectItem value="true">В наличии</SelectItem>
           <SelectItem value="false">Нет в наличии</SelectItem>
         </SelectContent>
@@ -356,12 +380,27 @@ export function ProductsTable({
                   </SelectContent>
                 </Select>
 
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Поставщик" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все поставщики</SelectItem>
+                    <SelectItem value="no-supplier">Без поставщика</SelectItem>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={String(supplier.id)}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Видимость" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="all">Любая видимость</SelectItem>
                     <SelectItem value="true">Виден</SelectItem>
                     <SelectItem value="false">Скрыт</SelectItem>
                   </SelectContent>
@@ -372,7 +411,7 @@ export function ProductsTable({
                     <SelectValue placeholder="Наличие" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="all">Любое наличие</SelectItem>
                     <SelectItem value="true">В наличии</SelectItem>
                     <SelectItem value="false">Нет в наличии</SelectItem>
                   </SelectContent>
@@ -436,6 +475,7 @@ export function ProductsTable({
                     <TableHead>Статус</TableHead>
                     <TableHead>Видимость</TableHead>
                     <TableHead>Бренд</TableHead>
+                    <TableHead className="w-[100px]">На сайте</TableHead>
                     <TableHead>
                       <span className="sr-only">Действия</span>
                     </TableHead>
@@ -480,6 +520,22 @@ export function ProductsTable({
                           <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
                           <TableCell>{product.brand === "no" ? "Без бренда" : product.brand}</TableCell>
                           <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Открыть на сайте"
+                              onClick={() => {
+                                if (product.slug) {
+                                  window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
+                                }
+                              }}
+                              disabled={!product.slug}
+                            >
+                              <Search className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                          <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -503,11 +559,12 @@ export function ProductsTable({
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center">
+                      <TableCell colSpan={9} className="h-24 text-center">
                         {searchQuery ||
                         categoryFilter !== "all" ||
                         statusFilter !== "all" ||
                         brandFilter !== "all" ||
+                        supplierFilter !== "all" ||
                         visibilityFilter !== "all" ||
                         quantityFilter !== "all"
                           ? "Товары не найдены по заданным фильтрам."
@@ -657,6 +714,7 @@ export function ProductsTable({
                   <TableHead>Статус</TableHead>
                   <TableHead>Видимость</TableHead>
                   <TableHead>Бренд</TableHead>
+                  <TableHead className="w-[100px]">На сайте</TableHead>
                   <TableHead>
                     <span className="sr-only">Действия</span>
                   </TableHead>
@@ -701,6 +759,22 @@ export function ProductsTable({
                         <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
                         <TableCell>{product.brand === "no" ? "Без бренда" : product.brand}</TableCell>
                         <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Открыть на сайте"
+                            onClick={() => {
+                              if (product.slug) {
+                                window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
+                              }
+                            }}
+                            disabled={!product.slug}
+                          >
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -724,7 +798,7 @@ export function ProductsTable({
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchQuery ||
                       categoryFilter !== "all" ||
                       statusFilter !== "all" ||
