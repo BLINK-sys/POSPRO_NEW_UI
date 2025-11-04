@@ -170,10 +170,10 @@ export async function getHomepageData(): Promise<PublicHomepageData> {
   }
 }
 
-// Получить все категории для каталога
+// Получить все категории для каталога (только с show_in_menu=True)
 export async function getPublicCategories(): Promise<CategoryData[]> {
   try {
-    const response = await fetch(getApiUrl("/categories/"), {
+    const response = await fetch(getApiUrl("/api/public/categories"), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -188,24 +188,21 @@ export async function getPublicCategories(): Promise<CategoryData[]> {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
+    // Сервер уже возвращает иерархическую структуру
     const categories = await response.json()
     
-    // Строим иерархическую структуру
-    const buildCategoryTree = (categories: any[], parentId: number | null = null): CategoryData[] => {
-      return categories
-        .filter(cat => cat.parent_id === parentId)
-        .map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          slug: cat.slug,
-          image_url: cat.image_url,
-          description: cat.description,
-          parent_id: cat.parent_id,
-          children: buildCategoryTree(categories, cat.id)
-        }))
-    }
+    // Преобразуем в формат CategoryData
+    const transformCategory = (cat: any): CategoryData => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      image_url: cat.image_url,
+      description: cat.description,
+      parent_id: cat.parent_id,
+      children: cat.children ? cat.children.map(transformCategory) : []
+    })
 
-    return buildCategoryTree(categories)
+    return categories.map(transformCategory)
   } catch (error) {
     console.error("Error fetching categories:", error)
     throw new Error("Ошибка получения категорий")

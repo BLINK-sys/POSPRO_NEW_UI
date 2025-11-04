@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils"
 import { CategoryEditDialog } from "./category-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { updateCategoryShowInMenu } from "@/app/actions/categories"
 
 interface CategoryTreeItemProps {
   category: Category
@@ -27,6 +29,8 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
   const [isDeleting, setIsDeleting] = useState<Category | null>(null)
   const [isCreatingSub, setIsCreatingSub] = useState(false)
   const [imageKey, setImageKey] = useState(0) // Ключ для принудительного обновления изображения
+  const [showInMenu, setShowInMenu] = useState(category.show_in_menu ?? true)
+  const [isUpdatingShowInMenu, setIsUpdatingShowInMenu] = useState(false)
   const { toast } = useToast()
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id })
@@ -36,6 +40,13 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
     transition,
     zIndex: isDragging ? 10 : undefined,
   }
+
+  // Синхронизируем состояние переключателя с данными категории
+  useEffect(() => {
+    if (category?.show_in_menu !== undefined) {
+      setShowInMenu(category.show_in_menu)
+    }
+  }, [category?.show_in_menu])
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
@@ -74,7 +85,49 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
   const handleUpdateWithImageRefresh = (updatedCategory?: Category) => {
     // Обновляем ключ изображения для принудительного обновления
     setImageKey((prev) => prev + 1)
+    if (updatedCategory?.show_in_menu !== undefined) {
+      setShowInMenu(updatedCategory.show_in_menu)
+    }
     onUpdate?.(updatedCategory)
+  }
+
+  const handleShowInMenuToggle = async (checked: boolean) => {
+    if (!category.id) return
+    
+    // Оптимистичное обновление
+    const previousValue = showInMenu
+    setShowInMenu(checked)
+    setIsUpdatingShowInMenu(true)
+
+    try {
+      const result = await updateCategoryShowInMenu(category.id, checked)
+      if (result.error) {
+        // Откатываем при ошибке
+        setShowInMenu(previousValue)
+        toast({
+          variant: "destructive",
+          title: "Ошибка",
+          description: result.error,
+        })
+      } else {
+        // Обновляем категорию в списке
+        const updatedCategory: Category = {
+          ...category,
+          show_in_menu: checked,
+        }
+        onUpdate?.(updatedCategory)
+      }
+    } catch (error) {
+      // Откатываем при ошибке
+      setShowInMenu(previousValue)
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Не удалось обновить статус отображения в меню",
+      })
+    } finally {
+      setIsUpdatingShowInMenu(false)
+    }
   }
 
   return (
@@ -113,11 +166,24 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
           key={`${category.id}-${imageKey}`} // Принудительное обновление при изменении ключа
         />
         <div className="flex-grow">
-          <p className="font-medium">{category.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{category.name}</p>
+          </div>
           <p className="text-sm text-muted-foreground">{category.slug}</p>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-2">
+            <Switch
+              checked={showInMenu}
+              onCheckedChange={handleShowInMenuToggle}
+              disabled={isUpdatingShowInMenu}
+              title={showInMenu ? "Отображается в меню" : "Скрыта в меню"}
+            />
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {showInMenu ? "В меню" : "Скрыта"}
+            </span>
+          </div>
           <Button variant="ghost" size="icon" title="Добавить подкатегорию" onClick={handleCreateSub}>
             <Plus className="h-4 w-4" />
           </Button>

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ChevronDown } from "lucide-react"
@@ -128,6 +129,7 @@ export function CategoryEditDialog({
   const [preview, setPreview] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0) // Ключ для обновления превью
   const [showParentDialog, setShowParentDialog] = useState(false)
+  const [showInMenu, setShowInMenu] = useState(category?.show_in_menu ?? true)
 
   const isEditMode = !!category && !!category.id
 
@@ -137,6 +139,9 @@ export function CategoryEditDialog({
         ? category.image_url
         : `${API_BASE_URL}${category.image_url}`
       setPreview(`${imageUrl}?v=${Date.now()}`) // Добавляем timestamp для обновления
+    }
+    if (category?.show_in_menu !== undefined) {
+      setShowInMenu(category.show_in_menu)
     }
   }, [category])
 
@@ -185,6 +190,7 @@ export function CategoryEditDialog({
       formData.append("slug", slug)
       formData.append("description", description)
       formData.append("parent_id", parentId)
+      formData.append("show_in_menu", showInMenu ? "true" : "false")
 
       // Проверяем, изменилась ли родительская категория
       const originalParentId = category?.parent_id ?? null
@@ -348,6 +354,15 @@ export function CategoryEditDialog({
             <div className="space-y-2">
               <Label htmlFor="description">Описание</Label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
+            </div>
+            <div className="flex items-center justify-between space-x-2">
+              <Label htmlFor="show_in_menu" className="flex-1">Отображать в меню</Label>
+              <Switch
+                id="show_in_menu"
+                checked={showInMenu}
+                onCheckedChange={setShowInMenu}
+                disabled={isPending}
+              />
             </div>
           </div>
           {/* Правая колонка: изображение */}

@@ -11,6 +11,7 @@ export interface Category {
   image_url: string | null
   parent_id: number | null
   order: number
+  show_in_menu?: boolean
   children?: Category[]
 }
 
@@ -89,11 +90,13 @@ export async function saveCategory(formData: FormData): Promise<CategoryActionSt
   if (method === "PUT") {
     headers["Content-Type"] = "application/json"
     const parentIdValue = formData.get("parent_id") as string
+    const showInMenuValue = formData.get("show_in_menu") as string
     const payload = {
       name: formData.get("name"),
       slug: formData.get("slug"),
       description: formData.get("description"),
       parent_id: parentIdValue === "0" ? null : Number(parentIdValue),
+      show_in_menu: showInMenuValue === "true",
     }
     body = JSON.stringify(payload)
   } else {
@@ -207,6 +210,62 @@ export async function deleteCategory(id: number): Promise<CategoryActionState> {
       return { error: err.message || "Ошибка удаления категории" }
     }
     return { success: true, message: "Категория удалена." }
+  } catch (e) {
+    return { error: "Ошибка сети." }
+  }
+}
+
+export async function updateCategoryShowInMenu(
+  categoryId: number,
+  showInMenu: boolean,
+): Promise<CategoryActionState> {
+  const token = getToken()
+  try {
+    // Получаем текущую категорию для сохранения всех полей
+    const categoryRes = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    
+    if (!categoryRes.ok) {
+      return { error: "Не удалось получить данные категории" }
+    }
+
+    const category = await categoryRes.json()
+    
+    // Обновляем только show_in_menu, сохраняя остальные поля
+    const payload = {
+      name: category.name,
+      slug: category.slug,
+      description: category.description || null,
+      parent_id: category.parent_id,
+      image_url: category.image_url || null,
+      show_in_menu: showInMenu,
+    }
+
+    const res = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      return { error: err.message || "Ошибка обновления статуса отображения в меню" }
+    }
+
+    // PUT endpoint возвращает обновленную категорию
+    const updatedCategory = await res.json()
+
+    return {
+      success: true,
+      message: showInMenu ? "Категория отображается в меню" : "Категория скрыта в меню",
+      category: updatedCategory,
+    }
   } catch (e) {
     return { error: "Ошибка сети." }
   }
