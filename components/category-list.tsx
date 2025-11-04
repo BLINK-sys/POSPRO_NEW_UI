@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
+import { motion } from "framer-motion"
 import { type Category, getCategories } from "@/app/actions/categories"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,9 +66,14 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
     updateCategories()
   }, [updateCategories])
 
-  const handleCategoryReorder = useCallback(() => {
-    // После изменения порядка обновляем весь список
-    updateCategories()
+  const handleCategoryReorder = useCallback((optimisticUpdate?: (categories: Category[]) => Category[]) => {
+    if (optimisticUpdate) {
+      // Оптимистичное обновление для плавной анимации
+      setCategories((prevCategories) => optimisticUpdate(prevCategories))
+    } else {
+      // После успешного ответа сервера или при ошибке обновляем весь список
+      updateCategories()
+    }
   }, [updateCategories])
 
   const flatCategories = flattenTree(categories)
@@ -328,7 +334,10 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
           </Button>
         </div>
       </div>
-      <div className="rounded-lg border p-4 space-y-2 bg-gray-50/50 dark:bg-gray-800/20">
+      <motion.div 
+        className="rounded-lg border p-4 space-y-2 bg-gray-50/50 dark:bg-gray-800/20"
+        layout
+      >
         {filteredCategories.map((category) => (
           <CategoryTreeItem
             key={`${category.id}-${forceResetManual}`}
@@ -353,7 +362,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
         {categories.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-4">Категорий пока нет.</p>
         )}
-      </div>
+      </motion.div>
       {isCreateModalOpen && (
         <CategoryEditDialog
           allCategories={flatCategories}

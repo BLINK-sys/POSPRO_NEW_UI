@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,30 @@ export function ParentCategoryDialog({
 }: ParentCategoryDialogProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [tempSelectedId, setTempSelectedId] = useState<number | null>(selectedCategoryId)
+
+  // Функция для поиска пути к категории (все родительские категории)
+  const findPathToCategory = (cats: Category[], targetId: number | null, path: number[] = []): number[] | null => {
+    if (!targetId) return path.length > 0 ? path : null
+    
+    for (const cat of cats) {
+      if (cat.id === targetId) {
+        return path
+      }
+      if (cat.children && cat.children.length > 0) {
+        const found = findPathToCategory(cat.children, targetId, [...path, cat.id])
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  // Категории, которые должны быть развернуты при открытии (путь к выбранной категории)
+  const initiallyExpanded = useMemo(() => {
+    if (!selectedCategoryId || !open) return new Set<number>()
+    
+    const path = findPathToCategory(categories, selectedCategoryId)
+    return path ? new Set(path) : new Set<number>()
+  }, [categories, selectedCategoryId, open])
 
   // Фильтрация категорий по поиску
   const filterCategories = (cats: Category[], term: string): Category[] => {
@@ -100,6 +124,7 @@ export function ParentCategoryDialog({
                 selectedCategoryId={tempSelectedId}
                 onSelect={setTempSelectedId}
                 excludeCategoryId={excludeCategoryId}
+                initiallyExpanded={initiallyExpanded}
               />
             </ScrollArea>
           </div>

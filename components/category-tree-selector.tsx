@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, Check } from "lucide-react"
 import { type Category } from "@/app/actions/categories"
 import { cn } from "@/lib/utils"
@@ -11,6 +11,7 @@ interface CategoryTreeSelectorProps {
   onSelect: (categoryId: number | null) => void
   excludeCategoryId?: number | null
   className?: string
+  initiallyExpanded?: Set<number>
 }
 
 interface CategoryTreeItemProps {
@@ -19,6 +20,7 @@ interface CategoryTreeItemProps {
   selectedCategoryId: number | null
   onSelect: (categoryId: number | null) => void
   excludeCategoryId?: number | null
+  initiallyExpanded?: Set<number>
 }
 
 function CategoryTreeItem({ 
@@ -26,9 +28,17 @@ function CategoryTreeItem({
   level, 
   selectedCategoryId, 
   onSelect, 
-  excludeCategoryId 
+  excludeCategoryId,
+  initiallyExpanded
 }: CategoryTreeItemProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(initiallyExpanded?.has(category.id) ?? false)
+  
+  // Автоматически разворачиваем при монтировании, если категория в списке initiallyExpanded
+  useEffect(() => {
+    if (initiallyExpanded?.has(category.id)) {
+      setIsExpanded(true)
+    }
+  }, [category.id, initiallyExpanded])
   const hasChildren = category.children && category.children.length > 0
   const isSelected = selectedCategoryId === category.id
   const isExcluded = excludeCategoryId === category.id
@@ -106,6 +116,7 @@ function CategoryTreeItem({
               selectedCategoryId={selectedCategoryId}
               onSelect={onSelect}
               excludeCategoryId={excludeCategoryId}
+              initiallyExpanded={initiallyExpanded}
             />
           ))}
         </div>
@@ -119,7 +130,8 @@ export function CategoryTreeSelector({
   selectedCategoryId,
   onSelect,
   excludeCategoryId,
-  className
+  className,
+  initiallyExpanded
 }: CategoryTreeSelectorProps) {
   return (
     <div className={cn("w-full space-y-2 p-1", className)}>
@@ -154,6 +166,7 @@ export function CategoryTreeSelector({
             selectedCategoryId={selectedCategoryId}
             onSelect={onSelect}
             excludeCategoryId={excludeCategoryId}
+            initiallyExpanded={initiallyExpanded}
           />
         ))}
       </div>
