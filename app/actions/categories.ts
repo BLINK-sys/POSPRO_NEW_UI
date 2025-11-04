@@ -261,12 +261,39 @@ export async function updateCategoryShowInMenu(
     // PUT endpoint возвращает обновленную категорию
     const updatedCategory = await res.json()
 
+    // Получаем обновленный список категорий, чтобы проверить дочерние
+    const allCategoriesRes = await fetch(`${API_BASE_URL}/categories/`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    
+    let message = showInMenu ? "Категория отображается в меню" : "Категория скрыта в меню"
+    
+    if (!showInMenu && allCategoriesRes.ok) {
+      const allCategories: Category[] = await allCategoriesRes.json()
+      const children = allCategories.filter(c => c.parent_id === categoryId)
+      const totalChildren = get_all_children_count(allCategories, categoryId)
+      if (totalChildren > 0) {
+        message = `Категория и ${totalChildren} дочерних категорий скрыты в меню`
+      }
+    }
+    
     return {
       success: true,
-      message: showInMenu ? "Категория отображается в меню" : "Категория скрыта в меню",
+      message,
       category: updatedCategory,
     }
   } catch (e) {
     return { error: "Ошибка сети." }
   }
+}
+
+function get_all_children_count(categories: Category[], parentId: number): number {
+  const directChildren = categories.filter(c => c.parent_id === parentId)
+  let count = directChildren.length
+  for (const child of directChildren) {
+    count += get_all_children_count(categories, child.id)
+  }
+  return count
 }

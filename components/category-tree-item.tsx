@@ -115,7 +115,14 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
           ...category,
           show_in_menu: checked,
         }
-        onUpdate?.(updatedCategory)
+        
+        // Если категория отключается, обновляем весь список, чтобы обновить дочерние категории
+        if (!checked) {
+          // Полное обновление списка для отражения изменений в дочерних категориях
+          onUpdate?.()
+        } else {
+          onUpdate?.(updatedCategory)
+        }
       }
     } catch (error) {
       // Откатываем при ошибке
