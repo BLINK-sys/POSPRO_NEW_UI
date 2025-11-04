@@ -1,13 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useTransition, useRef } from "react"
 import Image from "next/image"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { type Category, deleteCategory } from "@/app/actions/categories"
+import { type Category, deleteCategory, reorderCategories } from "@/app/actions/categories"
 import { API_BASE_URL } from "@/lib/api-address"
 import { Button } from "@/components/ui/button"
-import { GripVertical, ChevronRight, Pencil, Trash2, Plus } from "lucide-react"
+import { ChevronRight, Pencil, Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CategoryEditDialog } from "./category-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
@@ -18,12 +16,28 @@ import { updateCategoryShowInMenu } from "@/app/actions/categories"
 interface CategoryTreeItemProps {
   category: Category
   allCategories: Category[]
+  rootCategories?: Category[]
+  expandedCategories?: Set<number>
+  highlightedCategories?: Set<number>
   level?: number
+  onToggle?: (categoryId: number, isExpanded: boolean) => void
   onUpdate?: (updatedCategory?: Category) => void
   onDelete?: () => void
+  onReorder?: () => void
 }
 
-export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate, onDelete }: CategoryTreeItemProps) {
+export function CategoryTreeItem({ 
+  category, 
+  allCategories, 
+  rootCategories, 
+  expandedCategories = new Set(),
+  highlightedCategories = new Set(),
+  level = 0,
+  onToggle,
+  onUpdate, 
+  onDelete, 
+  onReorder 
+}: CategoryTreeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState<Category | null>(null)
@@ -31,15 +45,8 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
   const [imageKey, setImageKey] = useState(0) // Ключ для принудительного обновления изображения
   const [showInMenu, setShowInMenu] = useState(category.show_in_menu ?? true)
   const [isUpdatingShowInMenu, setIsUpdatingShowInMenu] = useState(false)
+  const [isReordering, startReorderTransition] = useTransition()
   const { toast } = useToast()
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  }
 
   // Синхронизируем состояние переключателя с данными категории
   useEffect(() => {
@@ -47,6 +54,28 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
       setShowInMenu(category.show_in_menu)
     }
   }, [category?.show_in_menu])
+
+  // Автоматически разворачиваем/сворачиваем категории на основе expandedCategories
+  // Используем ref для отслеживания последнего ручного переключения
+  const manualToggleRef = useRef<{ categoryId: number; timestamp: number } | null>(null)
+
+  useEffect(() => {
+    if (category.id) {
+      const shouldBeExpanded = expandedCategories.has(category.id)
+      // Проверяем, было ли недавно ручное переключение этой категории
+      const recentManualToggle = manualToggleRef.current?.categoryId === category.id && 
+                                 Date.now() - manualToggleRef.current.timestamp < 100 // 100ms окно
+      
+      // Если это не недавнее ручное переключение, обновляем состояние
+      if (!recentManualToggle) {
+        setIsExpanded(shouldBeExpanded)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category.id, expandedCategories])
+
+  // Определяем, нужно ли подсветить категорию
+  const isHighlighted = category.id ? highlightedCategories.has(category.id) : false
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
@@ -137,21 +166,144 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
     }
   }
 
+  // Получить все категории с тем же parent_id (соседи)
+  const getSiblings = (): Category[] => {
+    if (category.parent_id) {
+      // Ищем родительскую категорию в дереве и возвращаем её children
+      const findParent = (cats: Category[]): Category | null => {
+        for (const cat of cats) {
+          if (cat.id === category.parent_id) {
+            return cat
+          }
+          if (cat.children && cat.children.length > 0) {
+            const found = findParent(cat.children)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      
+      // Если переданы rootCategories, используем их для поиска
+      const searchRoot = rootCategories || allCategories.filter((c) => !c.parent_id)
+      const parent = findParent(searchRoot)
+      
+      if (parent?.children) {
+        return parent.children
+      }
+      
+      // Если родитель не найден в дереве, ищем в плоском списке
+      return allCategories.filter((c) => c.parent_id === category.parent_id)
+    } else {
+      // Корневые категории - используем переданные rootCategories или фильтруем из allCategories
+      return rootCategories || allCategories.filter((c) => !c.parent_id)
+    }
+  }
+
+  const handleMoveUp = () => {
+    if (!category.id) return
+    
+    const siblings = getSiblings()
+    const currentIndex = siblings.findIndex((c) => c.id === category.id)
+    
+    if (currentIndex <= 0) {
+      toast({
+        variant: "default",
+        title: "Информация",
+        description: "Категория уже находится в начале списка",
+      })
+      return
+    }
+
+    startReorderTransition(async () => {
+      try {
+        // Меняем местами с предыдущей категорией
+        const newSiblings = [...siblings]
+        const [movedItem] = newSiblings.splice(currentIndex, 1)
+        newSiblings.splice(currentIndex - 1, 0, movedItem)
+
+        // Обновляем порядок
+        const updatedOrder = newSiblings.map((cat, index) => ({ id: cat.id, order: index }))
+
+        const result = await reorderCategories(updatedOrder)
+        if (result.success) {
+          toast({ title: "Успех!", description: "Порядок категорий обновлен" })
+          onReorder?.()
+        } else {
+          toast({ variant: "destructive", title: "Ошибка", description: result.error })
+        }
+      } catch (error) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Не удалось изменить порядок категорий" })
+      }
+    })
+  }
+
+  const handleMoveDown = () => {
+    if (!category.id) return
+    
+    const siblings = getSiblings()
+    const currentIndex = siblings.findIndex((c) => c.id === category.id)
+    
+    if (currentIndex < 0 || currentIndex >= siblings.length - 1) {
+      toast({
+        variant: "default",
+        title: "Информация",
+        description: "Категория уже находится в конце списка",
+      })
+      return
+    }
+
+    startReorderTransition(async () => {
+      try {
+        // Меняем местами со следующей категорией
+        const newSiblings = [...siblings]
+        const [movedItem] = newSiblings.splice(currentIndex, 1)
+        newSiblings.splice(currentIndex + 1, 0, movedItem)
+
+        // Обновляем порядок
+        const updatedOrder = newSiblings.map((cat, index) => ({ id: cat.id, order: index }))
+
+        const result = await reorderCategories(updatedOrder)
+        if (result.success) {
+          toast({ title: "Успех!", description: "Порядок категорий обновлен" })
+          onReorder?.()
+        } else {
+          toast({ variant: "destructive", title: "Ошибка", description: result.error })
+        }
+      } catch (error) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Не удалось изменить порядок категорий" })
+      }
+    })
+  }
+
+  // Проверяем, можно ли переместить категорию вверх или вниз
+  const siblings = getSiblings()
+  const currentIndex = siblings.findIndex((c) => c.id === category.id)
+  const canMoveUp = currentIndex > 0
+  const canMoveDown = currentIndex >= 0 && currentIndex < siblings.length - 1
+
   return (
-    <div ref={setNodeRef} style={style} className={cn("rounded-md", isDragging && "shadow-lg bg-white")}>
+    <div className="rounded-md">
       <div
-        className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-md border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+        className={cn(
+          "flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-md border border-transparent hover:border-gray-200 dark:hover:border-gray-700 shadow-md",
+          isHighlighted && "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700"
+        )}
         style={{ paddingLeft: `${level * 2 + 0.5}rem` }}
       >
-        <button {...attributes} {...listeners} className="cursor-grab p-1 text-gray-400 hover:text-gray-700">
-          <GripVertical className="h-5 w-5" />
-        </button>
-
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => {
+            if (!category.id) return
+            const newExpandedState = !isExpanded
+            // Помечаем, что это ручное переключение с временной меткой
+            manualToggleRef.current = { categoryId: category.id, timestamp: Date.now() }
+            setIsExpanded(newExpandedState)
+            if (onToggle) {
+              onToggle(category.id, newExpandedState)
+            }
+          }}
           disabled={!category.children || category.children.length === 0}
         >
           <ChevronRight
@@ -174,12 +326,40 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
         />
         <div className="flex-grow">
           <div className="flex items-center gap-2">
-            <p className="font-medium">{category.name}</p>
+            <p className="font-medium">
+              {category.name}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">{category.slug}</p>
+          <p className="text-sm text-muted-foreground">
+            {category.slug}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Кнопки управления порядком */}
+          <div className="flex items-center gap-1 border-r pr-2 mr-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Переместить вверх"
+              onClick={handleMoveUp}
+              disabled={!canMoveUp || isReordering}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Переместить вниз"
+              onClick={handleMoveDown}
+              disabled={!canMoveDown || isReordering}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </div>
+          
           <div className="flex items-center gap-2 px-2">
             <Switch
               checked={showInMenu}
@@ -216,9 +396,14 @@ export function CategoryTreeItem({ category, allCategories, level = 0, onUpdate,
               key={child.id}
               category={child}
               allCategories={allCategories}
+              rootCategories={rootCategories}
+              expandedCategories={expandedCategories}
+              highlightedCategories={highlightedCategories}
               level={level + 1}
+              onToggle={onToggle}
               onUpdate={onUpdate}
               onDelete={onDelete}
+              onReorder={onReorder}
             />
           ))}
         </div>

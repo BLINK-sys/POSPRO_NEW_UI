@@ -19,7 +19,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings } from "lucide-react"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
@@ -35,6 +42,8 @@ export default function Header() {
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<number>>(new Set())
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpandedCategories, setSidebarExpandedCategories] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -86,6 +95,25 @@ export default function Header() {
     })
   }
 
+  const handleSidebarOpen = (open: boolean) => {
+    setSidebarOpen(open)
+    if (!open) {
+      setSidebarExpandedCategories(new Set())
+    }
+  }
+
+  const toggleSidebarCategory = (categoryId: number) => {
+    setSidebarExpandedCategories(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId)
+      } else {
+        newSet.add(categoryId)
+      }
+      return newSet
+    })
+  }
+
   // При открытии меню по умолчанию выделяем первую категорию
   const handleMenuOpen = () => {
     setMenuOpen(true)
@@ -118,6 +146,160 @@ export default function Header() {
           </Link>
 
           <div className="flex items-center gap-4 flex-1 max-w-2xl mx-8">
+            {/* Кнопка бокового меню категорий */}
+            <Sheet open={sidebarOpen} onOpenChange={handleSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 w-10 h-10 p-0"
+                  size="sm"
+                >
+                  {categoriesLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <List className="h-5 w-5" />
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent 
+                side="left" 
+                className="!w-[80vw] !max-w-[80vw] p-0 overflow-y-auto"
+              >
+                <SheetHeader className="p-6 border-b sticky top-0 bg-white z-10 shadow-md">
+                  <SheetTitle className="text-left">Каталог</SheetTitle>
+                </SheetHeader>
+                <div className="p-6">
+                  {categoriesLoading ? (
+                    <div className="flex items-center justify-center w-full py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Загрузка категорий...</span>
+                    </div>
+                  ) : categories.length > 0 ? (
+                    <div className="flex flex-col md:flex-row gap-6">
+                      {/* Разделяем категории на колонки */}
+                      {[0, 1, 2].map((colIndex) => {
+                        const categoriesInColumn = categories.filter((_, index) => index % 3 === colIndex);
+                        return (
+                          <div key={colIndex} className="flex-1 flex flex-col gap-6">
+                            {categoriesInColumn.map((category) => (
+                              <div key={category.id} className="border border-gray-200 rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow bg-white">
+                          <div className="flex gap-4">
+                            {/* Левая колонка - изображение */}
+                            {category.image_url && (
+                              <div className="flex-shrink-0">
+                                <div 
+                                  className="w-24 h-24 rounded-lg bg-white p-2 flex items-center justify-center"
+                                  style={{
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), -4px 0 6px -1px rgba(0, 0, 0, 0.1), 4px 0 6px -1px rgba(0, 0, 0, 0.1), 0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                  }}
+                                >
+                                  <Image
+                                    src={getImageUrl(category.image_url)}
+                                    alt={category.name}
+                                    width={80}
+                                    height={80}
+                                    className="object-contain rounded-md"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {/* Правая колонка - данные категории */}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-lg mb-4 text-gray-900">
+                                <Link 
+                                  href={`/category/${category.slug}`}
+                                  onClick={() => setSidebarOpen(false)}
+                                  className="hover:text-brand-yellow transition-colors"
+                                >
+                                  {category.name}
+                                </Link>
+                              </h3>
+                              {category.children && category.children.length > 0 ? (
+                                <>
+                                  <ul className="space-y-2 mb-4">
+                                    {category.children.slice(0, 5).map((child) => (
+                                      <li key={child.id}>
+                                        <div className="flex items-center gap-2">
+                                          {child.children && child.children.length > 0 ? (
+                                            <button
+                                              onClick={() => toggleSidebarCategory(child.id)}
+                                              className={cn(
+                                                "p-1 rounded transition-colors flex items-center justify-center",
+                                                sidebarExpandedCategories.has(child.id)
+                                                  ? "bg-black hover:bg-gray-800"
+                                                  : "bg-brand-yellow hover:bg-yellow-500"
+                                              )}
+                                            >
+                                              {sidebarExpandedCategories.has(child.id) ? (
+                                                <Minus className="h-3 w-3 text-white" />
+                                              ) : (
+                                                <Plus className="h-3 w-3 text-black" />
+                                              )}
+                                            </button>
+                                          ) : (
+                                            <div className="w-5" />
+                                          )}
+                                          <Link 
+                                            href={`/category/${child.slug}`}
+                                            onClick={() => setSidebarOpen(false)}
+                                            className="text-sm text-gray-700 hover:text-brand-yellow transition-colors flex-1"
+                                          >
+                                            {child.name}
+                                          </Link>
+                                        </div>
+                                        {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
+                                          <ul className="ml-7 mt-2 space-y-1">
+                                            {child.children.map((subChild) => (
+                                              <li key={subChild.id}>
+                                                <Link 
+                                                  href={`/category/${subChild.slug}`}
+                                                  onClick={() => setSidebarOpen(false)}
+                                                  className="text-xs text-gray-600 hover:text-brand-yellow transition-colors block"
+                                                >
+                                                  {subChild.name}
+                                                </Link>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  {category.children.length > 5 && (
+                                    <Link 
+                                      href={`/category/${category.slug}`}
+                                      onClick={() => setSidebarOpen(false)}
+                                      className="text-sm font-medium text-brand-yellow hover:underline inline-block"
+                                    >
+                                      Еще {category.children.length - 5} {category.children.length - 5 === 1 ? 'Категория' : category.children.length - 5 < 5 ? 'Категории' : 'Категорий'}
+                                    </Link>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-sm text-gray-500 mb-4">
+                                  Нет подкатегорий
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="w-full text-center py-8 text-gray-500">
+                      Категории не найдены
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+
             <NavigationMenu className="hidden lg:flex">
               <NavigationMenuList>
                 <NavigationMenuItem>

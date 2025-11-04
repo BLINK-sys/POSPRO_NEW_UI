@@ -10,7 +10,7 @@ export default async function CategoriesPage() {
       <CardHeader>
         <CardTitle>Категории</CardTitle>
         <CardDescription>
-          Управление категориями товаров. Перетаскивайте элементы для изменения порядка.
+          Управление категориями товаров. Используйте кнопки вверх/вниз для изменения порядка.
         </CardDescription>
       </CardHeader>
       <CardContent>
