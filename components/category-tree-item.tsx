@@ -25,7 +25,7 @@ interface CategoryTreeItemProps {
   level?: number
   onToggle?: (categoryId: number, isExpanded: boolean) => void
   onUpdate?: (updatedCategory?: Category) => void
-  onDelete?: (categoryId: number) => void
+  onDelete?: () => void
   onReorder?: (optimisticUpdate?: (categories: Category[]) => Category[]) => void
 }
 
@@ -93,7 +93,7 @@ export function CategoryTreeItem({
     const result = await deleteCategory(isDeleting.id)
     if (result.success) {
       toast({ title: "Успех!", description: result.message })
-      onDelete?.(isDeleting.id)
+      onDelete?.()
     } else {
       toast({ variant: "destructive", title: "Ошибка", description: result.error })
     }
@@ -144,17 +144,25 @@ export function CategoryTreeItem({
           description: result.error,
         })
       } else {
-        // Обновляем категорию в списке
-        const updatedCategory: Category = {
-          ...category,
-          show_in_menu: checked,
-        }
-        
-        // Если категория отключается, обновляем весь список, чтобы обновить дочерние категории
-        if (!checked) {
-          // Полное обновление списка для отражения изменений в дочерних категориях
-          onUpdate?.()
+        // Используем данные из ответа сервера
+        if (result.category) {
+          // Обновляем состояние из ответа сервера
+          setShowInMenu(result.category.show_in_menu ?? checked)
+          
+          // Если категория отключается, обновляем весь список, чтобы обновить дочерние категории
+          if (!checked) {
+            // Полное обновление списка для отражения изменений в дочерних категориях
+            onUpdate?.()
+          } else {
+            onUpdate?.(result.category)
+          }
         } else {
+          // Fallback: используем оптимистичное обновление
+          const updatedCategory: Category = {
+            ...category,
+            show_in_menu: checked,
+          }
+          setShowInMenu(checked)
           onUpdate?.(updatedCategory)
         }
       }
