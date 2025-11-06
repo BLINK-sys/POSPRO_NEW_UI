@@ -53,12 +53,13 @@ export interface ProductData {
     background_color: string
     text_color: string
   }
-  brand?: {
+  brand_id?: number | null
+  brand_info?: {
     id: number
     name: string
-    country: string
-    description: string
-    image_url: string
+    country?: string
+    description?: string
+    image_url?: string
   }
   quantity: number
   image_url?: string
@@ -321,7 +322,8 @@ export async function getAllProducts(): Promise<ProductData[]> {
           wholesale_price: product.wholesale_price,
           quantity: product.quantity,
           status: product.status,
-          brand: product.brand,
+          brand_id: product.brand_id,
+          brand_info: product.brand_info,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,
@@ -373,7 +375,8 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
           wholesale_price: product.wholesale_price,
           quantity: product.quantity,
           status: product.status,
-          brand: product.brand,
+          brand_id: product.brand_id,
+          brand_info: product.brand_info,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,
@@ -391,7 +394,7 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
 
 // Получить товары по бренду
 export async function getProductsByBrand(brandName: string): Promise<{
-  brand: string
+  brand: BrandData | null
   products: ProductData[]
   total_count: number
 }> {
@@ -426,7 +429,8 @@ export async function getProductsByBrand(brandName: string): Promise<{
           wholesale_price: product.wholesale_price,
           quantity: product.quantity,
           status: product.status,
-          brand: product.brand,
+          brand_id: product.brand_id,
+          brand_info: product.brand_info,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,
@@ -436,7 +440,7 @@ export async function getProductsByBrand(brandName: string): Promise<{
     )
     
     return {
-      brand: data.brand,
+      brand: data.brand || null,
       products: productsWithStatuses,
       total_count: data.total_count
     }
@@ -448,7 +452,7 @@ export async function getProductsByBrand(brandName: string): Promise<{
 
 // Получить товары по бренду с полной информацией
 export async function getProductsByBrandDetailed(brandName: string): Promise<{
-  brand: string
+  brand: BrandData | null
   products: ProductData[]
   total_count: number
 }> {
@@ -478,7 +482,7 @@ export async function getProductsByBrandDetailed(brandName: string): Promise<{
 
 // Получить категории по бренду для фильтрации
 export async function getCategoriesByBrand(brandName: string): Promise<{
-  brand: string
+  brand: BrandData | null
   categories: Array<CategoryData & { product_count: number }>
 }> {
   try {
@@ -522,7 +526,7 @@ export async function getProductsByBrandAndCategory(
   brandName: string, 
   categoryId?: number
 ): Promise<{
-  brand: string
+  brand: BrandData | null
   category_id?: number
   products: ProductData[]
   total_count: number
@@ -562,7 +566,8 @@ export async function getProductsByBrandAndCategory(
           wholesale_price: product.wholesale_price,
           quantity: product.quantity,
           status: product.status,
-          brand: product.brand,
+          brand_id: product.brand_id,
+          brand_info: product.brand_info,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,

@@ -61,9 +61,9 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
     [updateCategories],
   )
 
-  const handleCategoryDelete = useCallback(async (categoryId: number) => {
+  const handleCategoryDelete = useCallback(() => {
     // При удалении обновляем весь список
-    await updateCategories()
+    updateCategories()
   }, [updateCategories])
 
   const handleCategoryReorder = useCallback((optimisticUpdate?: (categories: Category[]) => Category[]) => {

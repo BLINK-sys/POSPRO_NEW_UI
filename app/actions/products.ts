@@ -4,6 +4,14 @@ import { cookies } from "next/headers"
 import { getApiUrl } from "@/lib/api-address"
 import { API_ENDPOINTS } from "@/lib/api-endpoints"
 
+export interface BrandInfo {
+  id: number
+  name: string
+  country?: string
+  description?: string
+  image_url?: string
+}
+
 export interface Product {
   id: number
   name: string
@@ -14,7 +22,8 @@ export interface Product {
   quantity: number
   is_visible: boolean
   country?: string
-  brand?: string
+  brand_id?: number | null
+  brand_info?: BrandInfo | null
   postavka?: string
   supplier_id?: number
   description?: string

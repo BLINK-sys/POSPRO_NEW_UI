@@ -117,7 +117,11 @@ export function ProductsTable({
 
     // Фильтр по бренду
     if (brandFilter !== "all") {
-      filtered = filtered.filter((product) => product.brand === brandFilter)
+      filtered = filtered.filter((product) => {
+        if (brandFilter === "no-brand") return !product.brand_id
+        const brandId = Number(brandFilter)
+        return product.brand_id === brandId
+      })
     }
 
     // Фильтр по поставщику
@@ -518,7 +522,9 @@ export function ProductsTable({
                             )}
                           </TableCell>
                           <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
-                          <TableCell>{product.brand === "no" ? "Без бренда" : product.brand}</TableCell>
+                          <TableCell>
+                            {product.brand_info?.name || "Без бренда"}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -757,7 +763,7 @@ export function ProductsTable({
                           )}
                         </TableCell>
                         <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
-                        <TableCell>{product.brand === "no" ? "Без бренда" : product.brand}</TableCell>
+                        <TableCell>{product.brand_info?.name || "Без бренда"}</TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"

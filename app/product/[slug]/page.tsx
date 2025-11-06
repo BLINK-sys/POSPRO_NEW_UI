@@ -40,7 +40,14 @@ interface ProductDetail {
   status?: string
   is_visible: boolean
   country?: string
-  brand?: string
+  brand_id?: number | null
+  brand_info?: {
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  }
   description?: string
   category_id?: number
   image?: string
@@ -443,22 +450,22 @@ export default function ProductPage() {
 
           {/* Информация о товаре */}
           <div className="space-y-3">
-            {product.brand && product.brand !== 'no' && (
+            {product.brand_info && (
               <div className="text-sm text-gray-600 relative">
                 <span className="font-medium">Бренд:</span>{" "}
                 <Link
-                  href={`/brand/${encodeURIComponent(product.brand)}`}
+                  href={`/brand/${encodeURIComponent(product.brand_info.name)}`}
                   className="inline-block px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md shadow-sm hover:shadow-md transition-all duration-200 text-xs font-medium"
                   onMouseEnter={() => setShowBrandTooltip(true)}
                   onMouseLeave={() => setShowBrandTooltip(false)}
                 >
-                  {product.brand}
+                  {product.brand_info.name}
                 </Link>
                 
                 {/* Кастомная подсказка */}
                 {showBrandTooltip && (
                   <div className="absolute z-50 px-3 py-2 bg-white text-black text-xs rounded-lg shadow-lg border border-gray-200 -top-12 left-0 whitespace-nowrap">
-                    Посмотрите все товары бренда "{product.brand}"
+                    Посмотрите все товары бренда "{product.brand_info.name}"
                     {/* Стрелка вниз */}
                     <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
                   </div>

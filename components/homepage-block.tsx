@@ -815,14 +815,14 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                 {/* Панель с дополнительной информацией при наведении - только снизу */}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                   <div className="p-3 w-full">
-                    {product.brand && (
+                    {product.brand_info && (
                       <div className="text-xs text-white mb-1">
-                        <span className="font-medium">Бренд:</span> {product.brand.name}
+                        <span className="font-medium">Бренд:</span> {product.brand_info.name}
                       </div>
                     )}
-                    {product.brand?.country && (
+                    {product.brand_info?.country && (
                       <div className="text-xs text-white mb-1">
-                        <span className="font-medium">Страна:</span> {product.brand.country}
+                        <span className="font-medium">Страна:</span> {product.brand_info.country}
                       </div>
                     )}
                   </div>

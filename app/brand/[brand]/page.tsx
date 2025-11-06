@@ -18,7 +18,13 @@ import { API_BASE_URL } from "@/lib/api-address"
 
 
 interface BrandPageData {
-  brand: string
+  brand: {
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  } | null
   products: ProductData[]
   total_count: number
 }
@@ -228,7 +234,7 @@ export default function BrandPage() {
       {/* Заголовок */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Товары бренда {brandData.brand}
+          Товары бренда {brandData.brand?.name || brandName}
         </h1>
         <p className="text-gray-600">
           Найдено товаров: {brandData.total_count}
@@ -361,15 +367,15 @@ export default function BrandPage() {
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                               <div className="p-3 w-full">
                                 {/* Бренд */}
-                                {(product.brand?.name || (typeof product.brand === 'string' && product.brand !== 'no')) && (
+                                {product.brand_info && (
                                   <div className="text-xs text-white mb-1">
-                                    <span className="font-medium">Бренд:</span> {product.brand?.name || product.brand}
+                                    <span className="font-medium">Бренд:</span> {product.brand_info.name}
                                   </div>
                                 )}
                                 {/* Страна */}
-                                {product.brand?.country && (
+                                {product.brand_info?.country && (
                                   <div className="text-xs text-white mb-1">
-                                    <span className="font-medium">Страна:</span> {product.brand.country}
+                                    <span className="font-medium">Страна:</span> {product.brand_info.country}
                                   </div>
                                 )}
                               </div>

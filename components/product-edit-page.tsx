@@ -102,8 +102,8 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
   const [isVisible, setIsVisible] = useState(product.is_visible)
   const [country, setCountry] = useState(product.country)
-  // Если бренд null/undefined или "no", устанавливаем "no-brand"
-  const [brandName, setBrandName] = useState(product.brand === "no" || !product.brand ? "no-brand" : product.brand)
+  // Используем brand_id вместо brand строки
+  const [brandId, setBrandId] = useState<string>(product.brand_id ? String(product.brand_id) : "no-brand")
   const [description, setDescription] = useState(product.description ?? "")
   const [categoryId, setCategoryId] = useState(String(product.category_id ?? "0"))
   const [categoryName, setCategoryName] = useState("")
@@ -139,14 +139,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
     setName(newName)
   }
 
-  const handleBrandChange = (selectedBrandName: string) => {
-    setBrandName(selectedBrandName)
-    if (selectedBrandName === "no-brand") {
+  const handleBrandChange = (selectedBrandId: string) => {
+    setBrandId(selectedBrandId)
+    if (selectedBrandId === "no-brand") {
       setCountry("")
     } else {
-      const selectedBrand = brands.find((b) => b.name === selectedBrandName)
+      const selectedBrand = brands.find((b) => b.id === Number(selectedBrandId))
       if (selectedBrand) {
-        setCountry(selectedBrand.country)
+        setCountry(selectedBrand.country || "")
       }
     }
   }
@@ -188,8 +188,8 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
         status: statusId === "no-status" ? "no" : statusId,
         is_visible: isVisible,
         country: country.trim(),
-        // Если выбран "no-brand", отправляем 'no', иначе отправляем название бренда
-        brand: brandName === "no-brand" ? "no" : brandName,
+        // Используем brand_id вместо brand строки
+        brand_id: brandId === "no-brand" ? null : Number(brandId),
         description: description?.trim() || null,
         category_id: categoryId === "0" ? null : Number(categoryId),
         supplier_id: supplierId === "no-supplier" ? null : Number(supplierId),
@@ -210,7 +210,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
           ...product,
           ...payload,
           status: statusId === "no-status" ? "no" : statusId,
-          brand: brandName === "no-brand" ? "no" : brandName,
+          brand_id: brandId === "no-brand" ? null : Number(brandId),
         }
 
         // Передаем обновленные данные через URL параметры или sessionStorage
@@ -336,14 +336,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="brand_name">Бренд</Label>
-                  <Select value={brandName} onValueChange={handleBrandChange} disabled={isPending}>
+                  <Select value={brandId} onValueChange={handleBrandChange} disabled={isPending}>
                     <SelectTrigger>
                       <SelectValue placeholder="Выберите бренд" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="no-brand">Без бренда</SelectItem>
                       {brands.map((b) => (
-                        <SelectItem key={b.id} value={b.name}>
+                        <SelectItem key={b.id} value={String(b.id)}>
                           {b.name}
                         </SelectItem>
                       ))}

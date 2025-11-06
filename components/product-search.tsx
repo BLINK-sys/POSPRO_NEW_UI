@@ -230,14 +230,14 @@ export default function ProductSearch({
                           </Link>
                         </TableCell>
                                                  <TableCell className="py-2">
-                           {product.brand && typeof product.brand === 'string' && product.brand !== 'no' ? (
+                           {product.brand_info ? (
                              <Link
-                               href={`/brand/${encodeURIComponent(product.brand)}`}
+                               href={`/brand/${encodeURIComponent(product.brand_info.name)}`}
                                onClick={handleProductClick}
                                className="block"
                              >
                                <span className="inline-block px-2 py-1 text-xs bg-gray-100 hover:bg-brand-yellow text-gray-700 hover:text-black rounded-md shadow-sm hover:shadow-md transition-all duration-200 truncate max-w-[100px]">
-                                 {product.brand}
+                                 {product.brand_info.name}
                                </span>
                              </Link>
                            ) : (
