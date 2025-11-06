@@ -206,12 +206,14 @@ export async function deleteCategory(id: number): Promise<CategoryActionState> {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
-      const err = await res.json()
-      return { error: err.message || "Ошибка удаления категории" }
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      return { error: err.error || err.message || "Ошибка удаления категории" }
     }
-    return { success: true, message: "Категория удалена." }
+    const data = await res.json().catch(() => ({}))
+    return { success: true, message: data.message || "Категория удалена." }
   } catch (e) {
-    return { error: "Ошибка сети." }
+    console.error("Error deleting category:", e)
+    return { error: e instanceof Error ? e.message : "Ошибка сети." }
   }
 }
 
