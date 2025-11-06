@@ -133,8 +133,8 @@ export default function CategoryPage() {
     
     const brands = new Set<string>()
     data.products.forEach(product => {
-      if (product.brand?.name) {
-        brands.add(product.brand.name)
+      if (product.brand_info?.name) {
+        brands.add(product.brand_info.name)
       }
     })
     
@@ -146,7 +146,7 @@ export default function CategoryPage() {
   const filteredProducts = data?.products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          product.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesBrand = selectedBrand === "all" || !selectedBrand || product.brand?.name === selectedBrand
+    const matchesBrand = selectedBrand === "all" || !selectedBrand || product.brand_info?.name === selectedBrand
     return matchesSearch && matchesBrand
   }) || []
 
@@ -435,14 +435,14 @@ export default function CategoryPage() {
                            {/* Панель с дополнительной информацией при наведении - только снизу */}
                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                              <div className="p-3 w-full">
-                               {product.brand && (
+                               {product.brand_info && (
                                  <div className="text-xs text-white mb-1">
-                                   <span className="font-medium">Бренд:</span> {product.brand.name}
+                                   <span className="font-medium">Бренд:</span> {product.brand_info.name}
                                  </div>
                                )}
-                               {product.brand?.country && (
+                               {product.brand_info?.country && (
                                  <div className="text-xs text-white mb-1">
-                                   <span className="font-medium">Страна:</span> {product.brand.country}
+                                   <span className="font-medium">Страна:</span> {product.brand_info.country}
                                  </div>
                                )}
                              </div>
@@ -519,10 +519,10 @@ export default function CategoryPage() {
                       {/* Бренд */}
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-500 mb-1">Бренд</div>
-                        {product.brand?.name ? (
-                          <Link href={`/brand/${encodeURIComponent(product.brand.name)}`}>
+                        {product.brand_info?.name ? (
+                          <Link href={`/brand/${encodeURIComponent(product.brand_info.name)}`}>
                             <button className="inline-block px-3 py-1 text-base font-bold bg-gray-100 hover:bg-brand-yellow text-black hover:text-black rounded-md shadow-sm hover:shadow-md transition-all duration-200">
-                              {product.brand.name}
+                              {product.brand_info.name}
                             </button>
                           </Link>
                         ) : (

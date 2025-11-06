@@ -148,6 +148,9 @@ export async function getHomepageData(): Promise<PublicHomepageData> {
               const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
               return {
                 ...product,
+                // Преобразуем brand в brand_info для совместимости
+                brand_info: product.brand || product.brand_info,
+                brand_id: product.brand_id || product.brand?.id,
                 availability_status: availabilityStatus
               }
             })
@@ -240,6 +243,9 @@ export async function getCategoryData(slug: string): Promise<{
         const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
         return {
           ...product,
+          // Преобразуем brand в brand_info для совместимости
+          brand_info: product.brand_info || product.brand,
+          brand_id: product.brand_id || product.brand?.id,
           availability_status: availabilityStatus
         }
       })
