@@ -25,7 +25,7 @@ interface CategoryTreeItemProps {
   level?: number
   onToggle?: (categoryId: number, isExpanded: boolean) => void
   onUpdate?: (updatedCategory?: Category) => void
-  onDelete?: () => void
+  onDelete?: (categoryId: number) => void
   onReorder?: (optimisticUpdate?: (categories: Category[]) => Category[]) => void
 }
 
@@ -93,7 +93,7 @@ export function CategoryTreeItem({
     const result = await deleteCategory(isDeleting.id)
     if (result.success) {
       toast({ title: "Успех!", description: result.message })
-      onDelete?.()
+      onDelete?.(isDeleting.id)
     } else {
       toast({ variant: "destructive", title: "Ошибка", description: result.error })
     }
