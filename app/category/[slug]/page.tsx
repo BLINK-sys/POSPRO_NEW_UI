@@ -8,13 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Grid3X3, Package, Tag, Star, Info, Search, Filter, Grid, List, ArrowLeft, ShoppingCart, ChevronRight } from "lucide-react"
-import { Category } from "@/app/actions/categories"
-import { Product } from "@/app/actions/products"
 import { Brand } from "@/app/actions/meta"
-import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
-import { getCategoryData, ProductData } from "@/app/actions/public"
+import { getCategoryData, ProductData, CategoryData } from "@/app/actions/public"
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
@@ -24,8 +20,8 @@ import { ProductAvailabilityBadge } from "@/components/product-availability-badg
 
 
 interface CategoryPageData {
-  category: Category
-  subcategories: Category[]
+  category: CategoryData
+  subcategories: CategoryData[]
   products: ProductData[]
   brands: Brand[]
 }

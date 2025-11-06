@@ -45,6 +45,7 @@ export interface ProductData {
   name: string
   slug: string
   price: number
+  description?: string
   category_id?: number
   category?: CategoryData
   status?: {
