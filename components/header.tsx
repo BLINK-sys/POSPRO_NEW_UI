@@ -26,17 +26,20 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
+import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { getPublicCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import ProductSearch from "./product-search"
+import { Input } from "@/components/ui/input"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
+  const { toggleCatalogPanel } = useCatalogPanel()
   const [categories, setCategories] = useState<CategoryData[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
@@ -44,6 +47,9 @@ export default function Header() {
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<number>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpandedCategories, setSidebarExpandedCategories] = useState<Set<number>>(new Set())
+  const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('cards')
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
+  const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -114,11 +120,60 @@ export default function Header() {
     })
   }
 
+  // Функция для подсчета количества вложенных категорий (рекурсивно)
+  const countNestedCategories = (category: CategoryData): number => {
+    let count = category.children ? category.children.length : 0
+    if (category.children) {
+      category.children.forEach(child => {
+        count += countNestedCategories(child)
+      })
+    }
+    return count
+  }
+
+  // Функция для проверки, соответствует ли категория поисковому запросу (рекурсивно)
+  const categoryMatchesSearch = (category: CategoryData, query: string): boolean => {
+    if (!query.trim()) return true
+    const lowerQuery = query.toLowerCase()
+    if (category.name.toLowerCase().includes(lowerQuery)) return true
+    if (category.children) {
+      return category.children.some(child => categoryMatchesSearch(child, query))
+    }
+    return false
+  }
+
+  // Отсортированные категории по количеству вложенных (от большего к меньшему)
+  const sortedCategories = [...categories].sort((a, b) => {
+    const countA = countNestedCategories(a)
+    const countB = countNestedCategories(b)
+    return countB - countA // От большего к меньшему
+  })
+
+  // Прокрутка к первой найденной категории при поиске
+  useEffect(() => {
+    if (sidebarViewMode === 'list' && sidebarSearchQuery.trim() && sortedCategories.length > 0) {
+      const firstMatch = sortedCategories.find(cat => categoryMatchesSearch(cat, sidebarSearchQuery))
+      if (firstMatch) {
+        // Небольшая задержка для рендеринга
+        setTimeout(() => {
+          const element = document.getElementById(`category-${firstMatch.id}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightedCategoryId(firstMatch.id)
+          }
+        }, 100)
+      }
+    } else {
+      setHighlightedCategoryId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarSearchQuery, sidebarViewMode])
+
   // При открытии меню по умолчанию выделяем первую категорию
   const handleMenuOpen = () => {
     setMenuOpen(true)
-    if (!hoveredCategory && categories.length > 0) {
-      setHoveredCategory(categories[0])
+    if (!hoveredCategory && sortedCategories.length > 0) {
+      setHoveredCategory(sortedCategories[0])
     }
   }
 
@@ -162,10 +217,47 @@ export default function Header() {
               </SheetTrigger>
               <SheetContent 
                 side="left" 
-                className="!w-[80vw] !max-w-[80vw] p-0 overflow-y-auto"
+                className="!w-[90vw] !max-w-[90vw] p-0 overflow-y-auto"
               >
-                <SheetHeader className="p-6 border-b sticky top-0 bg-white z-10 shadow-md">
-                  <SheetTitle className="text-left">Каталог</SheetTitle>
+                <SheetHeader className="p-6 border-b sticky top-0 bg-white z-10 shadow-md space-y-4">
+                  <div className="flex items-center justify-between">
+                    <SheetTitle className="text-left">Каталог</SheetTitle>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={sidebarViewMode === 'cards' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSidebarViewMode('cards')}
+                        className="h-8 w-8 p-0"
+                        title="Вид карточек"
+                      >
+                        <Grid3X3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant={sidebarViewMode === 'list' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSidebarViewMode('list')}
+                        className="h-8 w-8 p-0"
+                        title="Вид списка"
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {sidebarViewMode === 'list' && (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Поиск категории..."
+                        value={sidebarSearchQuery}
+                        onChange={(e) => {
+                          setSidebarSearchQuery(e.target.value)
+                          setHighlightedCategoryId(null)
+                        }}
+                        className="pl-10"
+                      />
+                    </div>
+                  )}
                 </SheetHeader>
                 <div className="p-6">
                   {categoriesLoading ? (
@@ -173,124 +265,231 @@ export default function Header() {
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <span>Загрузка категорий...</span>
                     </div>
-                  ) : categories.length > 0 ? (
-                    <div className="flex flex-col md:flex-row gap-6">
-                      {/* Разделяем категории на колонки */}
-                      {[0, 1, 2].map((colIndex) => {
-                        const categoriesInColumn = categories.filter((_, index) => index % 3 === colIndex);
-                        return (
-                          <div key={colIndex} className="flex-1 flex flex-col gap-6">
-                            {categoriesInColumn.map((category) => (
-                              <div key={category.id} className="border border-gray-200 rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow bg-white">
-                          <div className="flex gap-4">
-                            {/* Левая колонка - изображение */}
-                            {category.image_url && (
-                              <div className="flex-shrink-0">
-                                <div 
-                                  className="w-24 h-24 rounded-lg bg-white p-2 flex items-center justify-center"
-                                  style={{
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), -4px 0 6px -1px rgba(0, 0, 0, 0.1), 4px 0 6px -1px rgba(0, 0, 0, 0.1), 0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
-                                  }}
-                                >
-                                  <Image
-                                    src={getImageUrl(category.image_url)}
-                                    alt={category.name}
-                                    width={80}
-                                    height={80}
-                                    className="object-contain rounded-md"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.style.display = 'none';
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            {/* Правая колонка - данные категории */}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-lg mb-4 text-gray-900">
-                                <Link 
-                                  href={`/category/${category.slug}`}
-                                  onClick={() => setSidebarOpen(false)}
-                                  className="hover:text-brand-yellow transition-colors"
-                                >
-                                  {category.name}
-                                </Link>
-                              </h3>
-                              {category.children && category.children.length > 0 ? (
-                                <>
-                                  <ul className="space-y-2 mb-4">
-                                    {category.children.slice(0, 5).map((child) => (
-                                      <li key={child.id}>
-                                        <div className="flex items-center gap-2">
-                                          {child.children && child.children.length > 0 ? (
-                                            <button
-                                              onClick={() => toggleSidebarCategory(child.id)}
-                                              className={cn(
-                                                "p-1 rounded transition-colors flex items-center justify-center",
-                                                sidebarExpandedCategories.has(child.id)
-                                                  ? "bg-black hover:bg-gray-800"
-                                                  : "bg-brand-yellow hover:bg-yellow-500"
-                                              )}
-                                            >
-                                              {sidebarExpandedCategories.has(child.id) ? (
-                                                <Minus className="h-3 w-3 text-white" />
-                                              ) : (
-                                                <Plus className="h-3 w-3 text-black" />
-                                              )}
-                                            </button>
-                                          ) : (
-                                            <div className="w-5" />
-                                          )}
-                                          <Link 
-                                            href={`/category/${child.slug}`}
-                                            onClick={() => setSidebarOpen(false)}
-                                            className="text-sm text-gray-700 hover:text-brand-yellow transition-colors flex-1"
-                                          >
-                                            {child.name}
-                                          </Link>
+                  ) : sortedCategories.length > 0 ? (
+                    sidebarViewMode === 'cards' ? (
+                      // ВИД 1: Карточки с изображениями
+                      <div className="flex flex-col md:flex-row gap-6">
+                        {/* Разделяем категории на колонки */}
+                        {[0, 1, 2].map((colIndex) => {
+                          const categoriesInColumn = sortedCategories.filter((_, index) => index % 3 === colIndex);
+                          return (
+                            <div key={colIndex} className="flex-1 flex flex-col gap-6">
+                              {categoriesInColumn.map((category) => (
+                                <div key={category.id} className="border border-gray-200 rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow bg-white">
+                                  <div className="flex gap-4">
+                                    {/* Левая колонка - изображение */}
+                                    {category.image_url && (
+                                      <div className="flex-shrink-0">
+                                        <div 
+                                          className="w-24 h-24 rounded-lg bg-white p-2 flex items-center justify-center"
+                                          style={{
+                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), -4px 0 6px -1px rgba(0, 0, 0, 0.1), 4px 0 6px -1px rgba(0, 0, 0, 0.1), 0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                          }}
+                                        >
+                                          <Image
+                                            src={getImageUrl(category.image_url)}
+                                            alt={category.name}
+                                            width={80}
+                                            height={80}
+                                            className="object-contain rounded-md"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                            }}
+                                          />
                                         </div>
-                                        {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
-                                          <ul className="ml-7 mt-2 space-y-1">
-                                            {child.children.map((subChild) => (
-                                              <li key={subChild.id}>
-                                                <Link 
-                                                  href={`/category/${subChild.slug}`}
-                                                  onClick={() => setSidebarOpen(false)}
-                                                  className="text-xs text-gray-600 hover:text-brand-yellow transition-colors block"
-                                                >
-                                                  {subChild.name}
-                                                </Link>
+                                      </div>
+                                    )}
+                                    {/* Правая колонка - данные категории */}
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-bold text-lg mb-4 text-gray-900">
+                                        <Link 
+                                          href={`/category/${category.slug}`}
+                                          onClick={() => setSidebarOpen(false)}
+                                          className="hover:text-brand-yellow transition-colors"
+                                        >
+                                          {category.name}
+                                        </Link>
+                                      </h3>
+                                      {category.children && category.children.length > 0 ? (
+                                        <>
+                                          <ul className="space-y-2 mb-4">
+                                            {category.children.slice(0, 5).map((child) => (
+                                              <li key={child.id}>
+                                                <div className="flex items-center gap-2">
+                                                  {child.children && child.children.length > 0 ? (
+                                                    <button
+                                                      onClick={() => toggleSidebarCategory(child.id)}
+                                                      className={cn(
+                                                        "p-1 rounded transition-colors flex items-center justify-center",
+                                                        sidebarExpandedCategories.has(child.id)
+                                                          ? "bg-black hover:bg-gray-800"
+                                                          : "bg-brand-yellow hover:bg-yellow-500"
+                                                      )}
+                                                    >
+                                                      {sidebarExpandedCategories.has(child.id) ? (
+                                                        <Minus className="h-3 w-3 text-white" />
+                                                      ) : (
+                                                        <Plus className="h-3 w-3 text-black" />
+                                                      )}
+                                                    </button>
+                                                  ) : (
+                                                    <div className="w-5" />
+                                                  )}
+                                                  <Link 
+                                                    href={`/category/${child.slug}`}
+                                                    onClick={() => setSidebarOpen(false)}
+                                                    className="text-sm text-gray-700 hover:text-brand-yellow transition-colors flex-1"
+                                                  >
+                                                    {child.name}
+                                                  </Link>
+                                                </div>
+                                                {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
+                                                  <ul className="ml-7 mt-2 space-y-1">
+                                                    {child.children.map((subChild) => (
+                                                      <li key={subChild.id}>
+                                                        <Link 
+                                                          href={`/category/${subChild.slug}`}
+                                                          onClick={() => setSidebarOpen(false)}
+                                                          className="text-xs text-gray-600 hover:text-brand-yellow transition-colors block"
+                                                        >
+                                                          {subChild.name}
+                                                        </Link>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
                                               </li>
                                             ))}
                                           </ul>
-                                        )}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                  {category.children.length > 5 && (
-                                    <Link 
-                                      href={`/category/${category.slug}`}
-                                      onClick={() => setSidebarOpen(false)}
-                                      className="text-sm font-medium text-brand-yellow hover:underline inline-block"
-                                    >
-                                      Еще {category.children.length - 5} {category.children.length - 5 === 1 ? 'Категория' : category.children.length - 5 < 5 ? 'Категории' : 'Категорий'}
-                                    </Link>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="text-sm text-gray-500 mb-4">
-                                  Нет подкатегорий
+                                          {category.children.length > 5 && (
+                                            <Link 
+                                              href={`/category/${category.slug}`}
+                                              onClick={() => setSidebarOpen(false)}
+                                              className="text-sm font-medium text-brand-yellow hover:underline inline-block"
+                                            >
+                                              Еще {category.children.length - 5} {category.children.length - 5 === 1 ? 'Категория' : category.children.length - 5 < 5 ? 'Категории' : 'Категорий'}
+                                            </Link>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="text-sm text-gray-500 mb-4">
+                                          Нет подкатегорий
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      // ВИД 2: Список без изображений и карточек
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedCategories.map((category) => {
+                          const matchesSearch = sidebarSearchQuery.trim() 
+                            ? categoryMatchesSearch(category, sidebarSearchQuery)
+                            : true
+                          const isHighlighted = highlightedCategoryId === category.id
+                          const categoryNameMatches = sidebarSearchQuery.trim()
+                            ? category.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                            : false
+                          
+                          return (
+                          <div 
+                            key={category.id} 
+                            id={`category-${category.id}`}
+                            className={cn(
+                              "space-y-2 transition-all duration-200",
+                              isHighlighted && "ring-2 ring-brand-yellow ring-offset-2 rounded-lg p-2 bg-yellow-50"
+                            )}
+                          >
+                            <h3 className={cn(
+                              "font-semibold text-base mb-2",
+                              categoryNameMatches && sidebarSearchQuery.trim()
+                                ? "text-brand-yellow font-bold"
+                                : "text-gray-900"
+                            )}>
+                              <Link 
+                                href={`/category/${category.slug}`}
+                                onClick={() => setSidebarOpen(false)}
+                                className="hover:text-brand-yellow transition-colors"
+                              >
+                                {category.name}
+                              </Link>
+                            </h3>
+                            {category.children && category.children.length > 0 ? (
+                              <ul className="space-y-1">
+                                {category.children.map((child) => (
+                                  <li key={child.id}>
+                                    <div className="flex items-center gap-2">
+                                      {child.children && child.children.length > 0 ? (
+                                        <button
+                                          onClick={() => toggleSidebarCategory(child.id)}
+                                          className={cn(
+                                            "p-1 rounded transition-colors flex items-center justify-center",
+                                            sidebarExpandedCategories.has(child.id)
+                                              ? "bg-black hover:bg-gray-800"
+                                              : "bg-brand-yellow hover:bg-yellow-500"
+                                          )}
+                                        >
+                                          {sidebarExpandedCategories.has(child.id) ? (
+                                            <Minus className="h-3 w-3 text-white" />
+                                          ) : (
+                                            <Plus className="h-3 w-3 text-black" />
+                                          )}
+                                        </button>
+                                      ) : (
+                                        <div className="w-5" />
+                                      )}
+                                      <Link 
+                                        href={`/category/${child.slug}`}
+                                        onClick={() => setSidebarOpen(false)}
+                                        className={cn(
+                                          "text-sm hover:text-brand-yellow transition-colors flex-1",
+                                          sidebarSearchQuery.trim() && child.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                                            ? "text-brand-yellow font-bold"
+                                            : "text-gray-700"
+                                        )}
+                                      >
+                                        {child.name}
+                                      </Link>
+                                    </div>
+                                    {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
+                                      <ul className="ml-7 mt-1 space-y-1">
+                                        {child.children.map((subChild) => (
+                                          <li key={subChild.id}>
+                                            <Link 
+                                              href={`/category/${subChild.slug}`}
+                                              onClick={() => setSidebarOpen(false)}
+                                              className={cn(
+                                                "text-xs hover:text-brand-yellow transition-colors block",
+                                                sidebarSearchQuery.trim() && subChild.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                                                  ? "text-brand-yellow font-bold"
+                                                  : "text-gray-600"
+                                              )}
+                                            >
+                                              {subChild.name}
+                                            </Link>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-xs text-gray-500">
+                                Нет подкатегорий
                               </div>
-                            ))}
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
+                    )
                   ) : (
                     <div className="w-full text-center py-8 text-gray-500">
                       Категории не найдены
@@ -299,6 +498,20 @@ export default function Header() {
                 </div>
               </SheetContent>
             </Sheet>
+
+            {/* Кнопка панели каталога */}
+            <Button
+              className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 w-10 h-10 p-0"
+              size="sm"
+              onClick={toggleCatalogPanel}
+              title="Открыть каталог"
+            >
+              {categoriesLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Grid3X3 className="h-5 w-5" />
+              )}
+            </Button>
 
             <NavigationMenu className="hidden lg:flex">
               <NavigationMenuList>
@@ -325,13 +538,13 @@ export default function Header() {
                         <Loader2 className="h-6 w-6 animate-spin" />
                         <span className="ml-2">Загрузка категорий...</span>
                       </div>
-                    ) : categories.length > 0 ? (
+                    ) : sortedCategories.length > 0 ? (
                       <>
                         {/* Левая колонка с основными категориями */}
                         <div className="col-span-1 bg-gray-50 p-4">
                           <h3 className="font-semibold text-gray-700 mb-4">Категории</h3>
                           <ul className="space-y-2">
-                            {categories.map((category) => (
+                            {sortedCategories.map((category) => (
                               <li key={category.id}>
                                 <div className="flex items-center">
                                   <Link

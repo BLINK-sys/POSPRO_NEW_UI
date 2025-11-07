@@ -27,6 +27,7 @@ import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/a
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
+import { useAuth } from "@/context/auth-context"
 
 
 interface ProductDetail {
@@ -84,6 +85,7 @@ interface ProductDetail {
 export default function ProductPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useAuth()
   const slug = params.slug as string
   
   const [product, setProduct] = useState<ProductDetail | null>(null)
@@ -204,6 +206,11 @@ export default function ProductPage() {
         
         const productData = await getProductBySlug(slug)
         
+        // Если у товара нет страны, подгружаем из brand_info
+        if (!productData.country && productData.brand_info?.country) {
+          productData.country = productData.brand_info.country
+        }
+        
         // Получаем статус наличия для товара
         const availabilityStatus = await getProductAvailabilityStatus(productData.quantity)
         
@@ -253,6 +260,22 @@ export default function ProductPage() {
     (product?.characteristics.length > 0 ? 1 : 0) +
     (product?.documents.length > 0 ? 1 : 0) +
     (product?.drivers.length > 0 ? 1 : 0)
+
+  // Проверяем, может ли пользователь видеть оптовую цену
+  const canSeeWholesalePrice = user && (
+    (user.role === "admin" || user.role === "system") || 
+    (user.role === "client" && (user as any).is_wholesale === true)
+  )
+  
+  // Определяем, показывать ли оптовую цену (показываем если пользователь имеет право и цена существует)
+  const showWholesalePrice = canSeeWholesalePrice && product?.wholesale_price !== undefined && product.wholesale_price !== null
+  
+  // Определяем, есть ли значение оптовой цены (больше 0)
+  const hasWholesalePriceValue = product?.wholesale_price && product.wholesale_price > 0
+  
+  // Определяем цвета цен
+  const retailPriceColor = showWholesalePrice && hasWholesalePriceValue ? "text-red-600" : "text-green-600"
+  const wholesalePriceColor = "text-green-600"
 
   if (loading) {
     return (
@@ -473,9 +496,9 @@ export default function ProductPage() {
               </div>
             )}
             
-            {product.country && (
+            {(product.country || product.brand_info?.country) && (
               <div className="text-sm text-gray-600">
-                <span className="font-medium">Страна производитель:</span> {product.country}
+                <span className="font-medium">Страна производитель:</span> {product.country || product.brand_info?.country}
               </div>
             )}
             
@@ -504,14 +527,24 @@ export default function ProductPage() {
           {/* Цены */}
           <div className="pt-2 border-t border-gray-200 space-y-2">
             {product.price > 0 && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
+              <div className="text-sm">
+                <span className="font-medium">Цена:</span>{" "}
+                <span className={retailPriceColor}>
+                  {product.price.toLocaleString()} тг
+                </span>
               </div>
             )}
             
-            {product.wholesale_price && product.wholesale_price > 0 && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Оптовая цена:</span> {product.wholesale_price.toLocaleString()} тг
+            {showWholesalePrice && (
+              <div className="text-sm">
+                <span className="font-medium">Оптовая цена:</span>{" "}
+                {hasWholesalePriceValue ? (
+                  <span className={wholesalePriceColor}>
+                    {product.wholesale_price.toLocaleString()} тг
+                  </span>
+                ) : (
+                  <span className="text-gray-500">не указана</span>
+                )}
               </div>
             )}
           </div>

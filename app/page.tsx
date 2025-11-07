@@ -6,8 +6,7 @@ import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { getHomepageData } from "./actions/public"
 import HomepageBlockComponent from "@/components/homepage-block"
-
-import HomepageBanner from "@/components/homepage-banner"
+import HomepageBannerWrapper from "@/components/homepage-banner-wrapper"
 
 export const dynamic = 'force-dynamic'
 
@@ -59,8 +58,8 @@ async function HomepageContent() {
 
     return (
       <div className="bg-white dark:bg-gray-950">
-        {/* Баннеры */}
-        <HomepageBanner banners={data.banners} />
+        {/* Баннеры или панель каталога */}
+        <HomepageBannerWrapper banners={data.banners} />
         
         {/* Блоки контента */}
         {data.blocks && data.blocks.length > 0 ? (

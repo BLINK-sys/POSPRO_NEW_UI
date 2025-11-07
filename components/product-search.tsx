@@ -91,12 +91,25 @@ export default function ProductSearch({
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowDropdown(false)
+        // Восстанавливаем скролл при закрытии панели
+        document.body.style.overflow = 'auto'
       }
     }
 
     document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      // Восстанавливаем скролл при размонтировании
+      document.body.style.overflow = 'auto'
+    }
   }, [])
+
+  // Восстанавливаем скролл при закрытии панели
+  useEffect(() => {
+    if (!showDropdown) {
+      document.body.style.overflow = 'auto'
+    }
+  }, [showDropdown])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value)
@@ -177,7 +190,17 @@ export default function ProductSearch({
 
       {/* Выпадающий список результатов */}
       {showDropdown && (
-        <Card className="absolute top-full left-0 right-0 mt-1 z-50 max-h-96 overflow-y-auto shadow-lg border-gray-200">
+        <Card 
+          className="absolute top-full left-0 mt-1 z-50 h-[50vh] overflow-y-auto shadow-lg border-gray-200 w-max min-w-full max-w-[90vw] sm:max-w-[600px]"
+          onMouseEnter={(e) => {
+            // Блокируем скролл основной страницы при наведении на панель
+            document.body.style.overflow = 'hidden'
+          }}
+          onMouseLeave={(e) => {
+            // Разблокируем скролл основной страницы при уходе курсора
+            document.body.style.overflow = 'auto'
+          }}
+        >
           <CardContent className="p-0">
             {isLoadingAll ? (
               <div className="flex items-center justify-center py-8">
@@ -185,14 +208,14 @@ export default function ProductSearch({
                 <span className="text-sm text-gray-500">Загрузка товаров...</span>
               </div>
             ) : filteredProducts.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="w-full">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50">
-                      <TableHead className="w-16 text-xs font-medium text-gray-600">Фото</TableHead>
-                      <TableHead className="text-xs font-medium text-gray-600">Название</TableHead>
-                      <TableHead className="text-xs font-medium text-gray-600">Бренд</TableHead>
-                      <TableHead className="text-xs font-medium text-gray-600 text-right">Цена</TableHead>
+                      <TableHead className="w-16 text-xs font-medium text-gray-600 whitespace-nowrap">Фото</TableHead>
+                      <TableHead className="text-xs font-medium text-gray-600 whitespace-nowrap min-w-[150px]">Название</TableHead>
+                      <TableHead className="text-xs font-medium text-gray-600 whitespace-nowrap min-w-[80px]">Бренд</TableHead>
+                      <TableHead className="text-xs font-medium text-gray-600 text-right whitespace-nowrap min-w-[100px]">Цена</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -204,7 +227,7 @@ export default function ProductSearch({
                             onClick={handleProductClick}
                             className="block"
                           >
-                            <div className="w-16 h-16 relative rounded-md overflow-hidden border border-gray-200">
+                            <div className="w-16 h-16 relative rounded-md overflow-hidden border border-gray-200 flex-shrink-0 shadow-md">
                               <Image
                                 src={getImageUrl(product.image_url)}
                                 alt={product.name}
@@ -224,24 +247,24 @@ export default function ProductSearch({
                             onClick={handleProductClick}
                             className="block"
                           >
-                            <h4 className="text-sm font-medium text-gray-900 hover:text-brand-yellow transition-colors truncate max-w-[200px]">
+                            <h4 className="text-sm font-medium text-gray-900 hover:text-brand-yellow transition-colors break-words">
                               {product.name}
                             </h4>
                           </Link>
                         </TableCell>
-                                                 <TableCell className="py-2">
+                        <TableCell className="py-2">
                            {product.brand_info ? (
                              <Link
                                href={`/brand/${encodeURIComponent(product.brand_info.name)}`}
                                onClick={handleProductClick}
                                className="block"
                              >
-                               <span className="inline-block px-2 py-1 text-xs bg-gray-100 hover:bg-brand-yellow text-gray-700 hover:text-black rounded-md shadow-sm hover:shadow-md transition-all duration-200 truncate max-w-[100px]">
+                               <span className="inline-block px-2 py-1 text-xs bg-gray-100 hover:bg-brand-yellow text-gray-700 hover:text-black rounded-md shadow-md hover:shadow-lg transition-all duration-200 break-words">
                                  {product.brand_info.name}
                                </span>
                              </Link>
                            ) : (
-                             <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-md shadow-sm max-w-[100px]">
+                             <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-md shadow-sm">
                                -
                              </span>
                            )}
@@ -253,7 +276,7 @@ export default function ProductSearch({
                             onClick={handleProductClick}
                             className="block"
                           >
-                            <p className="text-sm font-semibold text-green-600">
+                            <p className="text-sm font-semibold text-green-600 whitespace-nowrap">
                               {formatPrice(product.price)}
                             </p>
                           </Link>

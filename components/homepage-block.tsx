@@ -564,33 +564,10 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   // Рендер сетки
   const renderGrid = (filteredItems?: any[]) => {
     const itemsToRender = filteredItems || block.items
-    // Для категорий используем специальную сетку с учетом четного количества
+    // Для категорий используем адаптивную сетку с максимумом 5 колонок
     if (block.type === 'category' || block.type === 'categories') {
-      const itemsCount = itemsToRender.length
-      
-      // Если четное количество - распределяем равномерно по строкам
-      if (itemsCount % 2 === 0) {
-        // Определяем количество колонок для равномерного распределения
-        let colsPerRow = 2
-        if (itemsCount >= 16) colsPerRow = 4  // 4x4 для 16 карточек
-        else if (itemsCount >= 8) colsPerRow = 4  // 2x4 для 8 карточек
-        else if (itemsCount >= 4) colsPerRow = 2  // 2x2 для 4 карточек
-        
-        return (
-          <div className={`grid gap-4 justify-items-center`} 
-               style={{ gridTemplateColumns: `repeat(${colsPerRow}, 1fr)` }}>
-            {itemsToRender.map((item, index) => (
-              <div key={item.id || index}>
-                {renderItem(item)}
-              </div>
-            ))}
-          </div>
-        )
-      }
-      
-      // Если нечетное количество - центрируем как раньше
       return (
-        <div className="flex flex-wrap gap-4 justify-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 justify-items-center">
           {itemsToRender.map((item, index) => (
             <div key={item.id || index}>
               {renderItem(item)}
