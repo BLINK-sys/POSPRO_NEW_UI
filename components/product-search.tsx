@@ -9,9 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Image from "next/image"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { ProductData, getAllProducts, searchProducts } from "@/app/actions/public"
+import { ProductData, searchProducts } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 
 interface ProductSearchProps {
   className?: string
@@ -23,65 +22,37 @@ export default function ProductSearch({
   placeholder = "Я ищу..." 
 }: ProductSearchProps) {
   const [query, setQuery] = useState("")
-  const [products, setProducts] = useState<ProductData[]>([])
-  const [allProducts, setAllProducts] = useState<ProductData[]>([])
   const [filteredProducts, setFilteredProducts] = useState<ProductData[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [isLoadingAll, setIsLoadingAll] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Загружаем все товары при монтировании компонента
+  // Поиск через API (для более точного поиска)
   useEffect(() => {
-    const loadAllProducts = async () => {
-      try {
-        setIsLoadingAll(true)
-        const data = await getAllProducts()
-        setAllProducts(data)
-      } catch (error) {
-        console.error("Error loading all products:", error)
-      } finally {
-        setIsLoadingAll(false)
-      }
-    }
-    loadAllProducts()
-  }, [])
+    const trimmedQuery = query.trim()
 
-  // Фильтруем товары локально при вводе текста
-  useEffect(() => {
-    if (!query.trim()) {
+    if (trimmedQuery.length < 2) {
       setFilteredProducts([])
       setShowDropdown(false)
       return
     }
 
-    const filtered = allProducts.filter(product =>
-      product.name.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 10) // Ограничиваем до 10 результатов
-
-    setFilteredProducts(filtered)
-    setShowDropdown(filtered.length > 0)
-  }, [query, allProducts])
-
-  // Поиск через API (для более точного поиска)
-  useEffect(() => {
     const searchTimeout = setTimeout(async () => {
-      if (query.trim().length >= 2) {
-        try {
-          setIsLoading(true)
-          const searchResults = await searchProducts(query)
-          setProducts(searchResults)
-          setFilteredProducts(searchResults)
-          setShowDropdown(searchResults.length > 0)
-        } catch (error) {
-          console.error("Error searching products:", error)
-          // При ошибке API используем локальный поиск
-        } finally {
-          setIsLoading(false)
-        }
+      try {
+        setIsLoading(true)
+        setShowDropdown(true)
+        const searchResults = await searchProducts(trimmedQuery)
+        setFilteredProducts(searchResults)
+        setShowDropdown(searchResults.length > 0)
+      } catch (error) {
+        console.error("Error searching products:", error)
+        setFilteredProducts([])
+        setShowDropdown(false)
+      } finally {
+        setIsLoading(false)
       }
-    }, 300) // Задержка 300мс для избежания частых запросов
+    }, 300)
 
     return () => clearTimeout(searchTimeout)
   }, [query])
@@ -202,10 +173,10 @@ export default function ProductSearch({
           }}
         >
           <CardContent className="p-0">
-            {isLoadingAll ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                <span className="text-sm text-gray-500">Загрузка товаров...</span>
+                <span className="text-sm text-gray-500">Поиск товаров...</span>
               </div>
             ) : filteredProducts.length > 0 ? (
               <div className="w-full">

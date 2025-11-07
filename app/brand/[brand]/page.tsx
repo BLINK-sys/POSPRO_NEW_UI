@@ -189,48 +189,6 @@ export default function BrandPage() {
         </button>
       </div>
 
-      {/* Все бренды */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Все бренды</h2>
-        <div className="flex flex-wrap gap-4">
-          {allBrands.map((brand) => (
-            <button 
-              key={brand.id} 
-              onClick={() => handleBrandChange(brand.name)}
-              className="group hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-44 w-44 flex-shrink-0 bg-white rounded-xl"
-            >
-              <div className="p-0 h-full flex flex-col">
-                <div className="relative h-full bg-white rounded-xl overflow-hidden">
-                  {brand.image_url ? (
-                    <Image
-                      src={getImageUrl(brand.image_url)}
-                      alt={brand.name}
-                      fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-300"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-2xl text-gray-400">🏢</div>
-                    </div>
-                  )}
-                  
-                  {/* Hover overlay с темной полупрозрачной карточкой */}
-                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center rounded-xl pointer-events-none">
-                    <div className="text-center text-white p-2">
-                      <h3 className="font-bold text-sm mb-1 leading-tight">{brand.name}</h3>
-                      {brand.country && (
-                        <p className="text-white/90 text-xs">{brand.country}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Заголовок */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -269,7 +227,7 @@ export default function BrandPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={`w-full justify-start ${
+                    className={`w-full justify-start text-left whitespace-normal break-words ${
                       selectedCategory === null 
                         ? "bg-brand-yellow hover:bg-yellow-500 text-black" 
                         : "bg-gray-100 hover:bg-gray-200 text-black"
@@ -289,7 +247,7 @@ export default function BrandPage() {
                       key={category.id}
                       variant="ghost"
                       size="sm"
-                      className={`w-full justify-start ${
+                      className={`w-full justify-start text-left whitespace-normal break-words ${
                         selectedCategory === category.id 
                           ? "bg-brand-yellow hover:bg-yellow-500 text-black" 
                           : "bg-gray-100 hover:bg-gray-200 text-black"
@@ -443,6 +401,48 @@ export default function BrandPage() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Все бренды */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Все бренды</h2>
+        <div className="flex flex-wrap gap-4">
+          {allBrands.map((brand) => (
+            <button 
+              key={brand.id} 
+              onClick={() => handleBrandChange(brand.name)}
+              className="group hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-44 w-44 flex-shrink-0 bg-white rounded-xl"
+            >
+              <div className="p-0 h-full flex flex-col">
+                <div className="relative h-full bg-white rounded-xl overflow-hidden">
+                  {brand.image_url ? (
+                    <Image
+                      src={getImageUrl(brand.image_url)}
+                      alt={brand.name}
+                      fill
+                      className="object-cover group-hover:scale-110 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-2xl text-gray-400">🏢</div>
+                    </div>
+                  )}
+                  
+                  {/* Hover overlay с темной полупрозрачной карточкой */}
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center rounded-xl pointer-events-none">
+                    <div className="text-center text-white p-2">
+                      <h3 className="font-bold text-sm mb-1 leading-tight">{brand.name}</h3>
+                      {brand.country && (
+                        <p className="text-white/90 text-xs">{brand.country}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
