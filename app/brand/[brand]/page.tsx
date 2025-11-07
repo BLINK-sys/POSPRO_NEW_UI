@@ -144,6 +144,10 @@ export default function BrandPage() {
     }).format(price)
   }
 
+const formatCategoryName = (name: string) => {
+  return name.replace(/\./g, '.\u200B')
+}
+
   if (loading && !brandData) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -227,15 +231,15 @@ export default function BrandPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={`w-full justify-start text-left whitespace-normal break-words ${
+                    className={`w-full justify-between whitespace-normal break-words h-auto py-2 px-3 gap-3 ${
                       selectedCategory === null 
                         ? "bg-brand-yellow hover:bg-yellow-500 text-black" 
                         : "bg-gray-100 hover:bg-gray-200 text-black"
                     }`}
                     onClick={() => handleCategoryFilter(null)}
                   >
-                    Все категории
-                    <Badge variant="secondary" className="ml-auto">
+                    <span className="text-left leading-snug">Все категории</span>
+                    <Badge variant="secondary" className="shrink-0 self-start">
                       {brandData.total_count}
                     </Badge>
                   </Button>
@@ -247,15 +251,17 @@ export default function BrandPage() {
                       key={category.id}
                       variant="ghost"
                       size="sm"
-                      className={`w-full justify-start text-left whitespace-normal break-words ${
+                      className={`w-full justify-between whitespace-normal break-words h-auto py-2 px-3 gap-3 ${
                         selectedCategory === category.id 
                           ? "bg-brand-yellow hover:bg-yellow-500 text-black" 
                           : "bg-gray-100 hover:bg-gray-200 text-black"
                       }`}
                       onClick={() => handleCategoryFilter(category.id)}
                     >
-                      {category.name}
-                      <Badge variant="secondary" className="ml-auto">
+                    <span className="text-left leading-snug">
+                      {formatCategoryName(category.name)}
+                      </span>
+                      <Badge variant="secondary" className="shrink-0 self-start">
                         {category.product_count}
                       </Badge>
                     </Button>
