@@ -26,7 +26,7 @@ import {
   HomepageBlock 
 } from "@/lib/constants"
 import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
+import { getProductsByIds } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
@@ -199,7 +199,7 @@ export default function HomepageBlockItemsReorderDialogV2({
           allItems = await getCategories()
           break
         case HOMEPAGE_BLOCK_TYPES.PRODUCTS:
-          allItems = await getProducts()
+          allItems = await getProductsByIds(block.items)
           break
         case HOMEPAGE_BLOCK_TYPES.BRANDS:
           allItems = await getBrands()

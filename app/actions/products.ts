@@ -199,6 +199,47 @@ export async function getProducts(params: GetProductsParams = {}): Promise<Pagin
   }
 }
 
+export async function getProductsByIds(ids: number[]): Promise<Product[]> {
+  if (!ids || ids.length === 0) {
+    return []
+  }
+
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get("jwt-token")?.value
+
+    if (!token) {
+      throw new Error("Не авторизован")
+    }
+
+    const url = new URL(getApiUrl(API_ENDPOINTS.PRODUCTS.BULK))
+    url.searchParams.set("ids", ids.join(","))
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const data: Product[] = await response.json()
+    const map = new Map(data.map((product) => [product.id, product]))
+    return ids
+      .map((id) => map.get(id))
+      .filter((product): product is Product => Boolean(product))
+  } catch (error) {
+    console.error("Error fetching products by ids:", error)
+    throw new Error("Ошибка получения товаров по идентификаторам")
+  }
+}
+
 // Получить товар по slug
 export async function getProductBySlug(slug: string): Promise<Product> {
   try {

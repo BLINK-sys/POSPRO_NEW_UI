@@ -16,7 +16,7 @@ import {
   HOMEPAGE_BLOCK_TYPE_LABELS 
 } from "@/lib/constants"
 import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
+import { getProductsByIds } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
@@ -76,7 +76,7 @@ function SelectedElementsDisplay({
           allElements = await getCategories()
           break
         case HOMEPAGE_BLOCK_TYPES.PRODUCTS:
-          allElements = await getProducts()
+          allElements = await getProductsByIds(selectedItemIds)
           break
         case HOMEPAGE_BLOCK_TYPES.BRANDS:
           allElements = await getBrands()
@@ -98,10 +98,10 @@ function SelectedElementsDisplay({
           .map(id => findElementById(allElements, id))
           .filter(element => element !== null)
       } else {
-        // Для остальных типов используем обычную фильтрацию
-        selectedElements = allElements.filter(element => 
-          selectedItemIds.includes(element.id)
-        )
+        const elementsMap = new Map(allElements.map(element => [element.id, element]))
+        selectedElements = selectedItemIds
+          .map(id => elementsMap.get(id))
+          .filter((element): element is any => Boolean(element))
       }
       
       setElements(selectedElements)

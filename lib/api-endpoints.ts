@@ -29,6 +29,7 @@ export const API_ENDPOINTS = {
   // Products endpoints
   PRODUCTS: {
     LIST: "/products/",
+    BULK: "/products/bulk",
     GET: (slug: string) => `/products/${slug}`,
     CREATE_DRAFT: "/products/draft",
     DELETE_DRAFT: (id: number) => `/products/draft/${id}`,
