@@ -143,11 +143,24 @@ export default function CategoryPage() {
   }) || []
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [data])
+    switch (sortBy) {
+      case "name":
+        return a.name.localeCompare(b.name)
+      case "price_asc":
+        return (a.price || 0) - (b.price || 0)
+      case "price_desc":
+        return (b.price || 0) - (a.price || 0)
+      default:
+        return 0
+    }
+  })
 
   const totalPages = Math.max(1, Math.ceil(sortedProducts.length / ITEMS_PER_PAGE))
+  const productsCount = data?.products?.length ?? 0
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedBrand, sortBy, viewMode, productsCount])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -169,18 +182,6 @@ export default function CategoryPage() {
       window.scrollTo({ top: 0, behavior: "smooth" })
     }
   }
-
-    switch (sortBy) {
-      case "name":
-        return a.name.localeCompare(b.name)
-      case "price_asc":
-        return (a.price || 0) - (b.price || 0)
-      case "price_desc":
-        return (b.price || 0) - (a.price || 0)
-      default:
-        return 0
-    }
-  })
 
   if (loading) {
     return (
