@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { type Product, deleteProduct, type ProductActionState } from "@/app/actions/products"
+import { type Product, type PaginatedProducts, deleteProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
@@ -35,7 +35,7 @@ import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
 
 interface ProductsTableProps {
-  initialProducts: Product[]
+  initialData: PaginatedProducts
   categories: Category[]
   brands: Brand[]
   statuses: Status[]
@@ -44,14 +44,20 @@ interface ProductsTableProps {
 }
 
 export function ProductsTable({
-  initialProducts,
+  initialData,
   categories,
   brands,
   statuses,
   suppliers,
   isSidebarCollapsed = false,
 }: ProductsTableProps) {
-  const [allProducts] = useState<Product[]>(initialProducts) // Все товары (не изменяются)
+  const [products, setProducts] = useState<Product[]>(initialData.products)
+  const [currentPage, setCurrentPage] = useState(initialData.page ?? 1)
+  const [itemsPerPage, setItemsPerPage] = useState(initialData.per_page ?? 25)
+  const [totalPages, setTotalPages] = useState(initialData.total_pages ?? 1)
+  const [totalCount, setTotalCount] = useState(initialData.total_count ?? initialData.products.length)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
 
@@ -65,10 +71,9 @@ export function ProductsTable({
   const [quantityFilter, setQuantityFilter] = useState("all")
 
   // Пагинация
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(25)
   const [customItemsPerPage, setCustomItemsPerPage] = useState("")
   const [isCustomItemsPerPage, setIsCustomItemsPerPage] = useState(false)
+  const requestIdRef = useRef(0)
 
   const { toast } = useToast()
   const router = useRouter()
@@ -88,77 +93,93 @@ export function ProductsTable({
     }
   }, [toast])
 
-  // Локальная фильтрация товаров
-  const filteredProducts = useMemo(() => {
-    let filtered = allProducts
+  const loadProducts = useCallback(
+    async (pageToLoad: number, perPageValue: number) => {
+      const requestId = ++requestIdRef.current
+      setIsLoading(true)
+      try {
+        const params = new URLSearchParams()
+        params.set("page", String(pageToLoad))
+        params.set("per_page", String(perPageValue))
 
-    // Поиск по названию
-    if (searchQuery.trim()) {
-      filtered = filtered.filter((product) => product.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    }
+        if (searchQuery.trim()) {
+          params.set("search", searchQuery.trim())
+        }
+        if (categoryFilter !== "all") {
+          params.set("category_id", categoryFilter)
+        }
+        if (statusFilter !== "all") {
+          params.set("status", statusFilter)
+        }
+        if (brandFilter !== "all") {
+          params.set("brand", brandFilter)
+        }
+        if (supplierFilter !== "all") {
+          params.set("supplier", supplierFilter)
+        }
+        if (visibilityFilter !== "all") {
+          params.set("visibility", visibilityFilter)
+        }
+        if (quantityFilter !== "all") {
+          params.set("quantity", quantityFilter)
+        }
 
-    // Фильтр по категории
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter((product) => String(product.category_id) === categoryFilter)
-    }
+        const response = await fetch(`/api/admin/products?${params.toString()}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        })
 
-    // Фильтр по статусу
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((product) => {
-        const productStatusId =
-          typeof product.status === "object"
-            ? String(product.status.id)
-            : product.status === "no"
-              ? "no-status"
-              : String(product.status)
-        return productStatusId === statusFilter
-      })
-    }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        }
 
-    // Фильтр по бренду
-    if (brandFilter !== "all") {
-      filtered = filtered.filter((product) => {
-        if (brandFilter === "no-brand") return !product.brand_id
-        const brandId = Number(brandFilter)
-        return product.brand_id === brandId
-      })
-    }
-
-    // Фильтр по поставщику
-    if (supplierFilter !== "all") {
-      filtered = filtered.filter((product) => {
-        const productSupplierId = product.supplier_id ? String(product.supplier_id) : "no-supplier"
-        return productSupplierId === supplierFilter
-      })
-    }
-
-    // Фильтр по видимости
-    if (visibilityFilter !== "all") {
-      filtered = filtered.filter((product) => String(product.is_visible) === visibilityFilter)
-    }
-
-    // Фильтр по количеству
-    if (quantityFilter !== "all") {
-      if (quantityFilter === "true") {
-        filtered = filtered.filter((product) => product.quantity > 0)
-      } else {
-        filtered = filtered.filter((product) => product.quantity === 0)
+        const data = await response.json()
+        if (requestIdRef.current === requestId) {
+          setProducts(data.products ?? [])
+          setCurrentPage(data.page ?? pageToLoad)
+          setTotalPages(data.total_pages ?? 1)
+          setTotalCount(data.total_count ?? (data.products?.length ?? 0))
+          if (typeof data.per_page === "number" && data.per_page !== itemsPerPage) {
+            setItemsPerPage(data.per_page)
+          }
+          setError(null)
+        }
+      } catch (err) {
+        console.error("Error loading products:", err)
+        if (requestIdRef.current === requestId) {
+          const message =
+            err instanceof Error ? err.message : "Не удалось загрузить товары"
+          setError(message)
+          toast({ variant: "destructive", title: "Ошибка", description: message })
+        }
+      } finally {
+        if (requestIdRef.current === requestId) {
+          setIsLoading(false)
+        }
       }
-    }
+    },
+    [
+      searchQuery,
+      categoryFilter,
+      statusFilter,
+      brandFilter,
+      supplierFilter,
+      visibilityFilter,
+      quantityFilter,
+      itemsPerPage,
+      toast,
+    ]
+  )
 
-    return filtered
-  }, [allProducts, searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter])
-
-  // Пагинация
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentProducts = filteredProducts.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + products.length, totalCount)
 
-  // Сброс страницы при изменении фильтров
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, itemsPerPage])
+    loadProducts(1, itemsPerPage)
+  }, [loadProducts, itemsPerPage])
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
@@ -176,22 +197,21 @@ export function ProductsTable({
 
   const handleDelete = async () => {
     if (!deletingProduct) return
-    const result: ProductActionState = await deleteProduct(deletingProduct.id)
-    if (result.success) {
-      toast({ title: "Успех!", description: result.message })
-      // Удаляем товар из локального состояния
-      // Здесь нужно обновить allProducts, но так как это const, нужно перезагрузить страницу
-      window.location.reload()
-    } else {
-      toast({ variant: "destructive", title: "Ошибка", description: result.error })
+    try {
+      await deleteProduct(deletingProduct.id)
+      toast({ title: "Успех!", description: "Товар удалён" })
+      await loadProducts(currentPage, itemsPerPage)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Не удалось удалить товар"
+      toast({ variant: "destructive", title: "Ошибка", description: message })
+    } finally {
+      setDeletingProduct(null)
     }
-    setDeletingProduct(null)
   }
 
   const handleProductUpdate = useCallback(() => {
-    // Перезагружаем страницу для получения новых данных после создания
-    window.location.reload()
-  }, [])
+    loadProducts(currentPage, itemsPerPage)
+  }, [loadProducts, currentPage, itemsPerPage])
 
   const handleEditProduct = (product: Product) => {
     router.push(`/admin/catalog/products/${product.slug}/edit`)
@@ -203,8 +223,10 @@ export function ProductsTable({
       return
     }
     setIsCustomItemsPerPage(false)
-    setItemsPerPage(Number(value))
+    const numericValue = Number(value)
+    setItemsPerPage(numericValue)
     setCustomItemsPerPage("")
+    setCurrentPage(1)
   }
 
   const handleCustomItemsPerPageSubmit = () => {
@@ -212,6 +234,7 @@ export function ProductsTable({
     if (customValue > 0 && customValue <= 1000) {
       setItemsPerPage(customValue)
       setIsCustomItemsPerPage(false)
+      setCurrentPage(1)
     } else {
       toast({
         variant: "destructive",
@@ -259,9 +282,9 @@ export function ProductsTable({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Все бренды</SelectItem>
-          <SelectItem value="no">Без бренда</SelectItem>
+          <SelectItem value="no-brand">Без бренда</SelectItem>
           {brands.map((brand) => (
-            <SelectItem key={brand.id} value={brand.name}>
+            <SelectItem key={brand.id} value={String(brand.id)}>
               {brand.name}
             </SelectItem>
           ))}
@@ -375,9 +398,9 @@ export function ProductsTable({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Все бренды</SelectItem>
-                    <SelectItem value="no">Без бренда</SelectItem>
+                    <SelectItem value="no-brand">Без бренда</SelectItem>
                     {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.name}>
+                      <SelectItem key={brand.id} value={String(brand.id)}>
                         {brand.name}
                       </SelectItem>
                     ))}
@@ -429,8 +452,7 @@ export function ProductsTable({
             {/* Контроль количества товаров на странице */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-2 text-sm text-gray-600">
-                Показано {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} из {filteredProducts.length}{" "}
-                товаров
+                Показано {totalCount === 0 ? 0 : startIndex + 1}-{endIndex} из {totalCount} товаров
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Показывать по:</span>
@@ -467,6 +489,10 @@ export function ProductsTable({
               </div>
             </div>
 
+            {isLoading && (
+              <div className="text-sm text-gray-500">Загрузка товаров...</div>
+            )}
+
             {/* Таблица товаров */}
             <div className="rounded-md border">
               <Table>
@@ -486,8 +512,8 @@ export function ProductsTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentProducts.length > 0 ? (
-                    currentProducts.map((product) => {
+                  {products.length > 0 ? (
+                    products.map((product) => {
                       const status = getStatusById(product.status)
                       return (
                         <TableRow key={product.id}>
@@ -566,15 +592,17 @@ export function ProductsTable({
                   ) : (
                     <TableRow>
                       <TableCell colSpan={9} className="h-24 text-center">
-                        {searchQuery ||
-                        categoryFilter !== "all" ||
-                        statusFilter !== "all" ||
-                        brandFilter !== "all" ||
-                        supplierFilter !== "all" ||
-                        visibilityFilter !== "all" ||
-                        quantityFilter !== "all"
-                          ? "Товары не найдены по заданным фильтрам."
-                          : "Товары не найдены."}
+                        {error
+                          ? error
+                          : searchQuery ||
+                            categoryFilter !== "all" ||
+                            statusFilter !== "all" ||
+                            brandFilter !== "all" ||
+                            supplierFilter !== "all" ||
+                            visibilityFilter !== "all" ||
+                            quantityFilter !== "all"
+                            ? "Товары не найдены по заданным фильтрам."
+                            : "Товары не найдены."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -589,7 +617,11 @@ export function ProductsTable({
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        onClick={() => {
+                          if (currentPage > 1 && !isLoading) {
+                            loadProducts(currentPage - 1, itemsPerPage)
+                          }
+                        }}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
@@ -598,7 +630,14 @@ export function ProductsTable({
                     {currentPage > 3 && (
                       <>
                         <PaginationItem>
-                          <PaginationLink onClick={() => setCurrentPage(1)} className="cursor-pointer">
+                          <PaginationLink
+                            onClick={() => {
+                              if (!isLoading) {
+                                loadProducts(1, itemsPerPage)
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
                             1
                           </PaginationLink>
                         </PaginationItem>
@@ -618,7 +657,11 @@ export function ProductsTable({
                       return (
                         <PaginationItem key={pageNum}>
                           <PaginationLink
-                            onClick={() => setCurrentPage(pageNum)}
+                            onClick={() => {
+                              if (!isLoading) {
+                                loadProducts(pageNum, itemsPerPage)
+                              }
+                            }}
                             isActive={pageNum === currentPage}
                             className="cursor-pointer"
                           >
@@ -637,7 +680,14 @@ export function ProductsTable({
                           </PaginationItem>
                         )}
                         <PaginationItem>
-                          <PaginationLink onClick={() => setCurrentPage(totalPages)} className="cursor-pointer">
+                          <PaginationLink
+                            onClick={() => {
+                              if (!isLoading) {
+                                loadProducts(totalPages, itemsPerPage)
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
                             {totalPages}
                           </PaginationLink>
                         </PaginationItem>
@@ -646,7 +696,11 @@ export function ProductsTable({
 
                     <PaginationItem>
                       <PaginationNext
-                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        onClick={() => {
+                          if (currentPage < totalPages && !isLoading) {
+                            loadProducts(currentPage + 1, itemsPerPage)
+                          }
+                        }}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
@@ -670,8 +724,7 @@ export function ProductsTable({
           {/* Контроль количества товаров на странице */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              Показано {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} из {filteredProducts.length}{" "}
-              товаров
+              Показано {totalCount === 0 ? 0 : startIndex + 1}-{endIndex} из {totalCount} товаров
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Показывать по:</span>
@@ -708,6 +761,10 @@ export function ProductsTable({
             </div>
           </div>
 
+          {isLoading && (
+            <div className="text-sm text-gray-500">Загрузка товаров...</div>
+          )}
+
           {/* Таблица товаров */}
           <div className="rounded-md border">
             <Table>
@@ -727,8 +784,8 @@ export function ProductsTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {currentProducts.length > 0 ? (
-                  currentProducts.map((product) => {
+                {products.length > 0 ? (
+                  products.map((product) => {
                     const status = getStatusById(product.status)
                     return (
                       <TableRow key={product.id}>
@@ -805,14 +862,17 @@ export function ProductsTable({
                 ) : (
                   <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
-                      {searchQuery ||
-                      categoryFilter !== "all" ||
-                      statusFilter !== "all" ||
-                      brandFilter !== "all" ||
-                      visibilityFilter !== "all" ||
-                      quantityFilter !== "all"
-                        ? "Товары не найдены по заданным фильтрам."
-                        : "Товары не найдены."}
+                      {error
+                        ? error
+                        : searchQuery ||
+                          categoryFilter !== "all" ||
+                          statusFilter !== "all" ||
+                          brandFilter !== "all" ||
+                          supplierFilter !== "all" ||
+                          visibilityFilter !== "all" ||
+                          quantityFilter !== "all"
+                          ? "Товары не найдены по заданным фильтрам."
+                          : "Товары не найдены."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -827,7 +887,11 @@ export function ProductsTable({
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      onClick={() => {
+                        if (currentPage > 1 && !isLoading) {
+                          loadProducts(currentPage - 1, itemsPerPage)
+                        }
+                      }}
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>
@@ -836,7 +900,14 @@ export function ProductsTable({
                   {currentPage > 3 && (
                     <>
                       <PaginationItem>
-                        <PaginationLink onClick={() => setCurrentPage(1)} className="cursor-pointer">
+                        <PaginationLink
+                          onClick={() => {
+                            if (!isLoading) {
+                              loadProducts(1, itemsPerPage)
+                            }
+                          }}
+                          className="cursor-pointer"
+                        >
                           1
                         </PaginationLink>
                       </PaginationItem>
@@ -856,7 +927,11 @@ export function ProductsTable({
                     return (
                       <PaginationItem key={pageNum}>
                         <PaginationLink
-                          onClick={() => setCurrentPage(pageNum)}
+                          onClick={() => {
+                            if (!isLoading) {
+                              loadProducts(pageNum, itemsPerPage)
+                            }
+                          }}
                           isActive={pageNum === currentPage}
                           className="cursor-pointer"
                         >
@@ -875,7 +950,14 @@ export function ProductsTable({
                         </PaginationItem>
                       )}
                       <PaginationItem>
-                        <PaginationLink onClick={() => setCurrentPage(totalPages)} className="cursor-pointer">
+                        <PaginationLink
+                          onClick={() => {
+                            if (!isLoading) {
+                              loadProducts(totalPages, itemsPerPage)
+                            }
+                          }}
+                          className="cursor-pointer"
+                        >
                           {totalPages}
                         </PaginationLink>
                       </PaginationItem>
@@ -884,7 +966,11 @@ export function ProductsTable({
 
                   <PaginationItem>
                     <PaginationNext
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      onClick={() => {
+                        if (currentPage < totalPages && !isLoading) {
+                          loadProducts(currentPage + 1, itemsPerPage)
+                        }
+                      }}
                       className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                     />
                   </PaginationItem>

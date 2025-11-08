@@ -32,6 +32,11 @@ export interface Product {
   category_id?: number
   category?: string
   image?: string // Первое изображение для превью
+  availability_status?: {
+    status_name: string
+    background_color: string
+    text_color: string
+  } | null
   characteristics?: Array<{
     id: number
     key: string
@@ -90,8 +95,28 @@ export interface ProductDriver {
   order: number
 }
 
-// Получить все товары
-export async function getProducts(): Promise<Product[]> {
+export interface PaginatedProducts {
+  products: Product[]
+  page: number
+  per_page: number
+  total_pages: number
+  total_count: number
+}
+
+export interface GetProductsParams {
+  page?: number
+  perPage?: number
+  search?: string
+  categoryId?: number
+  status?: string
+  brand?: string
+  supplier?: string
+  visibility?: string
+  quantity?: string
+}
+
+// Получить товары (с поддержкой пагинации и фильтров)
+export async function getProducts(params: GetProductsParams = {}): Promise<PaginatedProducts> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("jwt-token")?.value
@@ -100,7 +125,37 @@ export async function getProducts(): Promise<Product[]> {
       throw new Error("Не авторизован")
     }
 
-    const response = await fetch(getApiUrl(API_ENDPOINTS.PRODUCTS.LIST), {
+    const url = new URL(getApiUrl(API_ENDPOINTS.PRODUCTS.LIST))
+
+    if (params.page) {
+      url.searchParams.set("page", String(params.page))
+    }
+    if (params.perPage) {
+      url.searchParams.set("per_page", String(params.perPage))
+    }
+    if (params.search) {
+      url.searchParams.set("search", params.search)
+    }
+    if (params.categoryId) {
+      url.searchParams.set("category_id", String(params.categoryId))
+    }
+    if (params.status && params.status !== "all") {
+      url.searchParams.set("status", params.status)
+    }
+    if (params.brand && params.brand !== "all") {
+      url.searchParams.set("brand", params.brand)
+    }
+    if (params.supplier && params.supplier !== "all") {
+      url.searchParams.set("supplier", params.supplier)
+    }
+    if (params.visibility && params.visibility !== "all") {
+      url.searchParams.set("visibility", params.visibility)
+    }
+    if (params.quantity && params.quantity !== "all") {
+      url.searchParams.set("quantity", params.quantity)
+    }
+
+    const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -114,7 +169,25 @@ export async function getProducts(): Promise<Product[]> {
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }
 
-    return await response.json()
+    const data = await response.json()
+
+    if (Array.isArray(data)) {
+      return {
+        products: data,
+        page: params.page ?? 1,
+        per_page: params.perPage ?? data.length,
+        total_pages: 1,
+        total_count: data.length,
+      }
+    }
+
+    return {
+      products: data.products ?? [],
+      page: data.page ?? params.page ?? 1,
+      per_page: data.per_page ?? params.perPage ?? (data.products?.length ?? 0),
+      total_pages: data.total_pages ?? 1,
+      total_count: data.total_count ?? (data.products?.length ?? 0),
+    }
   } catch (error) {
     console.error("Error fetching products:", error)
     throw new Error("Ошибка получения товаров")

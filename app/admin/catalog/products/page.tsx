@@ -12,8 +12,8 @@ interface ProductsPageProps {
 }
 
 export default async function ProductsPage({ isSidebarCollapsed = false }: ProductsPageProps) {
-  const [products, categories, brands, statuses, suppliers] = await Promise.all([
-    getProducts({}), // Получаем все товары без фильтров изначально
+  const [initialData, categories, brands, statuses, suppliers] = await Promise.all([
+    getProducts({ page: 1, perPage: 25 }),
     getCategories(),
     getBrands(),
     getStatuses(),
@@ -28,7 +28,7 @@ export default async function ProductsPage({ isSidebarCollapsed = false }: Produ
       </CardHeader>
       <CardContent>
         <ProductsTable
-          initialProducts={products}
+          initialData={initialData}
           categories={categories}
           brands={brands}
           statuses={statuses}
