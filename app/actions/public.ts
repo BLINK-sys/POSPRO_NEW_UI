@@ -45,6 +45,7 @@ export interface ProductData {
   name: string
   slug: string
   price: number
+  wholesale_price?: number | null
   description?: string
   category_id?: number
   category?: CategoryData
@@ -65,6 +66,16 @@ export interface ProductData {
   quantity: number
   image_url?: string
   availability_status?: ProductAvailabilityStatus
+}
+
+export interface PaginatedBrandProducts {
+  brand: BrandData | null
+  products: ProductData[]
+  total_count: number
+  page: number
+  per_page: number
+  total_pages: number
+  category_id?: number
 }
 
 export interface BrandData {
@@ -458,14 +469,22 @@ export async function getProductsByBrand(brandName: string): Promise<{
 }
 
 // Получить товары по бренду с полной информацией
-export async function getProductsByBrandDetailed(brandName: string): Promise<{
-  brand: BrandData | null
-  products: ProductData[]
-  total_count: number
-}> {
+export async function getProductsByBrandDetailed(
+  brandName: string,
+  options?: { page?: number; perPage?: number }
+): Promise<PaginatedBrandProducts> {
   try {
     const encodedBrandName = encodeURIComponent(brandName)
-    const response = await fetch(getApiUrl(`/products/brand/${encodedBrandName}/detailed`), {
+    const params = new URLSearchParams()
+    if (options?.page) {
+      params.append("page", options.page.toString())
+    }
+    if (options?.perPage) {
+      params.append("per_page", options.perPage.toString())
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : ""
+
+    const response = await fetch(getApiUrl(`/products/brand/${encodedBrandName}/detailed${queryString}`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -480,7 +499,19 @@ export async function getProductsByBrandDetailed(brandName: string): Promise<{
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    return await response.json()
+    const data = await response.json()
+    const products = Array.isArray(data.products) ? data.products.map(normalizeProduct) : []
+    const perPage = options?.perPage ?? data.per_page ?? 20
+
+    return {
+      brand: data.brand || null,
+      products,
+      total_count: data.total_count ?? products.length,
+      page: data.page ?? options?.page ?? 1,
+      per_page: perPage,
+      total_pages: data.total_pages ?? (data.total_count ? Math.ceil(data.total_count / perPage) : 0),
+      category_id: data.category_id,
+    }
   } catch (error) {
     console.error("Error getting detailed products by brand:", error)
     throw new Error("Ошибка получения детальной информации о товарах по бренду")
@@ -530,21 +561,25 @@ export async function getCategoriesByBrand(brandName: string): Promise<{
 
 // Получить товары по бренду с фильтрацией по категории
 export async function getProductsByBrandAndCategory(
-  brandName: string, 
-  categoryId?: number
-): Promise<{
-  brand: BrandData | null
-  category_id?: number
-  products: ProductData[]
-  total_count: number
-}> {
+  brandName: string,
+  categoryId?: number,
+  options?: { page?: number; perPage?: number }
+): Promise<PaginatedBrandProducts> {
   try {
     const encodedBrandName = encodeURIComponent(brandName)
-    const url = categoryId 
-      ? getApiUrl(`/products/brand/${encodedBrandName}/filter?category_id=${categoryId}`)
-      : getApiUrl(`/products/brand/${encodedBrandName}/filter`)
-    
-    const response = await fetch(url, {
+    const params = new URLSearchParams()
+    if (categoryId) {
+      params.append("category_id", categoryId.toString())
+    }
+    if (options?.page) {
+      params.append("page", options.page.toString())
+    }
+    if (options?.perPage) {
+      params.append("per_page", options.perPage.toString())
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : ""
+
+    const response = await fetch(getApiUrl(`/products/brand/${encodedBrandName}/filter${queryString}`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -560,34 +595,16 @@ export async function getProductsByBrandAndCategory(
     }
 
     const data = await response.json()
-    
-    // Получаем статусы наличия для товаров бренда с фильтрацией
-    const productsWithStatuses = await Promise.all(
-      data.products.map(async (product: any) => {
-        const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
-        return {
-          id: product.id,
-          name: product.name,
-          slug: product.slug,
-          price: product.price,
-          wholesale_price: product.wholesale_price,
-          quantity: product.quantity,
-          status: product.status,
-          brand_id: product.brand_id,
-          brand_info: product.brand_info,
-          description: product.description,
-          category_id: product.category_id,
-          image_url: product.image,
-          availability_status: availabilityStatus
-        }
-      })
-    )
-    
+    const products = Array.isArray(data.products) ? data.products.map(normalizeProduct) : []
+
     return {
-      brand: data.brand,
+      brand: data.brand || null,
       category_id: data.category_id,
-      products: productsWithStatuses,
-      total_count: data.total_count
+      products,
+      total_count: data.total_count ?? products.length,
+      page: data.page ?? options?.page ?? 1,
+      per_page: data.per_page ?? options?.perPage ?? 20,
+      total_pages: data.total_pages ?? (data.total_count ? Math.ceil(data.total_count / (data.per_page ?? options?.perPage ?? 20)) : 0),
     }
   } catch (error) {
     console.error("Error filtering products by brand and category:", error)
@@ -666,3 +683,24 @@ export async function getAllBrands(): Promise<AllBrandsData[]> {
     return []
   }
 } 
+
+const normalizeProduct = (product: any): ProductData => {
+  const status = product && typeof product.status === "object" ? product.status : undefined
+
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    price: product.price,
+    wholesale_price: product.wholesale_price ?? null,
+    description: product.description,
+    category_id: product.category_id,
+    category: product.category,
+    status,
+    brand_id: product.brand_id,
+    brand_info: product.brand_info || product.brand,
+    quantity: typeof product.quantity === "number" ? product.quantity : Number(product.quantity) || 0,
+    image_url: product.image_url ?? product.image ?? product.imageUrl ?? undefined,
+    availability_status: product.availability_status ?? undefined,
+  }
+}

@@ -10,12 +10,26 @@ export interface FavoriteProduct {
   price: number
   article: string
   image_url?: string
+  quantity?: number
   status?: {
     id: number
     name: string
     background_color: string
     text_color: string
   }
+  availability_status?: {
+    status_name: string
+    background_color: string
+    text_color: string
+  } | null
+  brand_id?: number | null
+  brand_info?: {
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  } | null
   category?: {
     id: number
     name: string

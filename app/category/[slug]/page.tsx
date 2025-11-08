@@ -8,23 +8,20 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Grid3X3, Package, Tag, Star, Info, Search, Filter, Grid, List, ArrowLeft, ShoppingCart, ChevronRight } from "lucide-react"
-import { Brand } from "@/app/actions/meta"
-import { getBrands } from "@/app/actions/brands"
 import { getCategoryData, ProductData, CategoryData } from "@/app/actions/public"
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
-import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
-
 
 interface CategoryPageData {
   category: CategoryData
   subcategories: CategoryData[]
   products: ProductData[]
-  brands: Brand[]
 }
+
+const ITEMS_PER_PAGE = 20
 
 export default function CategoryPage() {
   const params = useParams()
@@ -40,6 +37,7 @@ export default function CategoryPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState<string>("name")
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
   // Функция для получения правильного URL изображения
   const getImageUrl = (url: string | null | undefined): string => {
@@ -71,8 +69,7 @@ export default function CategoryPage() {
         const transformedData = {
           category: categoryData.category,
           subcategories: categoryData.children || [],
-          products: categoryData.products || [],
-          brands: [] // Бренды будут загружены отдельно, если нужно
+          products: categoryData.products || []
         }
         
         setData(transformedData)
@@ -95,19 +92,18 @@ export default function CategoryPage() {
         const fetchCategoryData = async () => {
           try {
             setLoading(true)
-            setError(null)
-            
-            // Используем функцию getCategoryData, которая обрабатывает статусы наличия
-            const categoryData = await getCategoryData(slug)
-            
-            const transformedData = {
-              category: categoryData.category,
-              subcategories: categoryData.children || [],
-              products: categoryData.products || [],
-              brands: []
-            }
-            
-            setData(transformedData)
+          setError(null)
+          
+          // Используем функцию getCategoryData, которая обрабатывает статусы наличия
+          const categoryData = await getCategoryData(slug)
+          
+          const transformedData = {
+            category: categoryData.category,
+            subcategories: categoryData.children || [],
+            products: categoryData.products || []
+          }
+          
+          setData(transformedData)
           } catch (err) {
             console.error('Error refreshing data:', err)
           } finally {
@@ -147,6 +143,33 @@ export default function CategoryPage() {
   }) || []
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [data])
+
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / ITEMS_PER_PAGE))
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const paginatedProducts = sortedProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) {
+      return
+    }
+    setCurrentPage(page)
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }
+
     switch (sortBy) {
       case "name":
         return a.name.localeCompare(b.name)
@@ -202,58 +225,6 @@ export default function CategoryPage() {
         )}
       </div>
 
-      {/* Вложенные категории */}
-      {data.subcategories.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Подкатегории</h2>
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-             {data.subcategories.map((subcategory) => (
-               <Link key={subcategory.id} href={`/category/${subcategory.slug}`}>
-                 <Card className="group hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-64 w-56 flex-shrink-0 bg-white rounded-xl">
-                   <CardContent className="p-0 h-full flex flex-col">
-                     {/* Верхняя часть с изображением на белом фоне */}
-                     <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
-                       {subcategory.image_url ? (
-                         <div className="relative w-full h-full flex items-center justify-center">
-                           <Image
-                             src={getImageUrl(subcategory.image_url)}
-                             alt={subcategory.name}
-                             fill
-                             className="object-contain group-hover:scale-110 transition-transform duration-300"
-                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                           />
-                         </div>
-                       ) : (
-                         <div className="text-4xl text-gray-400">📁</div>
-                       )}
-                     </div>
-                     
-                     {/* Нижняя часть - ярко-желтый блок с названием и стрелкой */}
-                     <div className="relative bg-yellow-400 h-16 rounded-xl p-4 flex items-center justify-between">
-                       <div className="flex-1">
-                         <h3 className="font-bold text-gray-900 text-sm leading-tight">
-                           {subcategory.name}
-                         </h3>
-                         {subcategory.description && (
-                           <p className="text-gray-700 text-xs mt-1 line-clamp-2">
-                             {subcategory.description}
-                           </p>
-                         )}
-                       </div>
-                       
-                       {/* Стрелка в правом верхнем углу желтого блока */}
-                       <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-                         <ChevronRight className="w-4 h-4 text-white" />
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
-               </Link>
-             ))}
-           </div>
-        </div>
-      )}
-
       {/* Панель с товарами */}
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Товары</h2>
@@ -266,7 +237,10 @@ export default function CategoryPage() {
               <Input
                 placeholder="Поиск товаров..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
                 className="pl-10 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300"
                 style={{
                   outline: 'none !important',
@@ -282,7 +256,13 @@ export default function CategoryPage() {
             </div>
           </div>
           
-                     <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+          <Select
+            value={selectedBrand}
+            onValueChange={(value) => {
+              setSelectedBrand(value)
+              setCurrentPage(1)
+            }}
+          >
              <SelectTrigger 
                className="w-full md:w-48 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300 hover:outline-none hover:ring-0"
                style={{
@@ -313,7 +293,13 @@ export default function CategoryPage() {
              </SelectContent>
            </Select>
           
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select
+            value={sortBy}
+            onValueChange={(value) => {
+              setSortBy(value)
+              setCurrentPage(1)
+            }}
+          >
             <SelectTrigger 
               className="w-full md:w-48 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300 hover:outline-none hover:ring-0"
               style={{
@@ -377,11 +363,14 @@ export default function CategoryPage() {
             <p className="text-gray-600">Попробуйте изменить параметры поиска</p>
           </div>
         ) : (
-                                                                                       <div className={viewMode === "grid" 
-               ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-               : "space-y-0"
-             }>
-                          {sortedProducts.map((product) => (
+          <div
+            className={
+              viewMode === "grid"
+                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                : "space-y-0"
+            }
+          >
+            {paginatedProducts.map((product) => (
                 <Link key={product.id} href={`/product/${product.slug}`}>
                   <Card className={`hover:shadow-md transition-shadow cursor-pointer ${viewMode === "list" ? "mb-4" : ""}`}>
                    <CardContent className="p-4">
@@ -584,10 +573,84 @@ export default function CategoryPage() {
                 </CardContent>
               </Card>
             </Link>
-          ))}
+            ))}
+          </div>
+        )}
+
+        {sortedProducts.length > 0 && (
+          <div className="mt-8 space-y-3 flex flex-col items-center justify-center">
+            <p className="text-sm text-gray-600 text-center">
+              Страница {currentPage} из {totalPages || 1}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {Array.from({ length: totalPages }, (_, index) => {
+                  const pageNumber = index + 1
+                  const isActive = currentPage === pageNumber
+                  return (
+                    <Button
+                      key={pageNumber}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
+                    >
+                      {pageNumber}
+                    </Button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Вложенные категории */}
+      {data.subcategories.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Подкатегории</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {data.subcategories.map((subcategory) => (
+              <Link key={subcategory.id} href={`/category/${subcategory.slug}`}>
+                <Card className="group hover:shadow-lg hover:scale-105 transition-all.duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-64 w-56 flex-shrink-0 bg-white rounded-xl">
+                  <CardContent className="p-0 h-full flex flex-col">
+                    <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
+                      {subcategory.image_url ? (
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          <Image
+                            src={getImageUrl(subcategory.image_url)}
+                            alt={subcategory.name}
+                            fill
+                            className="object-contain group-hover:scale-110 transition-transform.duration-300"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-4xl text-gray-400">📁</div>
+                      )}
+                    </div>
+
+                    <div className="relative bg-yellow-400 h-16 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-900 text-sm leading-tight">
+                          {subcategory.name}
+                        </h3>
+                        {subcategory.description && (
+                          <p className="text-gray-700 text-xs mt-1 line-clamp-2">{subcategory.description}</p>
+                        )}
+                      </div>
+
+                      <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
+                        <ChevronRight className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
