@@ -12,6 +12,11 @@ export interface BrandInfo {
   image_url?: string
 }
 
+export interface SupplierInfo {
+  id: number
+  name: string
+}
+
 export interface Product {
   id: number
   name: string
@@ -24,8 +29,8 @@ export interface Product {
   country?: string
   brand_id?: number | null
   brand_info?: BrandInfo | null
-  postavka?: string
-  supplier_id?: number
+  supplier_id?: number | null
+  supplier?: SupplierInfo | null
   description?: string
   status?: string
   is_draft: boolean
@@ -107,7 +112,7 @@ export interface GetProductsParams {
   page?: number
   perPage?: number
   search?: string
-  categoryId?: number
+  categoryId?: number | "no-category"
   status?: string
   brand?: string
   supplier?: string
@@ -136,7 +141,7 @@ export async function getProducts(params: GetProductsParams = {}): Promise<Pagin
     if (params.search) {
       url.searchParams.set("search", params.search)
     }
-    if (params.categoryId) {
+    if (params.categoryId !== undefined && params.categoryId !== null) {
       url.searchParams.set("category_id", String(params.categoryId))
     }
     if (params.status && params.status !== "all") {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { type Product, type PaginatedProducts, deleteProduct } from "@/app/actions/products"
@@ -29,10 +29,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { MoreHorizontal, PlusCircle, Search, Filter } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
+import { ParentCategoryDialog } from "./parent-category-dialog"
 
 interface ProductsTableProps {
   initialData: PaginatedProducts
@@ -69,6 +70,7 @@ export function ProductsTable({
   const [supplierFilter, setSupplierFilter] = useState("all")
   const [visibilityFilter, setVisibilityFilter] = useState("all")
   const [quantityFilter, setQuantityFilter] = useState("all")
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
 
   // Пагинация
   const [customItemsPerPage, setCustomItemsPerPage] = useState("")
@@ -77,6 +79,62 @@ export function ProductsTable({
 
   const { toast } = useToast()
   const router = useRouter()
+
+  const findCategoryNameById = useCallback(
+    (id: number): string | null => {
+      const stack = [...categories]
+      while (stack.length > 0) {
+        const category = stack.pop()!
+        if (category.id === id) {
+          return category.name
+        }
+        if (category.children && category.children.length > 0) {
+          stack.push(...category.children)
+        }
+      }
+      return null
+    },
+    [categories]
+  )
+
+  const categoryFilterLabel = useMemo(() => {
+    if (categoryFilter === "all") {
+      return "Все категории"
+    }
+    if (categoryFilter === "no-category") {
+      return "Без категории"
+    }
+    const numericId = Number(categoryFilter)
+    if (Number.isNaN(numericId)) {
+      return "Категория"
+    }
+    return findCategoryNameById(numericId) ?? "Категория"
+  }, [categoryFilter, findCategoryNameById])
+
+  const selectedCategoryIdForDialog = useMemo<number | null>(() => {
+    if (categoryFilter === "all") {
+      return -1
+    }
+    if (categoryFilter === "no-category") {
+      return null
+    }
+    const numericId = Number(categoryFilter)
+    return Number.isNaN(numericId) ? -1 : numericId
+  }, [categoryFilter])
+
+  const handleCategoryDialogSelect = (selectedId: number | null) => {
+    if (selectedId === -1) {
+      setCategoryFilter("all")
+    } else if (selectedId === null) {
+      setCategoryFilter("no-category")
+    } else {
+      setCategoryFilter(String(selectedId))
+    }
+  }
+
+  const handleCategoryFilterReset = () => {
+    setCategoryFilter("all")
+  }
 
   // Проверяем обновленный товар из sessionStorage при загрузке компонента
   useEffect(() => {
@@ -247,19 +305,26 @@ export function ProductsTable({
   // Компонент фильтров
   const FiltersComponent = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-        <SelectTrigger>
-          <SelectValue placeholder="Категория" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все категории</SelectItem>
-          {categories.map((cat) => (
-            <SelectItem key={cat.id} value={String(cat.id)}>
-              {cat.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-col gap-2">
+        <Button
+          variant="outline"
+          className="w-full justify-between"
+          onClick={() => setIsCategoryDialogOpen(true)}
+        >
+          <span className="truncate text-left">{categoryFilterLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+        </Button>
+        {categoryFilter !== "all" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start px-2 text-muted-foreground"
+            onClick={handleCategoryFilterReset}
+          >
+            Сбросить
+          </Button>
+        )}
+      </div>
 
       <Select value={statusFilter} onValueChange={setStatusFilter}>
         <SelectTrigger>
@@ -363,19 +428,26 @@ export function ProductsTable({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Категория" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все категории</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={String(cat.id)}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => setIsCategoryDialogOpen(true)}
+                  >
+                    <span className="truncate text-left">{categoryFilterLabel}</span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                  {categoryFilter !== "all" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start px-2 text-muted-foreground"
+                      onClick={handleCategoryFilterReset}
+                    >
+                      Сбросить
+                    </Button>
+                  )}
+                </div>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full">
@@ -980,6 +1052,15 @@ export function ProductsTable({
           )}
         </div>
       )}
+
+      <ParentCategoryDialog
+        open={isCategoryDialogOpen}
+        onOpenChange={setIsCategoryDialogOpen}
+        categories={categories}
+        selectedCategoryId={selectedCategoryIdForDialog}
+        onSelect={handleCategoryDialogSelect}
+        title="Выберите категорию"
+      />
 
       {isCreating && (
         <ProductEditDialog
