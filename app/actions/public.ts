@@ -38,6 +38,8 @@ export interface CategoryData {
   description?: string
   parent_id?: number
   children?: CategoryData[]
+  product_count?: number
+  direct_product_count?: number
 }
 
 export interface ProductData {
@@ -187,9 +189,9 @@ export async function getHomepageData(): Promise<PublicHomepageData> {
 }
 
 // Получить все категории для каталога (только с show_in_menu=True)
-export async function getPublicCategories(): Promise<CategoryData[]> {
+export async function getCatalogCategories(): Promise<CategoryData[]> {
   try {
-    const response = await fetch(getApiUrl("/api/public/categories"), {
+    const response = await fetch(getApiUrl("/api/public/catalog/categories"), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -215,7 +217,9 @@ export async function getPublicCategories(): Promise<CategoryData[]> {
       image_url: cat.image_url,
       description: cat.description,
       parent_id: cat.parent_id,
-      children: cat.children ? cat.children.map(transformCategory) : []
+      children: cat.children ? cat.children.map(transformCategory) : [],
+      product_count: typeof cat.product_count === "number" ? cat.product_count : undefined,
+      direct_product_count: typeof cat.direct_product_count === "number" ? cat.direct_product_count : undefined,
     })
 
     return categories.map(transformCategory)

@@ -9,6 +9,7 @@ import { ChevronRight, X, Grid3X3, List } from "lucide-react"
 import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { getImageUrl } from "@/lib/image-utils"
 
 interface CatalogPanelProps {
@@ -19,6 +20,21 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
   const { closeCatalogPanel } = useCatalogPanel()
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
   const [subcategoryViewMode, setSubcategoryViewMode] = useState<'cards' | 'list'>('cards')
+
+  const getCategoryCount = (category: CategoryData, { directOnly = false }: { directOnly?: boolean } = {}) => {
+    if (directOnly) {
+      return category.direct_product_count ?? 0
+    }
+    return category.product_count ?? category.direct_product_count ?? 0
+  }
+
+  const formatCategoryLabel = (category: CategoryData, options?: { directOnly?: boolean }) => {
+    const count = getCategoryCount(category, options)
+    if (!category.parent_id) {
+      return category.name
+    }
+    return `${category.name} (${count})`
+  }
 
 
   return (
@@ -56,7 +72,7 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                     <span className={cn(
                       "text-sm flex-1",
                       category.children && category.children.length > 0 ? "pr-14" : ""
-                    )}>{category.name}</span>
+                    )}>{formatCategoryLabel(category, { directOnly: true })}</span>
                     {hoveredCategory?.id === category.id && category.children && category.children.length > 0 && (
                       <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
                         <ChevronRight className="w-4 h-4 text-white" />
@@ -118,6 +134,9 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                         <CardContent className="p-0 h-full flex flex-col">
                           {/* Верхняя часть с изображением на белом фоне */}
                           <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
+                            <Badge className="absolute top-3 right-3 z-10 bg-brand-yellow text-black transition-colors group-hover:bg-gray-900 group-hover:text-white">
+                              {getCategoryCount(child)}
+                            </Badge>
                             {child.image_url ? (
                               <div className="relative w-full h-full flex items-center justify-center">
                                 <Image
@@ -165,7 +184,7 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                       onClick={closeCatalogPanel}
                       className="text-gray-700 hover:text-brand-yellow transition-colors"
                     >
-                      {child.name}
+                      {formatCategoryLabel(child)}
                     </Link>
                   ))}
                 </div>
@@ -186,8 +205,17 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
               </div>
             </div>
           ) : (
-            <div className="flex-1 bg-white rounded-lg p-6 shadow-[0_0_8px_rgba(0,0,0,0.15)] flex items-center justify-center">
-              <p className="text-gray-400">Наведите на категорию для просмотра подкатегорий</p>
+            <div className="flex-1 bg-white rounded-lg p-6 shadow-[0_0_8px_rgba(0,0,0,0.15)] flex flex-col items-center justify-center text-center gap-4">
+              <div className="relative w-48 h-20">
+                <Image
+                  src="/ui/big_logo.png"
+                  alt="POSPRO"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              <p className="text-gray-400 text-sm">Наведите на категорию для просмотра подкатегорий</p>
             </div>
           )}
         </div>

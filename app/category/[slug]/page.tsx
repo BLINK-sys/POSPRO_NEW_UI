@@ -12,6 +12,8 @@ import { getCategoryData, ProductData, CategoryData } from "@/app/actions/public
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
+import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 
@@ -27,6 +29,8 @@ export default function CategoryPage() {
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
+  const { user } = useAuth()
+  const wholesaleUser = isWholesaleUser(user)
   
   const [data, setData] = useState<CategoryPageData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,6 +59,12 @@ export default function CategoryPage() {
     
     return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`
   }
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" })
+    }
+  }, [slug])
 
   useEffect(() => {
     const fetchCategoryData = async () => {
@@ -441,9 +451,13 @@ export default function CategoryPage() {
                              <span className="font-medium">Товар:</span> {product.name}
                            </div>
                            
-                           {product.price && (
-                             <div className="text-sm font-bold text-green-600">
-                               <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
+                           <div className={`text-sm font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                             <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+                           </div>
+
+                           {wholesaleUser && (
+                             <div className={`text-sm font-bold ${getWholesalePriceClass()}`}>
+                               <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
                              </div>
                            )}
                            
@@ -540,12 +554,14 @@ export default function CategoryPage() {
                       {/* Цена */}
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-500 mb-1">Цена</div>
-                        {product.price ? (
-                          <p className="text-base font-bold text-green-600">
-                            {product.price.toLocaleString()} тг
+                        <p className={`text-base font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                          Цена: {formatProductPrice(product.price)}
+                        </p>
+
+                        {wholesaleUser && (
+                          <p className={`text-base font-bold ${getWholesalePriceClass()}`}>
+                            Оптовая цена: {formatProductPrice(product.wholesale_price)}
                           </p>
-                        ) : (
-                          <span className="text-base font-bold text-gray-500">-</span>
                         )}
                       </div>
                       
@@ -610,10 +626,10 @@ export default function CategoryPage() {
       {data.subcategories.length > 0 && (
         <div className="mt-10">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Подкатегории</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {data.subcategories.map((subcategory) => (
               <Link key={subcategory.id} href={`/category/${subcategory.slug}`}>
-                <Card className="group hover:shadow-lg hover:scale-105 transition-all.duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-64 w-56 flex-shrink-0 bg-white rounded-xl">
+                <Card className="group h-64 w-56 flex-shrink-0 overflow-hidden rounded-xl border-0 bg-white shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_14px_36px_rgba(0,0,0,0.22)] hover:scale-[1.03]">
                   <CardContent className="p-0 h-full flex flex-col">
                     <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
                       {subcategory.image_url ? (
@@ -622,7 +638,7 @@ export default function CategoryPage() {
                             src={getImageUrl(subcategory.image_url)}
                             alt={subcategory.name}
                             fill
-                            className="object-contain group-hover:scale-110 transition-transform.duration-300"
+                            className="object-contain transition-transform duration-300 group-hover:scale-110"
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           />
                         </div>

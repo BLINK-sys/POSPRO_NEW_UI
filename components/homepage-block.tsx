@@ -11,6 +11,8 @@ import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, Small
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { getIcon } from "@/lib/icon-mapping"
+import { useAuth } from "@/context/auth-context"
+import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
@@ -28,6 +30,8 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   const [categoryViewMode, setCategoryViewMode] = useState<'carousel' | 'grid'>('carousel')
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+  const { user } = useAuth()
+  const wholesaleUser = isWholesaleUser(user)
 
   // Автоматическое вращение карусели
   useEffect(() => {
@@ -69,15 +73,6 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     items: block.items
   })
 
-
-  // Функция для форматирования цены
-  const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: 'KZT',
-      minimumFractionDigits: 0
-    }).format(price)
-  }
 
   // Функция для извлечения уникальных категорий из товаров
   const getUniqueCategories = (products: ProductData[]): CategoryData[] => {
@@ -812,9 +807,13 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                   <span className="font-medium">Товар:</span> {product.name}
                 </div>
                 
-                {product.price && (
-                  <div className="text-xs font-bold text-green-600">
-                    <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
+                <div className={`text-xs font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+                </div>
+
+                {wholesaleUser && (
+                  <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
+                    <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
                   </div>
                 )}
                 

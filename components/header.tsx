@@ -3,14 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu"
+import { NavigationMenuLink } from "@/components/ui/navigation-menu"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,15 +24,17 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
 import { useCatalogPanel } from "@/context/catalog-panel-context"
-import { getPublicCategories, CategoryData } from "@/app/actions/public"
+import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import ProductSearch from "./product-search"
 import { Input } from "@/components/ui/input"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
-  const { toggleCatalogPanel } = useCatalogPanel()
+  const { toggleCatalogPanel, closeCatalogPanel } = useCatalogPanel()
   const [categories, setCategories] = useState<CategoryData[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
@@ -47,15 +42,31 @@ export default function Header() {
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<number>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpandedCategories, setSidebarExpandedCategories] = useState<Set<number>>(new Set())
+  const [sidebarExpandedMore, setSidebarExpandedMore] = useState<Set<number>>(new Set())
   const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('cards')
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
+  const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("list")
+
+  useEffect(() => {
+    if (menuOpen) {
+      const originalOverflow = document.body.style.overflow
+      document.body.style.overflow = "hidden"
+      return () => {
+        document.body.style.overflow = originalOverflow
+      }
+    }
+    document.body.style.overflow = ""
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     const loadCategories = async () => {
       try {
         setCategoriesLoading(true)
-        const data = await getPublicCategories()
+        const data = await getCatalogCategories()
         setCategories(data)
       } catch (error) {
         console.error("Error loading categories:", error)
@@ -82,11 +93,21 @@ export default function Header() {
   }
 
   // Контейнер hover для всего меню
-  const handleMenuEnter = () => setMenuOpen(true)
-  const handleMenuLeave = () => {
+  const toggleMenu = () => {
+    setMenuOpen(prev => !prev)
+    if (menuOpen) {
+      setHoveredCategory(null)
+      setExpandedSubcategories(new Set())
+    } else if (sortedCategories.length > 0) {
+      setHoveredCategory(sortedCategories[0])
+    }
+  }
+
+  const handleMenuItemClick = () => {
     setMenuOpen(false)
     setHoveredCategory(null)
     setExpandedSubcategories(new Set())
+    closeCatalogPanel()
   }
 
   const toggleSubcategory = (categoryId: number) => {
@@ -110,6 +131,18 @@ export default function Header() {
 
   const toggleSidebarCategory = (categoryId: number) => {
     setSidebarExpandedCategories(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId)
+      } else {
+        newSet.add(categoryId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSidebarMore = (categoryId: number) => {
+    setSidebarExpandedMore(prev => {
       const newSet = new Set(prev)
       if (newSet.has(categoryId)) {
         newSet.delete(categoryId)
@@ -149,6 +182,21 @@ export default function Header() {
     return countB - countA // От большего к меньшему
   })
 
+  const getCategoryCount = (category: CategoryData): number => {
+    if (!category.parent_id) {
+      return category.direct_product_count ?? category.product_count ?? 0
+    }
+    return category.product_count ?? category.direct_product_count ?? 0
+  }
+
+  const formatCategoryLabel = (category: CategoryData) => {
+    const count = getCategoryCount(category)
+    if (!category.parent_id) {
+      return category.name
+    }
+    return `${category.name} (${count})`
+  }
+
   // Прокрутка к первой найденной категории при поиске
   useEffect(() => {
     if (sidebarViewMode === 'list' && sidebarSearchQuery.trim() && sortedCategories.length > 0) {
@@ -170,13 +218,6 @@ export default function Header() {
   }, [sidebarSearchQuery, sidebarViewMode])
 
   // При открытии меню по умолчанию выделяем первую категорию
-  const handleMenuOpen = () => {
-    setMenuOpen(true)
-    if (!hoveredCategory && sortedCategories.length > 0) {
-      setHoveredCategory(sortedCategories[0])
-    }
-  }
-
   return (
     <header className="bg-white dark:bg-gray-950 shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4 md:px-6">
@@ -215,9 +256,9 @@ export default function Header() {
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent 
-                side="left" 
-                className="!w-[90vw] !max-w-[90vw] p-0 overflow-y-auto"
+            <SheetContent 
+              side="left" 
+              className="!w-[90vw] !max-w-[90vw] p-0 overflow-y-auto [&::-webkit-scrollbar]:hidden"
               >
                 <SheetHeader className="p-6 border-b sticky top-0 bg-white z-10 shadow-md space-y-4">
                   <div className="flex items-center justify-between">
@@ -308,13 +349,13 @@ export default function Header() {
                                           onClick={() => setSidebarOpen(false)}
                                           className="hover:text-brand-yellow transition-colors"
                                         >
-                                          {category.name}
+                                          {formatCategoryLabel(category)}
                                         </Link>
                                       </h3>
                                       {category.children && category.children.length > 0 ? (
                                         <>
                                           <ul className="space-y-2 mb-4">
-                                            {category.children.slice(0, 5).map((child) => (
+                                            {(sidebarExpandedMore.has(category.id) ? category.children : category.children.slice(0, 5)).map((child) => (
                                               <li key={child.id}>
                                                 <div className="flex items-center gap-2">
                                                   {child.children && child.children.length > 0 ? (
@@ -341,7 +382,7 @@ export default function Header() {
                                                     onClick={() => setSidebarOpen(false)}
                                                     className="text-sm text-gray-700 hover:text-brand-yellow transition-colors flex-1"
                                                   >
-                                                    {child.name}
+                                                    {formatCategoryLabel(child)}
                                                   </Link>
                                                 </div>
                                                 {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
@@ -353,7 +394,7 @@ export default function Header() {
                                                           onClick={() => setSidebarOpen(false)}
                                                           className="text-xs text-gray-600 hover:text-brand-yellow transition-colors block"
                                                         >
-                                                          {subChild.name}
+                                                          {formatCategoryLabel(subChild)}
                                                         </Link>
                                                       </li>
                                                     ))}
@@ -363,13 +404,15 @@ export default function Header() {
                                             ))}
                                           </ul>
                                           {category.children.length > 5 && (
-                                            <Link 
-                                              href={`/category/${category.slug}`}
-                                              onClick={() => setSidebarOpen(false)}
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleSidebarMore(category.id)}
                                               className="text-sm font-medium text-brand-yellow hover:underline inline-block"
                                             >
-                                              Еще {category.children.length - 5} {category.children.length - 5 === 1 ? 'Категория' : category.children.length - 5 < 5 ? 'Категории' : 'Категорий'}
-                                            </Link>
+                                              {sidebarExpandedMore.has(category.id)
+                                                ? "Скрыть дополнительные категории"
+                                                : `Еще ${category.children.length - 5} ${category.children.length - 5 === 1 ? "категория" : category.children.length - 5 < 5 ? "категории" : "категорий"}`}
+                                            </button>
                                           )}
                                         </>
                                       ) : (
@@ -417,7 +460,7 @@ export default function Header() {
                                 onClick={() => setSidebarOpen(false)}
                                 className="hover:text-brand-yellow transition-colors"
                               >
-                                {category.name}
+                                {formatCategoryLabel(category)}
                               </Link>
                             </h3>
                             {category.children && category.children.length > 0 ? (
@@ -454,7 +497,7 @@ export default function Header() {
                                             : "text-gray-700"
                                         )}
                                       >
-                                        {child.name}
+                                        {formatCategoryLabel(child)}
                                       </Link>
                                     </div>
                                     {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
@@ -471,7 +514,7 @@ export default function Header() {
                                                   : "text-gray-600"
                                               )}
                                             >
-                                              {subChild.name}
+                                              {formatCategoryLabel(subChild)}
                                             </Link>
                                           </li>
                                         ))}
@@ -513,12 +556,14 @@ export default function Header() {
               )}
             </Button>
 
-            <NavigationMenu className="hidden lg:flex">
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger
-                    className="bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 data-[active]:bg-yellow-500/90 data-[state=open]:bg-yellow-500/90 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200"
-                    onMouseEnter={handleMenuOpen}
+            {/* Выпадающее меню каталога для десктопа */}
+            <div className="hidden lg:flex">
+              <Button
+                className={cn(
+                  "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-2 flex items-center gap-2",
+                  menuOpen && "bg-yellow-500"
+                )}
+                onClick={toggleMenu}
                   >
                     {categoriesLoading ? (
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
@@ -526,184 +571,222 @@ export default function Header() {
                       <Menu className="h-5 w-5 mr-2" />
                     )}
                     Каталог
-                  </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <div
-                    className="grid w-[800px] grid-cols-4 gap-0 p-0"
-                    onMouseEnter={handleMenuEnter}
-                    onMouseLeave={handleMenuLeave}
-                  >
-                    {categoriesLoading ? (
-                      <div className="col-span-4 flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin" />
-                        <span className="ml-2">Загрузка категорий...</span>
+              </Button>
+            </div>
+            {menuOpen && (
+              <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-6"
+                onClick={toggleMenu}
+              >
+                <div
+                  className="relative flex w-[90vw] max-w-[1400px] h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden"
+                  onWheel={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                    <Button
+                      variant={subcategoryPanelView === "list" ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => setSubcategoryPanelView("list")}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={subcategoryPanelView === "cards" ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => setSubcategoryPanelView("cards")}
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={toggleMenu}
+                      aria-label="Закрыть"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                       </div>
-                    ) : sortedCategories.length > 0 ? (
-                      <>
-                        {/* Левая колонка с основными категориями */}
-                        <div className="col-span-1 bg-gray-50 p-4">
-                          <h3 className="font-semibold text-gray-700 mb-4">Категории</h3>
+                    <div
+                      className="w-[360px] bg-gray-50 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
+                      style={{ scrollbarWidth: "none" }}
+                    >
+                      <h3 className="font-semibold text-gray-800 text-lg mb-4">Категории</h3>
                           <ul className="space-y-2">
-                            {sortedCategories.map((category) => (
+                        {sortedCategories.map((category) => {
+                          const isActive = hoveredCategory?.id === category.id
+
+                          return (
                               <li key={category.id}>
-                                <div className="flex items-center">
                                   <Link
                                     href={`/category/${category.slug}`}
                                     className={cn(
-                                      "flex-1 flex items-center justify-between p-2 rounded transition-colors group text-left",
-                                      hoveredCategory?.id === category.id
-                                        ? "bg-brand-yellow text-black font-medium"
-                                        : "hover:bg-brand-yellow hover:text-black text-gray-700"
+                                "relative flex items-center justify-between rounded-xl border px-3 py-3 transition-all shadow-md hover:shadow-lg",
+                                isActive
+                                  ? "bg-brand-yellow text-black font-semibold border-brand-yellow"
+                                  : "bg-white text-gray-800 border-gray-200 hover:bg-brand-yellow/80 hover:text-black hover:border-brand-yellow"
                                     )}
                                     onMouseEnter={() => setHoveredCategory(category)}
-                                  >
-                                    <span className={cn("text-sm", hoveredCategory?.id === category.id ? "text-black" : "group-hover:text-black text-gray-700")}>{category.name}</span>
-                                    {category.children && category.children.length > 0 && (
-                                      <ChevronRight className={cn("h-4 w-4", hoveredCategory?.id === category.id ? "text-black" : "text-gray-400 group-hover:text-black")}/>
-                                    )}
-                                  </Link>
+                              onClick={handleMenuItemClick}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="relative h-12 w-12 rounded-lg bg-white shadow-inner overflow-hidden flex items-center justify-center">
+                                  {category.image_url ? (
+                                    <Image
+                                      src={getImageUrl(category.image_url)}
+                                      alt={category.name}
+                                      fill
+                                      className="object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-sm font-semibold text-gray-500">
+                                      {category.name.charAt(0).toUpperCase()}
+                                    </span>
+                                  )}
                                 </div>
+                                <div className="flex flex-col min-h-[38px] justify-center">
+                                  <span className="text-sm font-medium leading-tight">{category.name}</span>
+                                  {isActive && (
+                                    <span className="text-xs text-gray-600">Товаров: {getCategoryCount(category)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {isActive && (
+                                <div className="absolute top-[-1px] right-[-1px] h-8 w-8">
+                                  <div className="absolute inset-0 bg-gray-900 rounded-tr-xl rounded-bl-xl"></div>
+                                  <ChevronRight className="absolute top-1/2 right-2 -translate-y-1/2 h-3.5 w-3.5 text-white" />
+                                </div>
+                              )}
+                            </Link>
                               </li>
-                            ))}
+                          )
+                        })}
                           </ul>
                         </div>
-                        {/* Правая колонка с подкатегориями */}
-                        <div className="col-span-3 p-4 min-h-[300px]">
+                  <div
+                    className="flex-1 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: "none" }}
+                  >
                           {hoveredCategory ? (
                             <div className="space-y-4">
                               <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                                <h4 className="font-semibold text-gray-800">
+                          <h4 className="font-semibold text-gray-800 text-lg">
                                   {hoveredCategory.name}
                                 </h4>
                               </div>
                               {hoveredCategory.children && hoveredCategory.children.length > 0 ? (
                                 <>
-                                  <div className="flex gap-4">
-                                    {/* Левая колонка */}
-                                    <div className="flex-1 space-y-2">
-                                      {hoveredCategory.children.filter((_, index) => index % 2 === 0).map((child) => (
-                                        <div key={child.id} className="group">
-                                          <div className="flex items-center">
-                                            {child.children && child.children.length > 0 ? (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.preventDefault()
-                                                  toggleSubcategory(child.id)
-                                                }}
-                                                className={`p-1 rounded transition-colors mr-2 ${
-  expandedSubcategories.has(child.id)
-    ? "bg-black hover:bg-gray-800"
-    : "bg-brand-yellow hover:bg-yellow-500"
-}`}
-                                              >
-                                                {expandedSubcategories.has(child.id) ? (
-                                                  <Minus className="h-4 w-4 text-white stroke-[3]" />
-                                                ) : (
-                                                  <Plus className="h-4 w-4 text-black stroke-[3]" />
-                                                )}
-                                              </button>
-                                            ) : (
-                                              <div className="mr-2">
-                                                <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
-                                              </div>
-                                            )}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {hoveredCategory.children.map((child) => {
+                                const containerClasses =
+                                  subcategoryPanelView === "cards"
+                                    ? "block"
+                                    : "group space-y-2";
+                                const childCount = getCategoryCount(child)
+
+                                return (
+                                  <div key={child.id} className={containerClasses}>
+                                    {subcategoryPanelView === "cards" ? (
                                             <Link 
                                               href={`/category/${child.slug}`}
-                                              className="text-sm text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
-                                            >
-                                              {child.name}
-                                            </Link>
-                                          </div>
-                                          {expandedSubcategories.has(child.id) && child.children && child.children.length > 0 && (
-                                            <div className="ml-6 mt-2 space-y-1">
-                                              {child.children.map((subChild) => (
-                                                <div key={subChild.id} className="flex items-center">
-                                                  <div className="mr-2">
-                                                    <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
-                                                  </div>
-                                                  <Link 
-                                                    href={`/category/${subChild.slug}`}
-                                                    className="text-xs text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
-                                                  >
-                                                    {subChild.name}
-                                                  </Link>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                    
-                                    {/* Правая колонка */}
-                                    <div className="flex-1 space-y-2">
-                                      {hoveredCategory.children.filter((_, index) => index % 2 === 1).map((child) => (
-                                        <div key={child.id} className="group">
-                                          <div className="flex items-center">
-                                            {child.children && child.children.length > 0 ? (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.preventDefault()
-                                                  toggleSubcategory(child.id)
-                                                }}
-                                                className={`p-1 rounded transition-colors mr-2 ${
-  expandedSubcategories.has(child.id)
-    ? "bg-black hover:bg-gray-800"
-    : "bg-brand-yellow hover:bg-yellow-500"
-}`}
-                                              >
-                                                {expandedSubcategories.has(child.id) ? (
-                                                  <Minus className="h-4 w-4 text-white stroke-[3]" />
-                                                ) : (
-                                                  <Plus className="h-4 w-4 text-black stroke-[3]" />
-                                                )}
-                                              </button>
-                                            ) : (
-                                              <div className="mr-2">
-                                                <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
-                                              </div>
-                                            )}
-                                            <Link 
-                                              href={`/category/${child.slug}`}
-                                              className="text-sm text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
-                                            >
-                                              {child.name}
-                                            </Link>
-                                          </div>
-                                          {expandedSubcategories.has(child.id) && child.children && child.children.length > 0 && (
-                                            <div className="ml-6 mt-2 space-y-1">
-                                              {child.children.map((subChild) => (
-                                                <div key={subChild.id} className="flex items-center">
-                                                  <div className="mr-2">
-                                                    <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
-                                                  </div>
-                                                  <Link 
-                                                    href={`/category/${subChild.slug}`}
-                                                    className="text-xs text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
-                                                  >
-                                                    {subChild.name}
-                                                  </Link>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  {hoveredCategory.children.length > 8 && (
-                                    <div className="pt-2 border-t border-gray-200">
-                                      <Link 
-                                        href={`/category/${hoveredCategory.slug}`}
-                                        className="text-sm text-brand-yellow hover:underline transition-colors"
+                                        className="block h-full"
+                                        onClick={handleMenuItemClick}
                                       >
-                                        Все подкатегории ({hoveredCategory.children.length})
-                                      </Link>
+                                        <Card className="group h-full w-full overflow-hidden rounded-2xl border-0 shadow-[0_6px_18px_rgba(0,0,0,0.18)] hover:shadow-[0_12px_32px_rgба(0,0,0,0.28)] hover:scale-[1.01] transition-transform duration-300">
+                                          <CardContent className="p-0 h-full flex flex-col">
+                                            <div className="relative h-[150px] w-full bg-white flex items-center justify-center overflow-hidden">
+                                              <Badge className="absolute top-3 right-3 z-10 bg-brand-yellow text-black transition-colors group-hover:bg-gray-900 group-hover:text-white">
+                                                {childCount}
+                                              </Badge>
+                                              {child.image_url ? (
+                                                <Image
+                                                  src={getImageUrl(child.image_url)}
+                                                  alt={child.name}
+                                                  fill
+                                                  className="object-contain transition-transform duration-300 group-hover:scale-105"
+                                                  sizes="150px"
+                                                />
+                                              ) : (
+                                                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-semibold text-gray-500">
+                                                  {child.name.charAt(0).toUpperCase()}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <div className="relative bg-brand-yellow text-black font-medium flex items-center justify-between px-4 py-3 rounded-t-2xl rounded-b-2xl mt-auto">
+                                              <span className="text-sm leading-tight">{child.name}</span>
+                                              <div className="absolute top-0 right-0 w-8 h-full">
+                                                <div className="absolute top-0 right-0 h-8 w-8 rounded-tr-2xl bg-gray-900"></div>
+                                                <div className="absolute bottom-0 right-0 h-8 w-8 bg-gray-900"></div>
+                                                <ChevronRight className="absolute top-1/2 right-2 -translate-y-1/2 h-3.5 w-3.5 text-white" />
+                                        </div>
                                     </div>
-                                  )}
+                                          </CardContent>
+                                        </Card>
+                                      </Link>
+                                    ) : (
+                                      <>
+                                          <div className="flex items-center">
+                                            {child.children && child.children.length > 0 ? (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.preventDefault()
+                                                  toggleSubcategory(child.id)
+                                                }}
+                                                className={`p-1 rounded transition-colors mr-2 ${
+  expandedSubcategories.has(child.id)
+    ? "bg-black hover:bg-gray-800"
+    : "bg-brand-yellow hover:bg-yellow-500"
+}`}
+                                              >
+                                                {expandedSubcategories.has(child.id) ? (
+                                                  <Minus className="h-4 w-4 text-white stroke-[3]" />
+                                                ) : (
+                                                  <Plus className="h-4 w-4 text-black stroke-[3]" />
+                                                )}
+                                              </button>
+                                            ) : (
+                                              <div className="mr-2">
+                                                <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
+                                              </div>
+                                            )}
+                                            <Link 
+                                              href={`/category/${child.slug}`}
+                                            onClick={handleMenuItemClick}
+                                              className="text-sm text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
+                                            >
+                                            {child.name} ({childCount})
+                                            </Link>
+                                          </div>
+                                          {expandedSubcategories.has(child.id) && child.children && child.children.length > 0 && (
+                                          <div className="ml-6 mt-1 space-y-1">
+                                              {child.children.map((subChild) => (
+                                                <div key={subChild.id} className="flex items-center">
+                                                  <div className="mr-2">
+                                                    <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
+                                                  </div>
+                                                  <Link 
+                                                    href={`/category/${subChild.slug}`}
+                                                  onClick={handleMenuItemClick}
+                                                    className="text-xs text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
+                                                  >
+                                                    {subChild.name}
+                                                  </Link>
+                                                </div>
+                                              ))}
+                                            </div>
+                                        )}
+                                      </>
+                                          )}
+                                        </div>
+                                )
+                              })}
+                                    </div>
                                 </>
                               ) : (
-                                <div className="text-center py-8 text-gray-500">
+                          <div className="text-center py-12 text-gray-500">
                                   <p className="text-sm mb-4">В этой категории нет подкатегорий</p>
                                   <Link 
                                     href={`/category/${hoveredCategory.slug}`}
@@ -716,21 +799,13 @@ export default function Header() {
                             </div>
                           ) : (
                             <div className="flex items-center justify-center h-full text-gray-400">
-                              <p className="text-sm">Наведите на категорию для просмотра подкатегорий</p>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="col-span-4 text-center py-8 text-gray-500">
-                        Категории не найдены
+                        <p className="text-sm">Выберите категорию слева для просмотра подкатегорий</p>
                       </div>
                     )}
                   </div>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
+                </div>
+              </div>
+            )}
 
           <div className="hidden md:flex flex-1 items-center">
             <ProductSearch className="w-full" />

@@ -27,6 +27,7 @@ import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/a
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
+import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 
 
@@ -261,21 +262,10 @@ export default function ProductPage() {
     (product?.documents.length > 0 ? 1 : 0) +
     (product?.drivers.length > 0 ? 1 : 0)
 
-  // Проверяем, может ли пользователь видеть оптовую цену
-  const canSeeWholesalePrice = user && (
-    (user.role === "admin" || user.role === "system") || 
-    (user.role === "client" && (user as any).is_wholesale === true)
-  )
-  
-  // Определяем, показывать ли оптовую цену (показываем если пользователь имеет право и цена существует)
-  const showWholesalePrice = canSeeWholesalePrice && product?.wholesale_price !== undefined && product.wholesale_price !== null
-  
-  // Определяем, есть ли значение оптовой цены (больше 0)
-  const hasWholesalePriceValue = product?.wholesale_price && product.wholesale_price > 0
-  
-  // Определяем цвета цен
-  const retailPriceColor = showWholesalePrice && hasWholesalePriceValue ? "text-red-600" : "text-green-600"
-  const wholesalePriceColor = "text-green-600"
+  const wholesaleUser = isWholesaleUser(user)
+  const showWholesalePrice = wholesaleUser
+  const retailPriceColor = getRetailPriceClass(product?.price, wholesaleUser)
+  const wholesalePriceColor = getWholesalePriceClass()
 
   if (loading) {
     return (
@@ -526,25 +516,19 @@ export default function ProductPage() {
 
           {/* Цены */}
           <div className="pt-2 border-t border-gray-200 space-y-2">
-            {product.price > 0 && (
-              <div className="text-sm">
-                <span className="font-medium">Цена:</span>{" "}
-                <span className={retailPriceColor}>
-                  {product.price.toLocaleString()} тг
-                </span>
-              </div>
-            )}
+            <div className="text-sm">
+              <span className="font-medium">Цена:</span>{" "}
+              <span className={retailPriceColor}>
+                {formatProductPrice(product.price)}
+              </span>
+            </div>
             
             {showWholesalePrice && (
               <div className="text-sm">
                 <span className="font-medium">Оптовая цена:</span>{" "}
-                {hasWholesalePriceValue ? (
-                  <span className={wholesalePriceColor}>
-                    {product.wholesale_price.toLocaleString()} тг
-                  </span>
-                ) : (
-                  <span className="text-gray-500">не указана</span>
-                )}
+                <span className={wholesalePriceColor}>
+                  {formatProductPrice(product.wholesale_price)}
+                </span>
               </div>
             )}
           </div>

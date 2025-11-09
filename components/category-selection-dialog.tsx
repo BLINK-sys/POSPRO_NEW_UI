@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Loader2, Search, ChevronRight, ChevronDown } from "lucide-react"
-import { getPublicCategories } from "@/app/actions/public"
+import { getCatalogCategories } from "@/app/actions/public"
 import { CategoryData } from "@/app/actions/public"
 import { cn } from "@/lib/utils"
 
@@ -125,7 +125,7 @@ export function CategorySelectionDialog({
   const loadCategories = async () => {
     setLoading(true)
     try {
-      const data = await getPublicCategories()
+      const data = await getCatalogCategories()
       setCategories(data)
     } catch (error) {
       console.error("Error loading categories:", error)

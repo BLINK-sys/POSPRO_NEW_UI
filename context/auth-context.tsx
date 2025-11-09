@@ -14,6 +14,10 @@ interface User {
   ip_name?: string
   too_name?: string
   role: "client" | "admin" | "system"
+  is_wholesale?: boolean | string | number
+  isWholesale?: boolean | string | number
+  wholesale?: boolean | string | number
+  [key: string]: any
   [key: string]: any
 }
 

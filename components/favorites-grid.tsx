@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { getImageUrl } from "@/lib/image-utils"
+import { useAuth } from "@/context/auth-context"
+import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import type { Favorite as FavoriteItem } from "@/app/actions/favorites"
 
 interface FavoritesGridProps {
@@ -15,6 +17,8 @@ interface FavoritesGridProps {
 }
 
 export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridProps) {
+  const { user } = useAuth()
+  const wholesaleUser = isWholesaleUser(user)
 
   // Создаем FavoriteButton для страницы избранного (как на главной странице)
   const FavoriteButtonForFavoritePage = ({ productId, productName }: { productId: number, productName: string }) => {
@@ -122,13 +126,16 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                         <span className="font-medium">Товар:</span> {favorite.product.name}
                       </div>
 
-                      {favorite.product.price ? (
-                        <div className="text-xs font-bold text-green-600">
-                          <span className="font-medium">Цена:</span>{" "}
-                          {favorite.product.price.toLocaleString()} тг
+                      <div className={`text-xs font-bold ${getRetailPriceClass(favorite.product.price, wholesaleUser)}`}>
+                        <span className="font-medium">Цена:</span>{" "}
+                        {formatProductPrice(favorite.product.price)}
+                      </div>
+
+                      {wholesaleUser && (
+                        <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
+                          <span className="font-medium">Оптовая цена:</span>{" "}
+                          {formatProductPrice(favorite.product.wholesale_price)}
                         </div>
-                      ) : (
-                        <div className="text-xs text-gray-600">Цена не указана</div>
                       )}
 
                       <div className="text-sm text-gray-600">

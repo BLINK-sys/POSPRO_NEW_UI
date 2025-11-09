@@ -77,7 +77,7 @@ export default function ProfileFavoritesPage() {
 
   // Если пользователь не авторизован или не клиент
   if (!user || user.role !== "client") {
-    return null // useEffect перенаправит
+    return null // доступ только клиенту, остальные редиректятся
   }
 
   return (

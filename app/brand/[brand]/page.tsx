@@ -14,6 +14,8 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
+import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { useAuth } from "@/context/auth-context"
 
 const PER_PAGE = 20
 
@@ -30,6 +32,9 @@ export default function BrandPage() {
   const params = useParams()
   const router = useRouter()
   const brandName = decodeURIComponent(params.brand as string)
+  
+  const { user } = useAuth()
+  const wholesaleUser = isWholesaleUser(user)
   
   const [brandData, setBrandData] = useState<PaginatedBrandProducts | null>(null)
   const [categories, setCategories] = useState<CategoryWithCount[]>([])
@@ -50,6 +55,12 @@ export default function BrandPage() {
       window.scrollTo({ top: 0, behavior: "smooth" })
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" })
+    }
+  }, [brandName, currentBrandName])
 
   const updateBrandsToShow = useCallback(() => {
     if (!brandsContainerRef.current) {
@@ -459,9 +470,13 @@ export default function BrandPage() {
                                   <span className="font-medium">Товар:</span> {product.name}
                                 </div>
                                 
-                                {product.price && (
-                                  <div className="text-xs font-bold text-green-600">
-                                    <span className="font-medium">Цена:</span> {product.price.toLocaleString()} тг
+                                <div className={`text-xs font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+                                </div>
+
+                                {wholesaleUser && (
+                                  <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
+                                    <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
                                   </div>
                                 )}
                                 

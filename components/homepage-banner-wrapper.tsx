@@ -1,7 +1,7 @@
 "use client"
 
 import { useCatalogPanel } from "@/context/catalog-panel-context"
-import { getPublicCategories, CategoryData } from "@/app/actions/public"
+import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { useEffect, useState } from "react"
 import HomepageBanner from "./homepage-banner"
 import CatalogPanel from "./catalog-panel"
@@ -34,7 +34,7 @@ export default function HomepageBannerWrapper({ banners }: HomepageBannerWrapper
     const loadCategories = async () => {
       try {
         setCategoriesLoading(true)
-        const data = await getPublicCategories()
+        const data = await getCatalogCategories()
         setCategories(data)
       } catch (error) {
         console.error("Error loading categories:", error)

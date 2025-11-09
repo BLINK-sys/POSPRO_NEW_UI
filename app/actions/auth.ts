@@ -22,6 +22,7 @@ export interface User {
   too_name?: string
   role: string
   access?: Record<string, boolean>
+  is_wholesale?: boolean
 }
 
 // Функция для обработки ответов API
