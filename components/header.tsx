@@ -583,35 +583,8 @@ export default function Header() {
                   onWheel={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-                    <Button
-                      variant={subcategoryPanelView === "list" ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => setSubcategoryPanelView("list")}
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant={subcategoryPanelView === "cards" ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => setSubcategoryPanelView("cards")}
-                    >
-                      <Grid3X3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={toggleMenu}
-                      aria-label="Закрыть"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                      </div>
                     <div
-                      className="w-[360px] bg-gray-50 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
+                      className="w-[360px] flex-shrink-0 bg-gray-50 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
                       style={{ scrollbarWidth: "none" }}
                     >
                       <h3 className="font-semibold text-gray-800 text-lg mb-4">Категории</h3>
@@ -667,16 +640,50 @@ export default function Header() {
                           </ul>
                         </div>
                   <div
-                    className="flex-1 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
-                    style={{ scrollbarWidth: "none" }}
+                    className="flex-1 flex flex-col overflow-hidden"
                   >
                           {hoveredCategory ? (
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                          <h4 className="font-semibold text-gray-800 text-lg">
-                                  {hoveredCategory.name}
-                                </h4>
+                            <>
+                              {/* Заголовок с названием категории, кнопками и кнопкой закрытия - зафиксирован при прокрутке */}
+                              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4">
+                                <div className="flex items-center justify-between gap-4">
+                                  <h4 className="font-semibold text-gray-800 text-lg">
+                                    {hoveredCategory.name}
+                                  </h4>
+                                  <div className="flex items-center gap-2">
+                                    {/* Кнопки переключения вида */}
+                                    <Button
+                                      variant={subcategoryPanelView === "list" ? "default" : "outline"}
+                                      size="sm"
+                                      className="h-8 px-2"
+                                      onClick={() => setSubcategoryPanelView("list")}
+                                    >
+                                      <List className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant={subcategoryPanelView === "cards" ? "default" : "outline"}
+                                      size="sm"
+                                      className="h-8 px-2"
+                                      onClick={() => setSubcategoryPanelView("cards")}
+                                    >
+                                      <Grid3X3 className="h-4 w-4" />
+                                    </Button>
+                                    {/* Кнопка закрытия */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2"
+                                      onClick={toggleMenu}
+                                      aria-label="Закрыть"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
+                              {/* Контент с подкатегориями */}
+                              <div className="flex-1 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+                                <div className="space-y-4">
                               {hoveredCategory.children && hoveredCategory.children.length > 0 ? (
                                 <>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -796,12 +803,14 @@ export default function Header() {
                                   </Link>
                                 </div>
                               )}
-                            </div>
+                                </div>
+                              </div>
+                            </>
                           ) : (
                             <div className="flex items-center justify-center h-full text-gray-400">
-                        <p className="text-sm">Выберите категорию слева для просмотра подкатегорий</p>
-                      </div>
-                    )}
+                              <p className="text-sm">Выберите категорию слева для просмотра подкатегорий</p>
+                            </div>
+                          )}
                   </div>
                 </div>
               </div>
