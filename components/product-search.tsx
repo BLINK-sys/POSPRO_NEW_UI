@@ -356,7 +356,7 @@ export default function ProductSearch({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-md border border-black/20 shadow-md hover:shadow-lg transition-shadow"
                   onClick={() => {
                     setShowSearchModal(false)
                     setModalQuery("")
@@ -376,14 +376,15 @@ export default function ProductSearch({
                   placeholder={placeholder}
                   value={modalQuery}
                   onChange={(e) => setModalQuery(e.target.value)}
-                  className="w-full pl-10 pr-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus:ring-offset-0 focus:outline-none"
+                  className="w-full pl-10 pr-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus:ring-offset-0 focus:outline-none shadow-md"
                   onFocus={(e) => {
                     e.target.style.border = '1px solid #facc15' // Желтая рамка при фокусе
                     e.target.style.outline = 'none'
-                    e.target.style.boxShadow = 'none'
+                    e.target.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                   onBlur={(e) => {
                     e.target.style.border = '1px solid #d1d5db' // Серая рамка без фокуса
+                    e.target.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                   style={{ 
                     WebkitAppearance: 'none', 
@@ -391,7 +392,7 @@ export default function ProductSearch({
                     appearance: 'none',
                     outline: 'none',
                     border: '1px solid #d1d5db',
-                    boxShadow: 'none'
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -431,7 +432,7 @@ export default function ProductSearch({
                         }}
                         className="block"
                       >
-                        <Card className="h-full overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer group">
+                        <Card className="h-full overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:shadow-none transition-shadow duration-300 cursor-pointer group">
                           <CardContent className="p-0 h-full flex flex-col">
                             {/* Изображение товара */}
                             <div className="relative w-full h-48 bg-white flex items-center justify-center overflow-hidden">
@@ -439,7 +440,7 @@ export default function ProductSearch({
                                 src={getImageUrl(product.image_url)}
                                 alt={product.name}
                                 fill
-                                className="object-contain group-hover:scale-110 transition-transform duration-300"
+                                className="object-contain group-hover:scale-105 transition-transform duration-300"
                                 sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement
@@ -468,7 +469,7 @@ export default function ProductSearch({
                             
                             {/* Информация о товаре */}
                             <div className="p-4 flex-1 flex flex-col">
-                              <h4 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2 group-hover:text-brand-yellow transition-colors">
+                              <h4 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2">
                                 {product.name}
                               </h4>
                               
@@ -484,7 +485,7 @@ export default function ProductSearch({
                                       setModalQuery("")
                                       setModalProducts([])
                                     }}
-                                    className="inline-block text-xs font-medium text-brand-yellow hover:text-yellow-600 hover:underline transition-colors"
+                                    className="inline-block px-2 py-1 text-xs font-medium text-black border border-black/20 rounded-md transition-all duration-200 hover:no-underline hover:shadow-md"
                                   >
                                     {product.brand_info.name}
                                   </Link>
