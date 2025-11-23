@@ -230,13 +230,53 @@ export async function getCatalogCategories(): Promise<CategoryData[]> {
 }
 
 // Получить данные категории с товарами
-export async function getCategoryData(slug: string): Promise<{
+export async function getCategoryData(
+  slug: string,
+  options?: {
+    page?: number
+    perPage?: number
+    search?: string
+    brand?: string
+    sort?: string
+  }
+): Promise<{
   category: CategoryData
   children: CategoryData[]
   products: ProductData[]
+  brands: Array<{
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  }>
+  pagination?: {
+    page: number
+    per_page: number
+    total_count: number
+    total_pages: number
+  }
 }> {
   try {
-    const response = await fetch(getApiUrl(`/api/public/category/${slug}`), {
+    const params = new URLSearchParams()
+    if (options?.page) {
+      params.append("page", options.page.toString())
+    }
+    if (options?.perPage) {
+      params.append("per_page", options.perPage.toString())
+    }
+    if (options?.search) {
+      params.append("search", options.search)
+    }
+    if (options?.brand && options.brand !== "all") {
+      params.append("brand", options.brand)
+    }
+    if (options?.sort) {
+      params.append("sort", options.sort)
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : ""
+
+    const response = await fetch(getApiUrl(`/api/public/category/${slug}${queryString}`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

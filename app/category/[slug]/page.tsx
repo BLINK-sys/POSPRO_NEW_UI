@@ -21,6 +21,19 @@ interface CategoryPageData {
   category: CategoryData
   subcategories: CategoryData[]
   products: ProductData[]
+  brands?: Array<{
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  }>
+  pagination?: {
+    page: number
+    per_page: number
+    total_count: number
+    total_pages: number
+  }
 }
 
 const ITEMS_PER_PAGE = 20
@@ -66,20 +79,29 @@ export default function CategoryPage() {
     }
   }, [slug])
 
+  // ✅ СЕРВЕРНАЯ ПАГИНАЦИЯ: Загружаем данные с сервера с учетом фильтров и пагинации
   useEffect(() => {
     const fetchCategoryData = async () => {
       try {
         setLoading(true)
         setError(null)
         
-        // Используем функцию getCategoryData, которая обрабатывает статусы наличия
-        const categoryData = await getCategoryData(slug)
+        // Используем функцию getCategoryData с параметрами пагинации и фильтрации
+        const categoryData = await getCategoryData(slug, {
+          page: currentPage,
+          perPage: ITEMS_PER_PAGE,
+          search: searchQuery,
+          brand: selectedBrand,
+          sort: sortBy
+        })
         
         // Преобразуем данные в нужный формат
         const transformedData = {
           category: categoryData.category,
           subcategories: categoryData.children || [],
-          products: categoryData.products || []
+          products: categoryData.products || [],
+          brands: categoryData.brands || [],
+          pagination: categoryData.pagination
         }
         
         setData(transformedData)
@@ -93,7 +115,7 @@ export default function CategoryPage() {
     if (slug) {
       fetchCategoryData()
     }
-  }, [slug])
+  }, [slug, currentPage, searchQuery, selectedBrand, sortBy])
 
   // Обновляем данные при фокусе на окне (когда пользователь возвращается на вкладку)
   useEffect(() => {
@@ -102,18 +124,25 @@ export default function CategoryPage() {
         const fetchCategoryData = async () => {
           try {
             setLoading(true)
-          setError(null)
-          
-          // Используем функцию getCategoryData, которая обрабатывает статусы наличия
-          const categoryData = await getCategoryData(slug)
-          
-          const transformedData = {
-            category: categoryData.category,
-            subcategories: categoryData.children || [],
-            products: categoryData.products || []
-          }
-          
-          setData(transformedData)
+            setError(null)
+            
+            const categoryData = await getCategoryData(slug, {
+              page: currentPage,
+              perPage: ITEMS_PER_PAGE,
+              search: searchQuery,
+              brand: selectedBrand,
+              sort: sortBy
+            })
+            
+            const transformedData = {
+              category: categoryData.category,
+              subcategories: categoryData.children || [],
+              products: categoryData.products || [],
+              brands: categoryData.brands || [],
+              pagination: categoryData.pagination
+            }
+            
+            setData(transformedData)
           } catch (err) {
             console.error('Error refreshing data:', err)
           } finally {
@@ -127,61 +156,22 @@ export default function CategoryPage() {
 
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
-  }, [slug, loading])
+  }, [slug, loading, currentPage, searchQuery, selectedBrand, sortBy])
 
-  // Получаем уникальные бренды из товаров
-  const getUniqueBrands = (): string[] => {
-    if (!data?.products) return []
-    
-    const brands = new Set<string>()
-    data.products.forEach(product => {
-      if (product.brand_info?.name) {
-        brands.add(product.brand_info.name)
-      }
-    })
-    
-    return Array.from(brands).sort()
-  }
+  // ✅ Получаем уникальные бренды из данных сервера
+  const uniqueBrands = data?.brands?.map(b => b.name).sort() || []
 
-  const uniqueBrands = getUniqueBrands()
+  // ✅ Используем товары напрямую с сервера (уже отфильтрованы и отсортированы)
+  const paginatedProducts = data?.products || []
 
-  const filteredProducts = data?.products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesBrand = selectedBrand === "all" || !selectedBrand || product.brand_info?.name === selectedBrand
-    return matchesSearch && matchesBrand
-  }) || []
+  // ✅ Используем пагинацию с сервера
+  const totalPages = data?.pagination?.total_pages || 1
+  const totalCount = data?.pagination?.total_count || 0
 
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    switch (sortBy) {
-      case "name":
-        return a.name.localeCompare(b.name)
-      case "price_asc":
-        return (a.price || 0) - (b.price || 0)
-      case "price_desc":
-        return (b.price || 0) - (a.price || 0)
-      default:
-        return 0
-    }
-  })
-
-  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / ITEMS_PER_PAGE))
-  const productsCount = data?.products?.length ?? 0
-
+  // При изменении фильтров сбрасываем на первую страницу
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, selectedBrand, sortBy, viewMode, productsCount])
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
-  const paginatedProducts = sortedProducts.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  }, [searchQuery, selectedBrand, sortBy])
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) {
@@ -248,10 +238,7 @@ export default function CategoryPage() {
               <Input
                 placeholder="Поиск товаров..."
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setCurrentPage(1)
-                }}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300"
                 style={{
                   outline: 'none !important',
@@ -269,10 +256,7 @@ export default function CategoryPage() {
           
           <Select
             value={selectedBrand}
-            onValueChange={(value) => {
-              setSelectedBrand(value)
-              setCurrentPage(1)
-            }}
+            onValueChange={(value) => setSelectedBrand(value)}
           >
              <SelectTrigger 
                className="w-full md:w-48 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300 hover:outline-none hover:ring-0"
@@ -367,7 +351,7 @@ export default function CategoryPage() {
         </div>
 
         {/* Список товаров */}
-        {sortedProducts.length === 0 ? (
+        {paginatedProducts.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Товары не найдены</h3>
@@ -594,7 +578,7 @@ export default function CategoryPage() {
           </div>
         )}
 
-        {sortedProducts.length > 0 && (
+        {paginatedProducts.length > 0 && (
           <div className="mt-8 space-y-3 flex flex-col items-center justify-center">
             <p className="text-sm text-gray-600 text-center">
               Страница {currentPage} из {totalPages || 1}
