@@ -49,6 +49,10 @@ export default function BrandPage() {
   const [totalProductsCount, setTotalProductsCount] = useState<number>(0)
   const productListRef = useRef<HTMLDivElement | null>(null)
   const brandsContainerRef = useRef<HTMLDivElement | null>(null)
+  
+  // ✅ АККУМУЛЯЦИЯ: Состояние для накопления товаров при "Показать больше"
+  const [accumulatedProducts, setAccumulatedProducts] = useState<any[]>([])
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const scrollToProductsTop = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -102,6 +106,8 @@ export default function BrandPage() {
         ])
         
         setBrandData(brandDataResult)
+        // ✅ При загрузке новой страницы (не через "Показать больше") сбрасываем аккумуляцию
+        setAccumulatedProducts(brandDataResult.products || [])
         setCategories(categoriesResult.categories)
         setAllBrands(allBrandsResult)
         setTotalProductsCount(brandDataResult.total_count ?? brandDataResult.products.length)
@@ -170,6 +176,8 @@ export default function BrandPage() {
       ])
       
       setBrandData(brandDataResult)
+      // ✅ Сбрасываем аккумуляцию при смене бренда
+      setAccumulatedProducts(brandDataResult.products || [])
       setCategories(categoriesResult.categories)
       setTotalProductsCount(brandDataResult.total_count ?? brandDataResult.products.length)
       scrollToProductsTop()
@@ -193,6 +201,8 @@ export default function BrandPage() {
         : await getProductsByBrandAndCategory(targetBrand, categoryId, { page: 1, perPage: PER_PAGE })
 
       setBrandData(data)
+      // ✅ Сбрасываем аккумуляцию при смене фильтра
+      setAccumulatedProducts(data.products || [])
       if (categoryId === null) {
         setTotalProductsCount(data.total_count ?? data.products.length)
       }
@@ -227,6 +237,8 @@ export default function BrandPage() {
         : await getProductsByBrandAndCategory(targetBrand, selectedCategory, { page, perPage: PER_PAGE })
 
       setBrandData(data)
+      // ✅ При загрузке новой страницы (не через "Показать больше") сбрасываем аккумуляцию
+      setAccumulatedProducts(data.products || [])
       if (selectedCategory === null) {
         setTotalProductsCount(data.total_count ?? data.products.length)
       }
@@ -395,10 +407,10 @@ export default function BrandPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
               <span className="ml-2">Загрузка...</span>
             </div>
-          ) : brandData.products.length > 0 ? (
+          ) : (accumulatedProducts.length > 0 || brandData.products.length > 0) ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {brandData.products.map((product) => {
+                {(accumulatedProducts.length > 0 ? accumulatedProducts : brandData.products).map((product) => {
                   return (
                     <div key={product.id} className="group">
                       <Link href={`/product/${product.slug}`}>
@@ -516,14 +528,38 @@ export default function BrandPage() {
                 })}
               </div>
               {brandData.total_pages >= 1 && (
-                <div className="mt-8 space-y-3 flex flex-col items-center justify-center">
+                <div className="mt-8 space-y-4 flex flex-col items-center justify-center">
                   <p className="text-sm text-gray-600 text-center">
-                    Страница {brandData.page} из {brandData.total_pages}
+                    {accumulatedProducts.length > 0 
+                      ? `Показано ${accumulatedProducts.length} из ${brandData.total_count || 0} товаров`
+                      : `Страница ${brandData.page} из ${brandData.total_pages}`
+                    }
                   </p>
+                  
+                  {/* Кнопка "Показать больше" */}
+                  {brandData.page < brandData.total_pages && (
+                    <Button
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="bg-brand-yellow hover:bg-yellow-500 text-black"
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
+                          Загрузка...
+                        </>
+                      ) : (
+                        "Показать больше"
+                      )}
+                    </Button>
+                  )}
+                  
+                  {/* Кнопки пагинации */}
                   {brandData.total_pages > 1 && (
                     <div className="flex flex-wrap gap-2 justify-center">
                       {Array.from({ length: brandData.total_pages }, (_, index) => {
                         const pageNumber = index + 1
+                        // Активная страница - это последняя загруженная страница при аккумуляции
                         const isActive = brandData.page === pageNumber
                         return (
                           <Button
