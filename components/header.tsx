@@ -98,8 +98,8 @@ export default function Header() {
     if (menuOpen) {
       setHoveredCategory(null)
       setExpandedSubcategories(new Set())
-    } else if (sortedCategories.length > 0) {
-      setHoveredCategory(sortedCategories[0])
+    } else if (categories.length > 0) {
+      setHoveredCategory(categories[0])
     }
   }
 
@@ -153,17 +153,6 @@ export default function Header() {
     })
   }
 
-  // Функция для подсчета количества вложенных категорий (рекурсивно)
-  const countNestedCategories = (category: CategoryData): number => {
-    let count = category.children ? category.children.length : 0
-    if (category.children) {
-      category.children.forEach(child => {
-        count += countNestedCategories(child)
-      })
-    }
-    return count
-  }
-
   // Функция для проверки, соответствует ли категория поисковому запросу (рекурсивно)
   const categoryMatchesSearch = (category: CategoryData, query: string): boolean => {
     if (!query.trim()) return true
@@ -175,12 +164,8 @@ export default function Header() {
     return false
   }
 
-  // Отсортированные категории по количеству вложенных (от большего к меньшему)
-  const sortedCategories = [...categories].sort((a, b) => {
-    const countA = countNestedCategories(a)
-    const countB = countNestedCategories(b)
-    return countB - countA // От большего к меньшему
-  })
+  // ✅ Используем порядок категорий с сервера (уже отсортированы по полю order)
+  // Не пересортировываем по количеству товаров
 
   const getCategoryCount = (category: CategoryData): number => {
     if (!category.parent_id) {
@@ -199,8 +184,8 @@ export default function Header() {
 
   // Прокрутка к первой найденной категории при поиске
   useEffect(() => {
-    if (sidebarViewMode === 'list' && sidebarSearchQuery.trim() && sortedCategories.length > 0) {
-      const firstMatch = sortedCategories.find(cat => categoryMatchesSearch(cat, sidebarSearchQuery))
+    if (sidebarViewMode === 'list' && sidebarSearchQuery.trim() && categories.length > 0) {
+      const firstMatch = categories.find(cat => categoryMatchesSearch(cat, sidebarSearchQuery))
       if (firstMatch) {
         // Небольшая задержка для рендеринга
         setTimeout(() => {
@@ -306,13 +291,13 @@ export default function Header() {
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <span>Загрузка категорий...</span>
                     </div>
-                  ) : sortedCategories.length > 0 ? (
+                  ) : categories.length > 0 ? (
                     sidebarViewMode === 'cards' ? (
                       // ВИД 1: Карточки с изображениями
                       <div className="flex flex-col md:flex-row gap-6">
                         {/* Разделяем категории на колонки */}
                         {[0, 1, 2].map((colIndex) => {
-                          const categoriesInColumn = sortedCategories.filter((_, index) => index % 3 === colIndex);
+                          const categoriesInColumn = categories.filter((_, index) => index % 3 === colIndex);
                           return (
                             <div key={colIndex} className="flex-1 flex flex-col gap-6">
                               {categoriesInColumn.map((category) => (
@@ -431,7 +416,7 @@ export default function Header() {
                     ) : (
                       // ВИД 2: Список без изображений и карточек
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {sortedCategories.map((category) => {
+                        {categories.map((category) => {
                           const matchesSearch = sidebarSearchQuery.trim() 
                             ? categoryMatchesSearch(category, sidebarSearchQuery)
                             : true
@@ -589,7 +574,7 @@ export default function Header() {
                     >
                       <h3 className="font-semibold text-gray-800 text-lg mb-4">Категории</h3>
                           <ul className="space-y-2">
-                        {sortedCategories.map((category) => {
+                        {categories.map((category) => {
                           const isActive = hoveredCategory?.id === category.id
 
                           return (

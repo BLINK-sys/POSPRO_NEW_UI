@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Grid3X3, Package, Tag, Star, Info, Search, Filter, Grid, List, ArrowLeft, ShoppingCart, ChevronRight } from "lucide-react"
+import { Grid3X3, Package, Tag, Star, Info, Search, Filter, Grid, List, ArrowLeft, ShoppingCart, ChevronRight, ChevronLeft } from "lucide-react"
 import { getCategoryData, ProductData, CategoryData } from "@/app/actions/public"
 import Image from "next/image"
 import Link from "next/link"
@@ -181,6 +181,44 @@ export default function CategoryPage() {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" })
     }
+  }
+
+  // ✅ Функция для генерации умной пагинации с многоточием
+  const getPaginationPages = (currentPage: number, totalPages: number): (number | string)[] => {
+    if (totalPages <= 9) {
+      // Если страниц мало, показываем все
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+
+    const pages: (number | string)[] = []
+    
+    if (currentPage <= 5) {
+      // В начале: 1 2 3 4 5 6 7 8 9 ... 33
+      for (let i = 1; i <= 9; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages)
+    } else if (currentPage >= totalPages - 4) {
+      // В конце: 1 ... 25 26 27 28 29 30 31 32 33
+      pages.push(1)
+      pages.push('...')
+      for (let i = totalPages - 8; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      // В середине: 1 ... 25 26 27 28 29 30 31 32 33
+      pages.push(1)
+      pages.push('...')
+      // Показываем 9 страниц вокруг текущей (4 слева, текущая, 4 справа)
+      for (let i = currentPage - 4; i <= currentPage + 4; i++) {
+        pages.push(i)
+      }
+      pages.push('...')
+      pages.push(totalPages)
+    }
+    
+    return pages
   }
 
   if (loading) {
@@ -584,22 +622,56 @@ export default function CategoryPage() {
               Страница {currentPage} из {totalPages || 1}
             </p>
             {totalPages > 1 && (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {Array.from({ length: totalPages }, (_, index) => {
-                  const pageNumber = index + 1
-                  const isActive = currentPage === pageNumber
-                  return (
-                    <Button
-                      key={pageNumber}
-                      variant={isActive ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(pageNumber)}
-                      className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
-                    >
-                      {pageNumber}
-                    </Button>
-                  )
-                })}
+              <div className="flex items-center gap-2 justify-center flex-wrap">
+                {/* Кнопка "Назад" */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Назад
+                </Button>
+                
+                {/* Номера страниц */}
+                <div className="flex gap-2 justify-center flex-wrap">
+                  {getPaginationPages(currentPage, totalPages).map((page, index) => {
+                    if (page === '...') {
+                      return (
+                        <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                          ...
+                        </span>
+                      )
+                    }
+                    const pageNumber = page as number
+                    const isActive = currentPage === pageNumber
+                    return (
+                      <Button
+                        key={pageNumber}
+                        variant={isActive ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNumber)}
+                        className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
+                      >
+                        {pageNumber}
+                      </Button>
+                    )
+                  })}
+                </div>
+                
+                {/* Кнопка "Вперед" */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1"
+                >
+                  Вперед
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
             )}
           </div>

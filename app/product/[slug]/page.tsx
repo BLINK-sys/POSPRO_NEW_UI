@@ -199,6 +199,13 @@ export default function ProductPage() {
     }
   }
 
+  // ✅ Прокрутка страницы в начало при переходе на страницу товара
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" })
+    }
+  }, [slug])
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
