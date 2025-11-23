@@ -30,6 +30,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   const [categoryViewMode, setCategoryViewMode] = useState<'carousel' | 'grid'>('carousel')
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+  const blockRef = useRef<HTMLElement | null>(null)
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
 
@@ -147,7 +148,13 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewMode(viewMode === 'carousel' ? 'grid' : 'carousel')}
+                    onClick={() => {
+                      setViewMode(viewMode === 'carousel' ? 'grid' : 'carousel')
+                      // ✅ Прокрутка к началу блока товаров
+                      if (blockRef.current) {
+                        blockRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                    }}
                     className="text-sm px-6 py-2 bg-white hover:bg-gray-50 shadow-md"
                   >
                     {viewMode === 'carousel' ? 'Смотреть весь товар' : 'Скрыть весь товар'}
@@ -204,7 +211,13 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCategoryViewMode(categoryViewMode === 'carousel' ? 'grid' : 'carousel')}
+              onClick={() => {
+                setCategoryViewMode(categoryViewMode === 'carousel' ? 'grid' : 'carousel')
+                // ✅ Прокрутка к началу блока категорий
+                if (blockRef.current) {
+                  blockRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+              }}
               className={`text-sm px-6 py-2 shadow-md transition-all duration-200 ${
                 categoryViewMode === 'carousel' 
                   ? 'bg-white hover:bg-gray-50 text-gray-900 hover:text-gray-900' 
@@ -976,7 +989,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   )
 
   return (
-    <section className="py-12">
+    <section ref={blockRef} className="py-12">
       <div className="container mx-auto px-4 md:px-6">
         {block.show_title && (
           <div className={`${(block.type === 'product' || block.type === 'products') ? '' : 'mb-8'} ${getTitleAlignment()}`}>
