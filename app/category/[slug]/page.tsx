@@ -55,10 +55,6 @@ export default function CategoryPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState<string>("name")
   const [currentPage, setCurrentPage] = useState<number>(1)
-  
-  // ✅ АККУМУЛЯЦИЯ: Состояние для накопления товаров при "Показать больше"
-  const [accumulatedProducts, setAccumulatedProducts] = useState<ProductData[]>([])
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // Функция для получения правильного URL изображения
   const getImageUrl = (url: string | null | undefined): string => {
@@ -109,8 +105,6 @@ export default function CategoryPage() {
         }
         
         setData(transformedData)
-        // ✅ При загрузке новой страницы (не через "Показать больше") сбрасываем аккумуляцию
-        setAccumulatedProducts(categoryData.products || [])
       } catch (err) {
         setError(err instanceof Error ? err.message : "Произошла ошибка")
       } finally {
@@ -167,56 +161,25 @@ export default function CategoryPage() {
   // ✅ Получаем уникальные бренды из данных сервера
   const uniqueBrands = data?.brands?.map(b => b.name).sort() || []
 
-  // ✅ Используем аккумулированные товары (если есть) или товары с сервера
-  const paginatedProducts = accumulatedProducts.length > 0 ? accumulatedProducts : (data?.products || [])
+  // ✅ Используем товары напрямую с сервера (уже отфильтрованы и отсортированы)
+  const paginatedProducts = data?.products || []
 
   // ✅ Используем пагинацию с сервера
   const totalPages = data?.pagination?.total_pages || 1
   const totalCount = data?.pagination?.total_count || 0
 
-  // При изменении фильтров сбрасываем на первую страницу и аккумуляцию
+  // При изменении фильтров сбрасываем на первую страницу
   useEffect(() => {
     setCurrentPage(1)
-    setAccumulatedProducts([])
   }, [searchQuery, selectedBrand, sortBy])
 
-  // ✅ Обработчик переключения страницы (заменяет товары)
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) {
       return
     }
     setCurrentPage(page)
-    setAccumulatedProducts([]) // Сбрасываем аккумуляцию при переключении страницы
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" })
-    }
-  }
-
-  // ✅ Обработчик "Показать больше" (добавляет товары)
-  const handleLoadMore = async () => {
-    if (currentPage >= totalPages || isLoadingMore) {
-      return
-    }
-
-    try {
-      setIsLoadingMore(true)
-      const nextPage = currentPage + 1
-      
-      const categoryData = await getCategoryData(slug, {
-        page: nextPage,
-        perPage: ITEMS_PER_PAGE,
-        search: searchQuery,
-        brand: selectedBrand,
-        sort: sortBy
-      })
-
-      // Добавляем новые товары к существующим
-      setAccumulatedProducts(prev => [...prev, ...(categoryData.products || [])])
-      setCurrentPage(nextPage)
-    } catch (err) {
-      console.error('Error loading more products:', err)
-    } finally {
-      setIsLoadingMore(false)
     }
   }
 
@@ -616,41 +579,15 @@ export default function CategoryPage() {
         )}
 
         {paginatedProducts.length > 0 && (
-          <div className="mt-8 space-y-4 flex flex-col items-center justify-center">
+          <div className="mt-8 space-y-3 flex flex-col items-center justify-center">
             <p className="text-sm text-gray-600 text-center">
-              {accumulatedProducts.length > 0 
-                ? `Показано ${accumulatedProducts.length} из ${totalCount} товаров`
-                : `Страница ${currentPage} из ${totalPages || 1}`
-              }
+              Страница {currentPage} из {totalPages || 1}
             </p>
-            
-            {/* Кнопка "Показать больше" */}
-            {currentPage < totalPages && (
-              <Button
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-                className="bg-brand-yellow hover:bg-yellow-500 text-black"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
-                    Загрузка...
-                  </>
-                ) : (
-                  "Показать больше"
-                )}
-              </Button>
-            )}
-            
-            {/* Кнопки пагинации */}
             {totalPages > 1 && (
               <div className="flex flex-wrap gap-2 justify-center">
                 {Array.from({ length: totalPages }, (_, index) => {
                   const pageNumber = index + 1
-                  // Активная страница - это последняя загруженная страница при аккумуляции
-                  const isActive = accumulatedProducts.length > 0 
-                    ? pageNumber === currentPage
-                    : pageNumber === currentPage
+                  const isActive = currentPage === pageNumber
                   return (
                     <Button
                       key={pageNumber}
