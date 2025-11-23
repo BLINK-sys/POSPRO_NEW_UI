@@ -271,7 +271,6 @@ export default function Header() {
                   </div>
                   {sidebarViewMode === 'list' && (
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         type="text"
                         placeholder="Поиск категории..."
@@ -280,8 +279,42 @@ export default function Header() {
                           setSidebarSearchQuery(e.target.value)
                           setHighlightedCategoryId(null)
                         }}
-                        className="pl-10"
+                        className="w-full pl-10 pr-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none shadow-md hover:shadow-lg transition-shadow duration-200"
+                        onFocus={(e) => {
+                          e.target.style.borderTop = '1px solid #facc15' // Желтая рамка при фокусе
+                          e.target.style.borderBottom = '1px solid #facc15'
+                          e.target.style.borderLeft = '1px solid #facc15'
+                          e.target.style.borderRight = '1px solid #facc15'
+                          e.target.style.outline = 'none'
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderTop = '1px solid #d1d5db' // Серая рамка без фокуса
+                          e.target.style.borderBottom = '1px solid #d1d5db'
+                          e.target.style.borderLeft = '1px solid #d1d5db'
+                          e.target.style.borderRight = '1px solid #d1d5db'
+                        }}
+                        style={{ 
+                          WebkitAppearance: 'none', 
+                          MozAppearance: 'none', 
+                          appearance: 'none',
+                          outline: 'none',
+                          border: '1px solid #d1d5db'
+                        }}
                       />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      {sidebarSearchQuery && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full"
+                          onClick={() => {
+                            setSidebarSearchQuery("")
+                            setHighlightedCategoryId(null)
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </SheetHeader>
@@ -414,107 +447,115 @@ export default function Header() {
                         })}
                       </div>
                     ) : (
-                      // ВИД 2: Список без изображений и карточек
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {categories.map((category) => {
-                          const matchesSearch = sidebarSearchQuery.trim() 
-                            ? categoryMatchesSearch(category, sidebarSearchQuery)
-                            : true
-                          const isHighlighted = highlightedCategoryId === category.id
-                          const categoryNameMatches = sidebarSearchQuery.trim()
-                            ? category.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
-                            : false
-                          
+                      // ВИД 2: Список без изображений и карточек - независимое расположение в колонках
+                      <div className="flex flex-col md:flex-row gap-6">
+                        {/* Разделяем категории на колонки */}
+                        {[0, 1, 2].map((colIndex) => {
+                          const categoriesInColumn = categories.filter((_, index) => index % 3 === colIndex);
                           return (
-                          <div 
-                            key={category.id} 
-                            id={`category-${category.id}`}
-                            className={cn(
-                              "space-y-2 transition-all duration-200",
-                              isHighlighted && "ring-2 ring-brand-yellow ring-offset-2 rounded-lg p-2 bg-yellow-50"
-                            )}
-                          >
-                            <h3 className={cn(
-                              "font-semibold text-base mb-2",
-                              categoryNameMatches && sidebarSearchQuery.trim()
-                                ? "text-brand-yellow font-bold"
-                                : "text-gray-900"
-                            )}>
-                              <Link 
-                                href={`/category/${category.slug}`}
-                                onClick={() => setSidebarOpen(false)}
-                                className="hover:text-brand-yellow transition-colors"
-                              >
-                                {formatCategoryLabel(category)}
-                              </Link>
-                            </h3>
-                            {category.children && category.children.length > 0 ? (
-                              <ul className="space-y-1">
-                                {category.children.map((child) => (
-                                  <li key={child.id}>
-                                    <div className="flex items-center gap-2">
-                                      {child.children && child.children.length > 0 ? (
-                                        <button
-                                          onClick={() => toggleSidebarCategory(child.id)}
-                                          className={cn(
-                                            "p-1 rounded transition-colors flex items-center justify-center",
-                                            sidebarExpandedCategories.has(child.id)
-                                              ? "bg-black hover:bg-gray-800"
-                                              : "bg-brand-yellow hover:bg-yellow-500"
-                                          )}
-                                        >
-                                          {sidebarExpandedCategories.has(child.id) ? (
-                                            <Minus className="h-3 w-3 text-white" />
-                                          ) : (
-                                            <Plus className="h-3 w-3 text-black" />
-                                          )}
-                                        </button>
-                                      ) : (
-                                        <div className="w-5" />
-                                      )}
+                            <div key={colIndex} className="flex-1 flex flex-col gap-6">
+                              {categoriesInColumn.map((category) => {
+                                const matchesSearch = sidebarSearchQuery.trim() 
+                                  ? categoryMatchesSearch(category, sidebarSearchQuery)
+                                  : true
+                                const isHighlighted = highlightedCategoryId === category.id
+                                const categoryNameMatches = sidebarSearchQuery.trim()
+                                  ? category.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                                  : false
+                                
+                                return (
+                                  <div 
+                                    key={category.id} 
+                                    id={`category-${category.id}`}
+                                    className={cn(
+                                      "space-y-2 transition-all duration-200",
+                                      isHighlighted && "ring-2 ring-brand-yellow ring-offset-2 rounded-lg p-2 bg-yellow-50"
+                                    )}
+                                  >
+                                    <h3 className={cn(
+                                      "font-semibold text-base mb-2",
+                                      categoryNameMatches && sidebarSearchQuery.trim()
+                                        ? "text-brand-yellow font-bold"
+                                        : "text-gray-900"
+                                    )}>
                                       <Link 
-                                        href={`/category/${child.slug}`}
+                                        href={`/category/${category.slug}`}
                                         onClick={() => setSidebarOpen(false)}
-                                        className={cn(
-                                          "text-sm hover:text-brand-yellow transition-colors flex-1",
-                                          sidebarSearchQuery.trim() && child.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
-                                            ? "text-brand-yellow font-bold"
-                                            : "text-gray-700"
-                                        )}
+                                        className="hover:text-brand-yellow transition-colors"
                                       >
-                                        {formatCategoryLabel(child)}
+                                        {formatCategoryLabel(category)}
                                       </Link>
-                                    </div>
-                                    {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
-                                      <ul className="ml-7 mt-1 space-y-1">
-                                        {child.children.map((subChild) => (
-                                          <li key={subChild.id}>
-                                            <Link 
-                                              href={`/category/${subChild.slug}`}
-                                              onClick={() => setSidebarOpen(false)}
-                                              className={cn(
-                                                "text-xs hover:text-brand-yellow transition-colors block",
-                                                sidebarSearchQuery.trim() && subChild.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
-                                                  ? "text-brand-yellow font-bold"
-                                                  : "text-gray-600"
+                                    </h3>
+                                    {category.children && category.children.length > 0 ? (
+                                      <ul className="space-y-1">
+                                        {category.children.map((child) => (
+                                          <li key={child.id}>
+                                            <div className="flex items-center gap-2">
+                                              {child.children && child.children.length > 0 ? (
+                                                <button
+                                                  onClick={() => toggleSidebarCategory(child.id)}
+                                                  className={cn(
+                                                    "p-1 rounded transition-colors flex items-center justify-center",
+                                                    sidebarExpandedCategories.has(child.id)
+                                                      ? "bg-black hover:bg-gray-800"
+                                                      : "bg-brand-yellow hover:bg-yellow-500"
+                                                  )}
+                                                >
+                                                  {sidebarExpandedCategories.has(child.id) ? (
+                                                    <Minus className="h-3 w-3 text-white" />
+                                                  ) : (
+                                                    <Plus className="h-3 w-3 text-black" />
+                                                  )}
+                                                </button>
+                                              ) : (
+                                                <div className="w-5" />
                                               )}
-                                            >
-                                              {formatCategoryLabel(subChild)}
-                                            </Link>
+                                              <Link 
+                                                href={`/category/${child.slug}`}
+                                                onClick={() => setSidebarOpen(false)}
+                                                className={cn(
+                                                  "text-sm hover:text-brand-yellow transition-colors flex-1",
+                                                  sidebarSearchQuery.trim() && child.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                                                    ? "text-brand-yellow font-bold"
+                                                    : "text-gray-700"
+                                                )}
+                                              >
+                                                {formatCategoryLabel(child)}
+                                              </Link>
+                                            </div>
+                                            {sidebarExpandedCategories.has(child.id) && child.children && child.children.length > 0 && (
+                                              <ul className="ml-7 mt-1 space-y-1">
+                                                {child.children.map((subChild) => (
+                                                  <li key={subChild.id}>
+                                                    <Link 
+                                                      href={`/category/${subChild.slug}`}
+                                                      onClick={() => setSidebarOpen(false)}
+                                                      className={cn(
+                                                        "text-xs hover:text-brand-yellow transition-colors block",
+                                                        sidebarSearchQuery.trim() && subChild.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                                                          ? "text-brand-yellow font-bold"
+                                                          : "text-gray-600"
+                                                      )}
+                                                    >
+                                                      {formatCategoryLabel(subChild)}
+                                                    </Link>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
                                           </li>
                                         ))}
                                       </ul>
+                                    ) : (
+                                      <div className="text-xs text-gray-500">
+                                        Нет подкатегорий
+                                      </div>
                                     )}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <div className="text-xs text-gray-500">
-                                Нет подкатегорий
-                              </div>
-                            )}
-                          </div>
-                          )
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          );
                         })}
                       </div>
                     )
