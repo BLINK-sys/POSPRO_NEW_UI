@@ -620,11 +620,22 @@ export default function ProductPage() {
                 <div className="relative">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                     {product.characteristics
+                      .filter((char) => char.key.toLowerCase() !== "code")
                       .sort((a, b) => a.sort_order - b.sort_order)
                       .map((char, index) => (
-                        <div key={char.id} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0">
-                          <span className="font-medium text-gray-700">{char.key}</span>
-                          <span className="text-gray-600">
+                        <div key={char.id} className="flex justify-between py-2 border-b border-gray-100 last:border-b-0 gap-2">
+                          <span className="font-medium text-gray-700 flex-shrink-0">{char.key}</span>
+                          <span 
+                            className="text-gray-600 text-right flex-1 min-w-0"
+                            style={{
+                              fontSize: char.value.length > 50 ? 'clamp(0.7rem, 1.5vw, 0.875rem)' : undefined,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: '100%'
+                            }}
+                            title={`${char.value}${char.unit_of_measurement ? ` (${char.unit_of_measurement})` : ''}`}
+                          >
                             {char.value}
                             {char.unit_of_measurement && (
                               <span className="text-gray-400 ml-1">({char.unit_of_measurement})</span>
