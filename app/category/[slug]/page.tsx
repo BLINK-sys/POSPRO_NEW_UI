@@ -124,8 +124,8 @@ export default function CategoryPage() {
         const fetchCategoryData = async () => {
           try {
             setLoading(true)
-            setError(null)
-            
+          setError(null)
+          
             const categoryData = await getCategoryData(slug, {
               page: currentPage,
               perPage: ITEMS_PER_PAGE,
@@ -133,16 +133,16 @@ export default function CategoryPage() {
               brand: selectedBrand,
               sort: sortBy
             })
-            
-            const transformedData = {
-              category: categoryData.category,
-              subcategories: categoryData.children || [],
+          
+          const transformedData = {
+            category: categoryData.category,
+            subcategories: categoryData.children || [],
               products: categoryData.products || [],
               brands: categoryData.brands || [],
               pagination: categoryData.pagination
-            }
-            
-            setData(transformedData)
+          }
+          
+          setData(transformedData)
           } catch (err) {
             console.error('Error refreshing data:', err)
           } finally {
@@ -646,19 +646,19 @@ export default function CategoryPage() {
                       )
                     }
                     const pageNumber = page as number
-                    const isActive = currentPage === pageNumber
-                    return (
-                      <Button
-                        key={pageNumber}
-                        variant={isActive ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(pageNumber)}
-                        className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
-                      >
-                        {pageNumber}
-                      </Button>
-                    )
-                  })}
+                  const isActive = currentPage === pageNumber
+                  return (
+                    <Button
+                      key={pageNumber}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
+                    >
+                      {pageNumber}
+                    </Button>
+                  )
+                })}
                 </div>
                 
                 {/* Кнопка "Вперед" */}

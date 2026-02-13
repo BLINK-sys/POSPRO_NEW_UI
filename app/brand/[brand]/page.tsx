@@ -583,20 +583,20 @@ export default function BrandPage() {
                             )
                           }
                           const pageNumber = page as number
-                          const isActive = brandData.page === pageNumber
-                          return (
-                            <Button
-                              key={pageNumber}
-                              variant={isActive ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handlePageChange(pageNumber)}
-                              disabled={loading && isActive}
-                              className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
-                            >
-                              {pageNumber}
-                            </Button>
-                          )
-                        })}
+                        const isActive = brandData.page === pageNumber
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant={isActive ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNumber)}
+                            disabled={loading && isActive}
+                            className={isActive ? "bg-brand-yellow hover:bg-yellow-500 text-black" : ""}
+                          >
+                            {pageNumber}
+                          </Button>
+                        )
+                      })}
                       </div>
                       
                       {/* Кнопка "Вперед" */}
