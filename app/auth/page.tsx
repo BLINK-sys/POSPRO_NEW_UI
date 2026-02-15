@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileAuthPage from "@/components/mobile/mobile-auth-page"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,6 +32,7 @@ export default function AuthPage() {
   const [registerState, setRegisterState] = useState<ActionState>({ success: false })
   const router = useRouter()
   const { toast } = useToast()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (loginState.success) {
@@ -76,6 +79,8 @@ export default function AuthPage() {
   const handleTypeChange = (value: string) => {
     setOrganizationType(value as OrganizationType)
   }
+
+  if (isMobile) return <MobileAuthPage />
 
   return (
     <div className="h-screen flex overflow-hidden">

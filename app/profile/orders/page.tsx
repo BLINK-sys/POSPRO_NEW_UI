@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import OrderCard from "@/components/order-card"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileOrdersPage from "@/components/mobile/mobile-orders-page"
 
 export const dynamic = 'force-dynamic'
 
@@ -110,6 +112,7 @@ export default function ProfileOrdersPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   const fetchOrders = async (page: number = 1) => {
     setIsLoading(true)
@@ -175,6 +178,8 @@ export default function ProfileOrdersPage() {
     }
   }
 
+  if (isMobile) return <MobileOrdersPage />
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-8">
@@ -182,7 +187,7 @@ export default function ProfileOrdersPage() {
           <Package className="h-6 w-6" />
           <h1 className="text-2xl font-bold">Мои заказы</h1>
         </div>
-        
+
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <Card key={i}>

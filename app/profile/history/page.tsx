@@ -13,6 +13,8 @@ import { useAuth } from "@/context/auth-context"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import OrderCard from "@/components/order-card"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileHistoryPage from "@/components/mobile/mobile-history-page"
 
 interface OrderItem {
   id: number
@@ -93,6 +95,7 @@ export default function ProfileHistoryPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   const fetchOrders = async (page: number = 1) => {
     setIsLoading(true)
@@ -154,6 +157,8 @@ export default function ProfileHistoryPage() {
 
   // Получаем отфильтрованные заказы
   const filteredOrders = getFilteredOrders()
+
+  if (isMobile) return <MobileHistoryPage />
 
   if (isLoading) {
     return (

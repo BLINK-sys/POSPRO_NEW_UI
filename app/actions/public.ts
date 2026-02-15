@@ -129,6 +129,7 @@ export interface AllBrandsData {
   country: string
   description: string
   image_url: string
+  products_count?: number
 }
 
 // Получить данные главной страницы
@@ -719,7 +720,8 @@ export async function getAllBrands(): Promise<AllBrandsData[]> {
       name: brand.name,
       country: brand.country || '',
       description: brand.description || '',
-      image_url: brand.image_url || ''
+      image_url: brand.image_url || '',
+      products_count: brand.products_count ?? brand.product_count ?? 0
     }))
   } catch (error) {
     console.error("Error fetching all brands:", error)

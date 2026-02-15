@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileBrandPage from "@/components/mobile/mobile-brand-page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,7 +34,8 @@ export default function BrandPage() {
   const params = useParams()
   const router = useRouter()
   const brandName = decodeURIComponent(params.brand as string)
-  
+  const isMobile = useIsMobile()
+
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
   
@@ -333,6 +336,8 @@ export default function BrandPage() {
   const visibleBrands = allBrands.slice(0, effectiveVisibleCount || allBrands.length)
 
   const canShowMoreBrands = brandsPerStep > 0 && effectiveVisibleCount < allBrands.length
+
+  if (isMobile) return <MobileBrandPage brandName={brandName} />
 
   return (
     <div className="container mx-auto px-4 py-8">

@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useIsMobile } from '@/hooks/use-mobile'
+import MobileCartPage from '@/components/mobile/mobile-cart-page'
 
 interface CartItem {
   id: number
@@ -65,6 +67,7 @@ export default function ProfileCartPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const { updateCartCount } = useCart()
+  const isMobile = useIsMobile()
 
   // Функция для загрузки адреса доставки
   const loadDeliveryAddress = async () => {
@@ -303,6 +306,8 @@ export default function ProfileCartPage() {
       setIsCreatingOrder(false)
     }
   }
+
+  if (isMobile) return <MobileCartPage />
 
   if (isLoading) {
     return (

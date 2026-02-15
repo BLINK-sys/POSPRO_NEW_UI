@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileCategoryPage from "@/components/mobile/mobile-category-page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -42,9 +44,10 @@ export default function CategoryPage() {
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
+  const isMobile = useIsMobile()
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
-  
+
   const [data, setData] = useState<CategoryPageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -244,6 +247,8 @@ export default function CategoryPage() {
       </div>
     )
   }
+
+  if (isMobile) return <MobileCategoryPage slug={slug} />
 
   return (
     <div className="container mx-auto px-4 py-8">

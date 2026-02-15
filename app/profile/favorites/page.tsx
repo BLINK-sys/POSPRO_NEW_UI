@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { RefreshCw } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileFavoritesPage from "@/components/mobile/mobile-favorites-page"
 
 export default function ProfileFavoritesPage() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
@@ -16,6 +18,7 @@ export default function ProfileFavoritesPage() {
   const [error, setError] = useState<string | null>(null)
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   const loadFavorites = async () => {
     if (!user) return
@@ -48,6 +51,8 @@ export default function ProfileFavoritesPage() {
       loadFavorites()
     }
   }, [user, authLoading, router])
+
+  if (isMobile) return <MobileFavoritesPage />
 
   // Показываем скелетон пока загружается авторизация
   if (authLoading) {

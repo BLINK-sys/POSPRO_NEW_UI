@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/use-mobile"
+import MobileProductPage from "@/components/mobile/mobile-product-page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -88,7 +90,8 @@ export default function ProductPage() {
   const router = useRouter()
   const { user } = useAuth()
   const slug = params.slug as string
-  
+  const isMobile = useIsMobile()
+
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -305,6 +308,8 @@ export default function ProductPage() {
       </div>
     )
   }
+
+  if (isMobile) return <MobileProductPage slug={slug} />
 
   return (
     <div className="container mx-auto px-4 py-8">

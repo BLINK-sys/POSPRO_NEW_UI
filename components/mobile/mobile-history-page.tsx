@@ -1,0 +1,230 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import Image from "next/image"
+import Link from "next/link"
+import { Loader2, History, RefreshCw, ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { getOrders } from "@/app/actions/orders"
+import { formatProductPrice } from "@/lib/utils"
+import { getImageUrl } from "@/lib/image-utils"
+import { useAuth } from "@/context/auth-context"
+import { motion, AnimatePresence } from "framer-motion"
+
+export default function MobileHistoryPage() {
+  const { user, isLoading: authLoading } = useAuth()
+  const router = useRouter()
+
+  const [orders, setOrders] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<"all" | "delivered" | "cancelled">("all")
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user || user.role !== "client") {
+      router.push("/auth")
+      return
+    }
+    loadOrders()
+  }, [user, authLoading])
+
+  const loadOrders = async () => {
+    setLoading(true)
+    try {
+      const result = await getOrders(1, 100, "completed")
+      if (result.success && result.data) {
+        setOrders(result.data.orders || [])
+      } else {
+        setOrders([])
+      }
+    } catch (error) {
+      console.error("Error loading history:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredOrders = orders.filter((order) => {
+    if (filter === "all") return true
+    const status = (order.status_info?.name || order.status?.name || order.status || "").toLowerCase()
+    if (filter === "delivered") return status.includes("доставлен") || status.includes("delivered")
+    if (filter === "cancelled") return status.includes("отменён") || status.includes("cancelled")
+    return true
+  })
+
+  if (loading || authLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="pb-4">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+        <h1 className="text-lg font-bold">История</h1>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={loadOrders}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Фильтры */}
+      <div className="flex gap-2 px-4 py-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        {(["all", "delivered", "cancelled"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filter === f ? "bg-brand-yellow text-black" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            {f === "all" ? "Все" : f === "delivered" ? "Доставлено" : "Отменено"}
+          </button>
+        ))}
+      </div>
+
+      {filteredOrders.length > 0 ? (
+        <div className="px-4 space-y-3">
+          {filteredOrders.map((order: any) => (
+            <HistoryOrderCard key={order.id} order={order} />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-12 px-4">
+          <History className="h-16 w-16 text-gray-300 mb-4" />
+          <h2 className="text-lg font-semibold mb-2">Нет заказов</h2>
+          <p className="text-sm text-gray-500 text-center">
+            {filter === "all" ? "История заказов пуста" : "Нет заказов с таким статусом"}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HistoryOrderCard({ order }: { order: any }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const statusName = order.status_info?.name || order.status?.name || order.status || "—"
+
+  const paymentStatusMap: Record<string, { label: string; color: string }> = {
+    unpaid: { label: "Не оплачен", color: "bg-red-100 text-red-800" },
+    paid: { label: "Оплачен", color: "bg-green-100 text-green-800" },
+    refunded: { label: "Возврат", color: "bg-gray-100 text-gray-800" },
+  }
+  const paymentInfo = paymentStatusMap[order.payment_status] || paymentStatusMap.unpaid
+
+  return (
+    <Card className="border-0 shadow-md overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header - clickable to toggle */}
+        <button className="w-full text-left p-3" onClick={() => setExpanded(!expanded)}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-sm font-semibold">Заказ #{order.order_number || order.id}</span>
+            <div className="flex items-center gap-2">
+              {order.status_info ? (
+                <Badge
+                  className="text-[10px]"
+                  style={{ backgroundColor: order.status_info.background_color, color: order.status_info.text_color }}
+                >
+                  {order.status_info.name}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px]">{statusName}</Badge>
+              )}
+              <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            {order.created_at && (
+              <span>{new Date(order.created_at).toLocaleDateString("ru-RU")}</span>
+            )}
+            <span className="font-bold text-gray-900">{formatProductPrice(order.total_amount)}</span>
+            {order.items_count > 0 && (
+              <span>{order.items_count} товар{order.items_count > 4 ? "ов" : order.items_count > 1 ? "а" : ""}</span>
+            )}
+          </div>
+        </button>
+
+        {/* Expanded details */}
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-3 pb-3 border-t border-gray-100">
+                {/* Order info */}
+                <div className="flex flex-wrap gap-2 py-2 text-xs text-gray-500">
+                  <Badge className={`text-[10px] ${paymentInfo.color}`}>{paymentInfo.label}</Badge>
+                  {order.delivery_method && (
+                    <span>{order.delivery_method === "pickup" ? "Самовывоз" : "Доставка"}</span>
+                  )}
+                  {order.payment_method && <span>{order.payment_method}</span>}
+                </div>
+
+                {/* Products list */}
+                {order.items && order.items.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-2 space-y-2 mt-1">
+                    {order.items.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-2 shadow-sm">
+                        <div className="relative w-14 h-14 bg-gray-50 rounded-md overflow-hidden shrink-0">
+                          {item.product?.image_url ? (
+                            <Image
+                              src={getImageUrl(item.product.image_url)}
+                              alt={item.product_name}
+                              fill
+                              className="object-contain p-0.5"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
+                              Нет фото
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {item.product?.slug ? (
+                            <Link href={`/product/${item.product.slug}`} className="text-xs font-medium text-gray-900 line-clamp-2 hover:text-blue-600">
+                              {item.product_name}
+                            </Link>
+                          ) : (
+                            <p className="text-xs font-medium text-gray-900 line-clamp-2">{item.product_name}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-gray-500">{item.quantity} шт.</span>
+                            <span className="text-[11px] font-semibold text-gray-900">{formatProductPrice(item.price_per_item)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Manager */}
+                {order.manager?.manager && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    Менеджер: {order.manager.manager.full_name}
+                    {order.manager.manager.phone && ` ${order.manager.manager.phone}`}
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                  <span className="text-xs text-gray-500">Итого:</span>
+                  <span className="text-sm font-bold text-gray-900">{formatProductPrice(order.total_amount)}</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </CardContent>
+    </Card>
+  )
+}
