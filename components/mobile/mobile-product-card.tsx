@@ -30,7 +30,7 @@ interface MobileProductCardProps {
 export default function MobileProductCard({ product, wholesaleUser = false, showFavorite = true, onFavoriteToggle }: MobileProductCardProps) {
   return (
     <Link href={`/product/${product.slug}`}>
-      <Card className="overflow-hidden border-0 shadow-md h-full">
+      <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full">
         <CardContent className="p-2">
           <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-2">
             {product.image_url ? (

@@ -79,12 +79,28 @@ export default function MobileCatalogBrowser({ open, onClose }: MobileCatalogBro
 
               return (
                 <div key={category.id}>
-                  <div className="flex items-center">
+                  <div className="flex items-center px-4 py-3 gap-3">
+                    {/* Кнопка раскрытия подкатегорий — в начале строки */}
+                    {hasChildren ? (
+                      <button
+                        onClick={() => toggleExpand(category.id)}
+                        className="w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-brand-yellow hover:bg-yellow-500 transition-colors"
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 text-black transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <div className="w-9 h-9 shrink-0" />
+                    )}
+
                     {/* Ссылка на категорию */}
                     <Link
                       href={`/category/${category.slug}`}
                       onClick={handleClose}
-                      className="flex-1 flex items-center gap-3 px-4 py-3"
+                      className="flex-1 flex items-center gap-3"
                     >
                       <div className="w-12 h-12 relative bg-gray-50 dark:bg-gray-900 rounded-lg shrink-0 overflow-hidden flex items-center justify-center">
                         {category.image_url ? (
@@ -104,20 +120,6 @@ export default function MobileCatalogBrowser({ open, onClose }: MobileCatalogBro
                         {category.name}
                       </span>
                     </Link>
-
-                    {/* Кнопка раскрытия подкатегорий */}
-                    {hasChildren && (
-                      <button
-                        onClick={() => toggleExpand(category.id)}
-                        className="w-12 h-12 flex items-center justify-center mr-2 rounded-lg bg-brand-yellow hover:bg-yellow-500 transition-colors"
-                      >
-                        <ChevronDown
-                          className={`h-5 w-5 text-black transition-transform duration-200 ${
-                            isExpanded ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-                    )}
                   </div>
 
                   {/* Подкатегории (аккордеон) */}

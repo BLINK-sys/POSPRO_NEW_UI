@@ -254,7 +254,7 @@ function MobileProductsBlock({ items, wholesaleUser }: { items: ProductData[]; w
 function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; wholesaleUser: boolean }) {
   return (
     <div className="shrink-0 w-[160px]">
-      <Card className="overflow-hidden border-0 shadow-md h-full flex flex-col">
+      <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
         <CardContent className="p-2 flex flex-col flex-1">
           <Link href={`/product/${product.slug}`}>
             <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-2">
@@ -348,7 +348,7 @@ function MobileCategoriesBlock({ items }: { items: CategoryData[] }) {
 function CategoryCard({ category }: { category: CategoryData }) {
   return (
     <Link href={`/category/${category.slug}`} className="shrink-0 w-[130px]">
-      <Card className="overflow-hidden border-0 shadow-md h-full flex flex-col">
+      <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
         <CardContent className="p-0 flex flex-col flex-1">
           <div className="relative h-24 bg-white flex items-center justify-center overflow-hidden">
             {category.image_url ? (
@@ -379,7 +379,7 @@ function MobileBrandsBlock({ items }: { items: BrandData[] }) {
     <div className="grid grid-cols-3 gap-3 p-1">
       {items.map((brand) => (
         <Link key={brand.id} href={`/brand/${encodeURIComponent(brand.name)}`}>
-          <Card className="overflow-hidden border-0 shadow-lg rounded-xl aspect-square">
+          <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] rounded-xl aspect-square">
             <CardContent className="p-0 h-full relative">
               {brand.image_url ? (
                 <Image
@@ -406,7 +406,7 @@ function MobileBenefitsBlock({ items }: { items: BenefitData[] }) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide" style={{ scrollbarWidth: "none" }}>
       {items.map((benefit) => (
-        <Card key={benefit.id} className="shrink-0 w-[200px] border-0 shadow-md">
+        <Card key={benefit.id} className="shrink-0 w-[200px] border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)]">
           <CardContent className="p-4">
             <div className="w-10 h-10 bg-brand-yellow rounded-full flex items-center justify-center mb-3">
               {getIcon(benefit.icon)}
@@ -427,7 +427,7 @@ function MobileSmallBannersBlock({ items }: { items: SmallBannerData[] }) {
       {items.map((banner) => (
         <Card
           key={banner.id}
-          className="overflow-hidden border-0 shadow-lg rounded-xl"
+          className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] rounded-xl"
           style={{
             backgroundColor: banner.background_image_url ? "transparent" : banner.card_bg_color,
             backgroundImage: banner.background_image_url ? `url(${getImageUrl(banner.background_image_url)})` : "none",

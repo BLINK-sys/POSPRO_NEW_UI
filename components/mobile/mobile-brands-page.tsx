@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Loader2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { getAllBrands, type AllBrandsData } from "@/app/actions/public"
-import { getImageUrl } from "@/lib/image-utils"
+import { getImageUrl, isImageUrl } from "@/lib/image-utils"
 
 export default function MobileBrandsPage() {
   const [brands, setBrands] = useState<AllBrandsData[]>([])
@@ -44,9 +44,9 @@ export default function MobileBrandsPage() {
         <div className="grid grid-cols-3 gap-3 p-4">
           {brands.map((brand) => (
             <Link key={brand.id} href={`/brand/${encodeURIComponent(brand.name)}`}>
-              <Card className="overflow-hidden border-0 shadow-lg rounded-xl aspect-square">
+              <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] rounded-xl aspect-square">
                 <CardContent className="p-0 h-full relative">
-                  {brand.image_url ? (
+                  {isImageUrl(brand.image_url) ? (
                     <Image
                       src={getImageUrl(brand.image_url)}
                       alt={brand.name}
@@ -54,8 +54,8 @@ export default function MobileBrandsPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full bg-gray-50">
-                      <span className="text-xs font-semibold text-gray-500 text-center px-1">{brand.name}</span>
+                    <div className="flex items-center justify-center h-full bg-gray-100 p-2">
+                      <span className="text-[clamp(10px,3.5vw,16px)] font-bold text-gray-700 text-center leading-tight line-clamp-3">{brand.name}</span>
                     </div>
                   )}
                 </CardContent>

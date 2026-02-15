@@ -123,9 +123,13 @@ export default function MobileCategoryPage({ slug }: MobileCategoryPageProps) {
 
   return (
     <div className="pb-4">
-      {/* Заголовок категории */}
+      {/* Заголовок — подкатегории или название категории */}
       <div className="px-4 py-3 border-b border-gray-100">
-        <h1 className="text-lg font-bold">{category?.name || "Категория"}</h1>
+        <h1 className="text-lg font-bold">
+          {subcategories.length > 0
+            ? `Подкатегории «${category?.name || "Категория"}»`
+            : (category?.name || "Категория")}
+        </h1>
         {category?.description && (
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{category.description}</p>
         )}
@@ -133,33 +137,67 @@ export default function MobileCategoryPage({ slug }: MobileCategoryPageProps) {
 
       {/* Подкатегории */}
       {subcategories.length > 0 && (
-        <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-gray-100 scrollbar-hide" style={{ scrollbarWidth: "none" }}>
-          {subcategories.map((sub: any) => (
-            <Link key={sub.id} href={`/category/${sub.slug}`} className="shrink-0 w-[130px]">
-              <Card className="overflow-hidden border-0 shadow-md h-full flex flex-col">
-                <CardContent className="p-0 flex flex-col flex-1">
-                  <div className="relative h-24 bg-white flex items-center justify-center overflow-hidden">
-                    {isImageUrl(sub.image_url) ? (
-                      <Image
-                        src={getImageUrl(sub.image_url)}
-                        alt={sub.name}
-                        fill
-                        className="object-contain p-2"
-                      />
-                    ) : (
-                      <span className="text-2xl">📁</span>
-                    )}
-                  </div>
-                  <div className="bg-brand-yellow px-2 py-2 mt-auto">
-                    <p className="text-xs font-bold text-gray-900 line-clamp-2 leading-tight text-center">
-                      {sub.name}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        products.length === 0 && !loading ? (
+          /* Сетка подкатегорий когда товаров нет */
+          <div className={`grid gap-3 px-4 py-3 border-b border-gray-100 ${
+            subcategories.length > 6 ? "grid-cols-3" : "grid-cols-2"
+          }`}>
+            {subcategories.map((sub: any) => (
+              <Link key={sub.id} href={`/category/${sub.slug}`}>
+                <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
+                  <CardContent className="p-0 flex flex-col flex-1">
+                    <div className="relative h-24 bg-white flex items-center justify-center overflow-hidden">
+                      {isImageUrl(sub.image_url) ? (
+                        <Image
+                          src={getImageUrl(sub.image_url)}
+                          alt={sub.name}
+                          fill
+                          className="object-contain p-2"
+                        />
+                      ) : (
+                        <span className="text-2xl">📁</span>
+                      )}
+                    </div>
+                    <div className="bg-brand-yellow px-2 py-2 mt-auto">
+                      <p className="text-xs font-bold text-gray-900 line-clamp-2 leading-tight text-center">
+                        {sub.name}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          /* Горизонтальный скролл когда есть товары */
+          <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-gray-100 scrollbar-hide" style={{ scrollbarWidth: "none" }}>
+            {subcategories.map((sub: any) => (
+              <Link key={sub.id} href={`/category/${sub.slug}`} className="shrink-0 w-[130px]">
+                <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
+                  <CardContent className="p-0 flex flex-col flex-1">
+                    <div className="relative h-24 bg-white flex items-center justify-center overflow-hidden">
+                      {isImageUrl(sub.image_url) ? (
+                        <Image
+                          src={getImageUrl(sub.image_url)}
+                          alt={sub.name}
+                          fill
+                          className="object-contain p-2"
+                        />
+                      ) : (
+                        <span className="text-2xl">📁</span>
+                      )}
+                    </div>
+                    <div className="bg-brand-yellow px-2 py-2 mt-auto">
+                      <p className="text-xs font-bold text-gray-900 line-clamp-2 leading-tight text-center">
+                        {sub.name}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )
       )}
 
       {/* Кнопка фильтров + счётчик */}
@@ -177,6 +215,13 @@ export default function MobileCategoryPage({ slug }: MobileCategoryPageProps) {
           Фильтры
         </Button>
       </div>
+
+      {/* Название категории перед товарами */}
+      {subcategories.length > 0 && !loading && products.length > 0 && (
+        <div className="px-4 pt-3">
+          <h2 className="text-base font-bold">{category?.name || "Категория"}</h2>
+        </div>
+      )}
 
       {/* Сетка товаров */}
       {loading ? (

@@ -136,8 +136,8 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
                 href={`/brand/${encodeURIComponent(b.name)}`}
                 className="shrink-0"
               >
-                <div className={`w-14 h-14 relative rounded-xl overflow-hidden shadow-md border-2 ${
-                  b.name === decodeURIComponent(brandName) ? "border-brand-yellow" : "border-transparent"
+                <div className={`w-14 h-14 relative rounded-xl overflow-hidden shadow-[3px_3px_8px_rgba(0,0,0,0.1)] border ${
+                  b.name === decodeURIComponent(brandName) ? "border-brand-yellow border-2" : "border-gray-200"
                 }`}>
                   {isImageUrl(b.image_url) ? (
                     <Image
