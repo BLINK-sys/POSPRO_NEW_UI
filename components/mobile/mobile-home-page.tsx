@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, LayoutGrid, Loader2 } from "lucide-react"
 import { getImageUrl } from "@/lib/image-utils"
 import { getIcon } from "@/lib/icon-mapping"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
@@ -289,8 +289,8 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
 
           {/* Информация о товаре — как на десктопе */}
           <div className="space-y-0.5 flex-1">
-            <p className="text-[11px] text-gray-600 line-clamp-2 leading-tight min-h-[2rem]">
-              <span className="font-medium">Товар:</span> {product.name}
+            <p className="text-[11px] text-gray-700 font-medium line-clamp-2 leading-tight overflow-hidden">
+              {product.name}
             </p>
             <p className={`text-[11px] font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
               <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
@@ -396,6 +396,17 @@ function CategoryCard({ category }: { category: CategoryData }) {
 function MobileBrandsBlock({ items }: { items: BrandData[] }) {
   return (
     <div className="grid grid-cols-3 gap-3 p-1">
+      {/* Постоянная карточка "Бренды" */}
+      <Link href="/brands">
+        <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] rounded-xl aspect-square">
+          <CardContent className="p-0 h-full relative">
+            <div className="flex flex-col items-center justify-center h-full bg-brand-yellow">
+              <LayoutGrid className="h-8 w-8 text-black" />
+              <span className="text-sm font-bold text-black mt-1">Бренды</span>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
       {items.map((brand) => (
         <Link key={brand.id} href={`/brand/${encodeURIComponent(brand.name)}`}>
           <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] rounded-xl aspect-square">

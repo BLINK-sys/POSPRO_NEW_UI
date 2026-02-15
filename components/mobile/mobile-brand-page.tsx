@@ -69,9 +69,11 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
           allBrands.length === 0 ? getAllBrands() : Promise.resolve(allBrands),
         ])
         setProducts(data.products || [])
-        if (data.brand) {
-          setBrand(data.brand)
-        }
+        setBrand(prev => {
+          if (!data.brand) return prev
+          if (prev?.image_url && !data.brand.image_url) return prev
+          return data.brand
+        })
         setTotalPages(data.total_pages || 1)
         setCategories(catsResult.categories || [])
         if (allBrands.length === 0) setAllBrands(brands)
@@ -123,20 +125,20 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
         <div className="border-b border-gray-100 flex">
           {/* Fixed "Все бренды" button */}
           <Link href="/brands" className="shrink-0 px-3 py-3 border-r border-gray-100 flex items-center">
-            <div className="w-14 h-14 rounded-xl bg-brand-yellow flex flex-col items-center justify-center shadow-md">
-              <LayoutGrid className="h-4 w-4 text-black" />
-              <span className="text-[7px] font-bold text-black mt-0.5">Бренды</span>
+            <div className="w-20 h-20 rounded-xl bg-brand-yellow flex flex-col items-center justify-center shadow-md">
+              <LayoutGrid className="h-6 w-6 text-black" />
+              <span className="text-[9px] font-bold text-black mt-0.5">Бренды</span>
             </div>
           </Link>
           {/* Scrollable brands */}
-          <div className="flex gap-2 overflow-x-auto px-3 py-3 scrollbar-hide flex-1" style={{ scrollbarWidth: "none" }}>
+          <div className="flex gap-3 overflow-x-auto px-3 py-3 scrollbar-hide flex-1" style={{ scrollbarWidth: "none" }}>
             {topBrands.map((b) => (
               <Link
                 key={b.id}
                 href={`/brand/${encodeURIComponent(b.name)}`}
                 className="shrink-0"
               >
-                <div className={`w-14 h-14 relative rounded-xl overflow-hidden shadow-[3px_3px_8px_rgba(0,0,0,0.1)] border ${
+                <div className={`w-20 h-20 relative rounded-xl overflow-hidden shadow-[3px_3px_8px_rgba(0,0,0,0.1)] border ${
                   b.name === decodeURIComponent(brandName) ? "border-brand-yellow border-2" : "border-gray-200"
                 }`}>
                   {b.image_url ? (
@@ -147,8 +149,8 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center p-1">
-                      <span className="text-[8px] font-bold text-gray-700 text-center leading-tight">{b.name}</span>
+                    <div className="w-full h-full bg-gray-100 flex items-center justify-center p-1.5">
+                      <span className="text-[10px] font-bold text-gray-700 text-center leading-tight">{b.name}</span>
                     </div>
                   )}
                 </div>

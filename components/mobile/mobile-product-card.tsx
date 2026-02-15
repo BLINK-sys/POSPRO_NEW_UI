@@ -74,8 +74,8 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
           {/* Информация о товаре */}
           <div className="space-y-1">
             {/* Название */}
-            <p className="text-[11px] text-gray-600 line-clamp-2 leading-tight min-h-[2rem]">
-              <span className="font-medium">Товар:</span> {product.name}
+            <p className="text-[11px] text-gray-700 font-medium line-clamp-2 leading-tight overflow-hidden">
+              {product.name}
             </p>
 
             {/* Цена */}
