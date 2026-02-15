@@ -47,12 +47,11 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
             <ul className="space-y-2">
               {categories.map((category) => (
                 <li key={category.id}>
-                  <Link
-                    href={`/category/${category.slug}`}
-                    onMouseEnter={() => setHoveredCategory(category)}
-                    onClick={closeCatalogPanel}
+                  <button
+                    type="button"
+                    onClick={() => setHoveredCategory(hoveredCategory?.id === category.id ? null : category)}
                     className={cn(
-                      "relative flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
+                      "relative flex items-center justify-between p-3 rounded-lg transition-all duration-200 group w-full text-left",
                       hoveredCategory?.id === category.id
                         ? "bg-brand-yellow text-black font-medium"
                         : "hover:bg-brand-yellow hover:text-black text-gray-700 shadow-[0_0_8px_rgba(0,0,0,0.15)]"
@@ -67,7 +66,7 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                         <ChevronRight className="w-4 h-4 text-white" />
                       </div>
                     )}
-                  </Link>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -223,7 +222,7 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                   priority
                 />
               </div>
-              <p className="text-gray-400 text-sm">Наведите на категорию для просмотра подкатегорий</p>
+              <p className="text-gray-400 text-sm">Нажмите на категорию для просмотра подкатегорий</p>
             </div>
           )}
         </div>

@@ -285,27 +285,46 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
                 />
               </div>
             </div>
-            <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mb-1 leading-tight min-h-[2rem]">
-              {product.name}
-            </p>
           </Link>
-          <div className="mt-auto">
-            <p className={`text-sm font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
-              {formatProductPrice(product.price)}
+
+          {/* Информация о товаре — как на десктопе */}
+          <div className="space-y-0.5 flex-1">
+            <p className="text-[11px] text-gray-600 line-clamp-2 leading-tight min-h-[2rem]">
+              <span className="font-medium">Товар:</span> {product.name}
+            </p>
+            <p className={`text-[11px] font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
             </p>
             {wholesaleUser && product.wholesale_price && (
-              <p className={`text-xs font-bold ${getWholesalePriceClass()}`}>
-                Опт: {formatProductPrice(product.wholesale_price)}
+              <p className={`text-[11px] font-bold ${getWholesalePriceClass()}`}>
+                <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
               </p>
             )}
-            <div className="mt-1.5">
-              <AddToCartButton
-                productId={product.id}
-                productName={product.name}
-                className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1 rounded-lg text-[10px] h-7"
-                size="sm"
-              />
+            <div className="text-[11px] text-gray-600">
+              <span className="font-medium">Наличие:</span>{" "}
+              {product.availability_status ? (
+                <span
+                  className="inline-block px-1.5 py-0.5 rounded text-[10px]"
+                  style={{
+                    backgroundColor: product.availability_status.background_color,
+                    color: product.availability_status.text_color,
+                  }}
+                >
+                  {product.availability_status.status_name}
+                </span>
+              ) : product.quantity !== undefined ? (
+                <span>{product.quantity} шт.</span>
+              ) : null}
             </div>
+          </div>
+
+          <div className="mt-1.5">
+            <AddToCartButton
+              productId={product.id}
+              productName={product.name}
+              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1 rounded-lg text-[10px] h-7"
+              size="sm"
+            />
           </div>
         </CardContent>
       </Card>

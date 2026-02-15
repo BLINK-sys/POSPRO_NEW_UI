@@ -409,7 +409,7 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
       return []
     }
 
-    const response = await fetch(getApiUrl(`/products/search?q=${encodeURIComponent(query)}`), {
+    const response = await fetch(getApiUrl(`/products/search?q=${encodeURIComponent(query)}&limit=5000`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -425,30 +425,24 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
     }
 
     const products = await response.json()
-    
-    // Получаем статусы наличия для найденных товаров
-    const productsWithStatuses = await Promise.all(
-      products.map(async (product: any) => {
-        const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
-        return {
-          id: product.id,
-          name: product.name,
-          slug: product.slug,
-          price: product.price,
-          wholesale_price: product.wholesale_price,
-          quantity: product.quantity,
-          status: product.status,
-          brand_id: product.brand_id,
-          brand_info: product.brand_info,
-          description: product.description,
-          category_id: product.category_id,
-          image_url: product.image,
-          availability_status: availabilityStatus
-        }
-      })
-    )
-    
-    return productsWithStatuses
+
+    // availability_status и status теперь вычисляются на бэкенде (один SQL-запрос)
+    return products.map((product: any) => ({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      wholesale_price: product.wholesale_price,
+      quantity: product.quantity,
+      status: product.status && typeof product.status === 'object' ? product.status : undefined,
+      brand_id: product.brand_id ? Number(product.brand_id) : null,
+      brand_info: product.brand_info,
+      description: product.description,
+      category_id: product.category_id ? Number(product.category_id) : undefined,
+      category: product.category,
+      image_url: product.image,
+      availability_status: product.availability_status ?? undefined,
+    }))
   } catch (error) {
     console.error("Error searching products:", error)
     throw new Error("Ошибка поиска товаров")

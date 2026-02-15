@@ -19,7 +19,7 @@ interface MobileProductCardProps {
     image_url?: string
     brand_info?: { name: string; country?: string }
     status?: { name: string; background_color: string; text_color: string }
-    availability_status?: { status_name: string; background_color: string; text_color: string }
+    availability_status?: { status_name: string; background_color: string; text_color: string } | null
     quantity?: number
   }
   wholesaleUser?: boolean
@@ -32,6 +32,7 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
     <Link href={`/product/${product.slug}`}>
       <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full">
         <CardContent className="p-2">
+          {/* Изображение */}
           <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-2">
             {product.image_url ? (
               <Image
@@ -44,15 +45,19 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
               <div className="flex items-center justify-center h-full text-2xl text-gray-400">📦</div>
             )}
 
+            {/* Статус товара — верхний левый угол */}
             {product.status && (
-              <Badge
-                className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5"
-                style={{ backgroundColor: product.status.background_color, color: product.status.text_color }}
-              >
-                {product.status.name}
-              </Badge>
+              <div className="absolute top-1 left-1 z-10">
+                <Badge
+                  className="text-[10px] px-1.5 py-0.5 shadow-sm"
+                  style={{ backgroundColor: product.status.background_color, color: product.status.text_color }}
+                >
+                  {product.status.name}
+                </Badge>
+              </div>
             )}
 
+            {/* Избранное — верхний правый угол */}
             {showFavorite && (
               <div className="absolute top-1 right-1 z-10">
                 <FavoriteButton
@@ -66,43 +71,52 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
             )}
           </div>
 
-          <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mb-1 leading-tight min-h-[2rem]">
-            {product.name}
-          </p>
-
-          {product.brand_info?.name && (
-            <p className="text-[10px] text-gray-500 mb-1">{product.brand_info.name}</p>
-          )}
-
-          <p className={`text-sm font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
-            {formatProductPrice(product.price)}
-          </p>
-
-          {wholesaleUser && product.wholesale_price && (
-            <p className={`text-xs font-bold ${getWholesalePriceClass()}`}>
-              Опт: {formatProductPrice(product.wholesale_price)}
+          {/* Информация о товаре */}
+          <div className="space-y-1">
+            {/* Название */}
+            <p className="text-[11px] text-gray-600 line-clamp-2 leading-tight min-h-[2rem]">
+              <span className="font-medium">Товар:</span> {product.name}
             </p>
-          )}
 
-          {product.availability_status && (
-            <span
-              className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded"
-              style={{
-                backgroundColor: product.availability_status.background_color,
-                color: product.availability_status.text_color,
-              }}
-            >
-              {product.availability_status.status_name}
-            </span>
-          )}
+            {/* Цена */}
+            <p className={`text-[11px] font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+            </p>
 
-          <div className="mt-2" onClick={(e) => e.preventDefault()}>
-            <AddToCartButton
-              productId={product.id}
-              productName={product.name}
-              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1.5 rounded-lg text-xs h-8"
-              size="sm"
-            />
+            {/* Оптовая цена */}
+            {wholesaleUser && product.wholesale_price && (
+              <p className={`text-[11px] font-bold ${getWholesalePriceClass()}`}>
+                <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
+              </p>
+            )}
+
+            {/* Наличие */}
+            <div className="text-[11px] text-gray-600">
+              <span className="font-medium">Наличие:</span>{" "}
+              {product.availability_status ? (
+                <span
+                  className="inline-block px-1.5 py-0.5 rounded text-[10px]"
+                  style={{
+                    backgroundColor: product.availability_status.background_color,
+                    color: product.availability_status.text_color,
+                  }}
+                >
+                  {product.availability_status.status_name}
+                </span>
+              ) : product.quantity !== undefined ? (
+                <span>{product.quantity} шт.</span>
+              ) : null}
+            </div>
+
+            {/* Кнопка В корзину */}
+            <div className="pt-1" onClick={(e) => e.preventDefault()}>
+              <AddToCartButton
+                productId={product.id}
+                productName={product.name}
+                className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1.5 rounded-lg text-xs h-8"
+                size="sm"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

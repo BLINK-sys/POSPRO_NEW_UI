@@ -7,7 +7,7 @@ import { Loader2, ChevronDown, ChevronUp, LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { getProductsByBrandDetailed, getProductsByBrandAndCategory, getCategoriesByBrand, getAllBrands, type AllBrandsData } from "@/app/actions/public"
-import { getImageUrl, isImageUrl } from "@/lib/image-utils"
+import { getImageUrl } from "@/lib/image-utils"
 import { isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import MobileProductCard from "./mobile-product-card"
@@ -139,7 +139,7 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
                 <div className={`w-14 h-14 relative rounded-xl overflow-hidden shadow-[3px_3px_8px_rgba(0,0,0,0.1)] border ${
                   b.name === decodeURIComponent(brandName) ? "border-brand-yellow border-2" : "border-gray-200"
                 }`}>
-                  {isImageUrl(b.image_url) ? (
+                  {b.image_url ? (
                     <Image
                       src={getImageUrl(b.image_url)}
                       alt={b.name}
@@ -162,7 +162,7 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
       <div className="px-4 py-3 border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {brand && isImageUrl(brand.image_url) && (
+            {brand && brand.image_url && (
               <div className="w-12 h-12 relative bg-gray-50 rounded-lg overflow-hidden shrink-0">
                 <Image src={getImageUrl(brand.image_url)} alt={brand.name} fill className="object-contain p-1" />
               </div>

@@ -17,8 +17,8 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
+import { Input } from "@/components/ui/input"
 import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
@@ -28,13 +28,14 @@ import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import ProductSearch from "./product-search"
-import { Input } from "@/components/ui/input"
+import { useRouter, usePathname } from "next/navigation"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
   const { toggleCatalogPanel, closeCatalogPanel } = useCatalogPanel()
+  const router = useRouter()
+  const pathname = usePathname()
   const [categories, setCategories] = useState<CategoryData[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
@@ -46,7 +47,7 @@ export default function Header() {
   const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('cards')
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
-  const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("list")
+  const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("cards")
 
   useEffect(() => {
     if (menuOpen) {
@@ -204,43 +205,24 @@ export default function Header() {
 
   // При открытии меню по умолчанию выделяем первую категорию
   return (
-    <header className="bg-white dark:bg-gray-950 shadow-lg sticky top-0 z-50">
-      <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center justify-between h-24">
-          <Link href="/" className="flex items-center" prefetch={false}>
-            <Image 
-              src="/ui/big_logo.png" 
-              alt="PosPro Logo" 
-              width={120} 
-              height={40}
-              className="h-10 w-auto"
-              onError={(e) => {
-                console.error("Error loading logo:", e)
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-                const parent = target.parentElement
-                if (parent) {
-                  parent.innerHTML = '<span class="text-2xl font-bold text-brand-yellow">PosPro</span>'
-                }
-              }}
-            />
-          </Link>
+    <header className="bg-white dark:bg-gray-950 shadow-lg sticky top-0 z-50 relative">
+      {/* Кнопка-язычок бокового каталога — фиксирована на краю панели */}
+      <button
+        className="fixed top-12 -translate-y-1/2 z-[100] bg-brand-yellow text-black hover:bg-yellow-500 rounded-r-full shadow-lg px-3 pr-4 py-3 flex items-center gap-2 transition-[left] duration-300 ease-in-out cursor-pointer"
+        style={{ left: sidebarOpen ? '90vw' : '0' }}
+        onClick={() => handleSidebarOpen(!sidebarOpen)}
+      >
+        {sidebarOpen ? (
+          <X className="h-5 w-5" />
+        ) : categoriesLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <List className="h-5 w-5" />
+        )}
+        <span className="hidden sm:inline text-sm font-medium">Каталог</span>
+      </button>
 
-          <div className="flex items-center gap-4 flex-1 max-w-2xl mx-8">
-            {/* Кнопка бокового меню категорий */}
-            <Sheet open={sidebarOpen} onOpenChange={handleSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 w-10 h-10 p-0"
-                  size="sm"
-                >
-                  {categoriesLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <List className="h-5 w-5" />
-                  )}
-                </Button>
-              </SheetTrigger>
+      <Sheet open={sidebarOpen} onOpenChange={handleSidebarOpen}>
             <SheetContent 
               side="left" 
               className="!w-[90vw] !max-w-[90vw] p-0 overflow-y-auto [&::-webkit-scrollbar]:hidden"
@@ -566,39 +548,56 @@ export default function Header() {
                   )}
                 </div>
               </SheetContent>
-            </Sheet>
+      </Sheet>
 
-            {/* Кнопка панели каталога */}
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="flex items-center h-24">
+          <Link href="/" className="flex items-center flex-shrink-0" prefetch={false}>
+            <Image
+              src="/ui/big_logo.png"
+              alt="PosPro Logo"
+              width={120}
+              height={40}
+              className="h-10 w-auto"
+              onError={(e) => {
+                console.error("Error loading logo:", e)
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+                const parent = target.parentElement
+                if (parent) {
+                  parent.innerHTML = '<span class="text-2xl font-bold text-brand-yellow">PosPro</span>'
+                }
+              }}
+            />
+          </Link>
+
+          {/* Кнопки каталога и поиска — сразу после логотипа */}
+          <div className="hidden lg:flex ml-2">
             <Button
-              className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 w-10 h-10 p-0"
-              size="sm"
-              onClick={toggleCatalogPanel}
-              title="Открыть каталог"
+              className={cn(
+                "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-2 flex items-center gap-2",
+                menuOpen && "bg-yellow-500"
+              )}
+              onClick={toggleMenu}
             >
               {categoriesLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
               ) : (
-                <Grid3X3 className="h-5 w-5" />
+                <Menu className="h-5 w-5 mr-2" />
               )}
+              Каталог
             </Button>
+          </div>
 
-            {/* Выпадающее меню каталога для десктопа */}
-            <div className="hidden lg:flex">
-              <Button
-                className={cn(
-                  "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-2 flex items-center gap-2",
-                  menuOpen && "bg-yellow-500"
-                )}
-                onClick={toggleMenu}
-                  >
-                    {categoriesLoading ? (
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    ) : (
-                      <Menu className="h-5 w-5 mr-2" />
-                    )}
-                    Каталог
-              </Button>
-            </div>
+          <div className="hidden md:flex ml-2">
+            <Button
+              onClick={() => router.push("/search")}
+              className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <Search className="h-5 w-5" />
+              Найти товар
+            </Button>
+          </div>
             {menuOpen && (
               <div
                 className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-6"
@@ -842,14 +841,18 @@ export default function Header() {
               </div>
             )}
 
-          <div className="hidden md:flex flex-1 items-center">
-            <ProductSearch className="w-full" />
-          </div>
-        </div>
+          {/* Spacer — отталкивает правую часть */}
+          <div className="flex-1" />
 
-          {/* Мобильная версия поиска */}
-          <div className="md:hidden flex-1 mx-4">
-            <ProductSearch className="w-full" />
+          {/* Мобильная версия — кнопка поиска */}
+          <div className="md:hidden flex-1 mx-4 flex justify-center">
+            <Button
+              onClick={() => router.push("/search")}
+              className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <Search className="h-4 w-4" />
+              Найти товар
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -921,7 +924,24 @@ export default function Header() {
             )}
           </div>
         </div>
+
       </div>
+
+      {/* Кнопка панели каталога — только на главной, висит под header */}
+      {pathname === "/" && (
+        <Button
+          className="absolute top-full left-1/2 -translate-x-1/2 z-10 bg-brand-yellow text-black hover:bg-yellow-500 rounded-t-none rounded-b-2xl shadow-md hover:shadow-lg transition-shadow duration-200 px-6 py-2 flex items-center gap-2"
+          size="sm"
+          onClick={toggleCatalogPanel}
+        >
+          {categoriesLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Grid3X3 className="h-5 w-5" />
+          )}
+          <span className="text-sm font-medium">Каталог главная страница</span>
+        </Button>
+      )}
     </header>
   )
 }

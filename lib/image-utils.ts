@@ -33,14 +33,10 @@ export const getImageUrl = (url: string | null | undefined): string => {
  * @returns true, если URL указывает на изображение
  */
 export const isImageUrl = (url: string | null | undefined): boolean => {
-  if (!url || typeof url !== 'string') {
+  if (!url || typeof url !== 'string' || url.trim() === '') {
     return false
   }
-  
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
-  const lowerUrl = url.toLowerCase()
-  
-  return imageExtensions.some(ext => lowerUrl.includes(ext))
+  return true
 }
 
 /**
