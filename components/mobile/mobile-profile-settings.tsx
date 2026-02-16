@@ -60,23 +60,31 @@ export default function MobileProfileSettings() {
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Личные данные</h3>
 
-          {/* ФИО / Название ИП / Название ТОО */}
-          {orgType === "individual" && (
+          {/* ФИО / Название ИП / Название ТОО — только для клиентов */}
+          {user.role === "client" && orgType === "individual" && (
             <div className="space-y-1">
               <Label className="text-sm text-gray-600">ФИО</Label>
               <Input name="fullName" defaultValue={user.full_name} className="h-10 bg-white" />
             </div>
           )}
-          {orgType === "ip" && (
+          {user.role === "client" && orgType === "ip" && (
             <div className="space-y-1">
               <Label className="text-sm text-gray-600">Название ИП</Label>
               <Input name="ipName" defaultValue={user.ip_name} className="h-10 bg-white" />
             </div>
           )}
-          {orgType === "too" && (
+          {user.role === "client" && orgType === "too" && (
             <div className="space-y-1">
               <Label className="text-sm text-gray-600">Название ТОО</Label>
               <Input name="tooName" defaultValue={user.too_name} className="h-10 bg-white" />
+            </div>
+          )}
+
+          {/* Полное имя — для админов */}
+          {user.role === "admin" && (
+            <div className="space-y-1">
+              <Label className="text-sm text-gray-600">Полное имя</Label>
+              <Input name="fullName" defaultValue={user.full_name} className="h-10 bg-white" />
             </div>
           )}
 
@@ -94,7 +102,7 @@ export default function MobileProfileSettings() {
           </div>
 
           {/* ИИН для ИП */}
-          {orgType === "ip" && (
+          {user.role === "client" && orgType === "ip" && (
             <div className="space-y-1">
               <Label className="text-sm text-gray-600">ИИН</Label>
               <Input name="iin" defaultValue={user.iin} maxLength={12} className="h-10 bg-white" />
@@ -102,18 +110,20 @@ export default function MobileProfileSettings() {
           )}
 
           {/* БИН для ТОО */}
-          {orgType === "too" && (
+          {user.role === "client" && orgType === "too" && (
             <div className="space-y-1">
               <Label className="text-sm text-gray-600">БИН</Label>
               <Input name="bin" defaultValue={user.bin} maxLength={12} className="h-10 bg-white" />
             </div>
           )}
 
-          {/* Адрес доставки */}
-          <div className="space-y-1">
-            <Label className="text-sm text-gray-600">Адрес доставки</Label>
-            <Input name="deliveryAddress" defaultValue={user.delivery_address} placeholder="Укажите адрес" className="h-10 bg-white" />
-          </div>
+          {/* Адрес доставки — только для клиентов */}
+          {user.role === "client" && (
+            <div className="space-y-1">
+              <Label className="text-sm text-gray-600">Адрес доставки</Label>
+              <Input name="deliveryAddress" defaultValue={user.delivery_address} placeholder="Укажите адрес" className="h-10 bg-white" />
+            </div>
+          )}
         </div>
 
         {/* Смена пароля */}
