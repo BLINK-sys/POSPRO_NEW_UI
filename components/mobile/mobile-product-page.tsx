@@ -320,10 +320,10 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
           </Link>
         )}
 
-        {/* Поставщик (только для system) */}
-        {user?.role === "system" && product.supplier?.name && (
+        {/* Поставщик (только для admin/system) */}
+        {(user?.role === "admin" || user?.role === "system") && (product.supplier?.name || product.supplier_name) && (
           <div className="text-sm text-gray-500">
-            <span className="font-medium text-gray-700">Поставщик:</span> {product.supplier.name}
+            <span className="font-medium text-gray-700">Поставщик:</span> {product.supplier?.name || product.supplier_name}
           </div>
         )}
 

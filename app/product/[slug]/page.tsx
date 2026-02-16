@@ -57,6 +57,7 @@ interface ProductDetail {
   image?: string
   supplier_id?: number | null
   supplier?: { id: number; name: string } | null
+  supplier_name?: string | null
   availability_status?: ProductAvailabilityStatus
   characteristics: Array<{
     id: number
@@ -218,7 +219,7 @@ export default function ProductPage() {
         setError(null)
         
         const productData = await getProductBySlug(slug)
-        
+
         // Если у товара нет страны, подгружаем из brand_info
         if (!productData.country && productData.brand_info?.country) {
           productData.country = productData.brand_info.country
@@ -502,9 +503,9 @@ export default function ProductPage() {
               </div>
             )}
             
-            {user?.role === "system" && product.supplier?.name && (
+            {(user?.role === "admin" || user?.role === "system") && (product.supplier?.name || product.supplier_name) && (
               <div className="text-sm text-gray-600">
-                <span className="font-medium">Поставщик:</span> {product.supplier.name}
+                <span className="font-medium">Поставщик:</span> {product.supplier?.name || product.supplier_name}
               </div>
             )}
 
