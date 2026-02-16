@@ -12,10 +12,24 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { loginAction, registerAction } from "@/app/actions/auth"
 import { useToast } from "@/components/ui/use-toast"
 import { motion, AnimatePresence } from "framer-motion"
+import { Eye, EyeOff } from "lucide-react"
 
 export const dynamic = 'force-dynamic'
 
 type OrganizationType = "individual" | "ip" | "too"
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  const raw = digits.startsWith("7") || digits.startsWith("8") ? digits.slice(1) : digits
+  const d = raw.slice(0, 10)
+  let result = "+7"
+  if (d.length > 0) result += ` (${d.slice(0, 3)}`
+  if (d.length >= 3) result += ")"
+  if (d.length > 3) result += ` ${d.slice(3, 6)}`
+  if (d.length > 6) result += `-${d.slice(6, 8)}`
+  if (d.length > 8) result += `-${d.slice(8, 10)}`
+  return result
+}
 type AuthMode = "login" | "register"
 
 interface ActionState {
@@ -30,6 +44,9 @@ export default function AuthPage() {
   const [isPending, startTransition] = useTransition()
   const [loginState, setLoginState] = useState<ActionState>({ success: false })
   const [registerState, setRegisterState] = useState<ActionState>({ success: false })
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegPassword, setShowRegPassword] = useState(false)
+  const [phone, setPhone] = useState("")
   const router = useRouter()
   const { toast } = useToast()
   const isMobile = useIsMobile()
@@ -164,24 +181,33 @@ export default function AuthPage() {
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="login-password" className="text-sm">Пароль</Label>
-                      <Input 
-                        id="login-password" 
-                        name="password" 
-                        type="password" 
-                        placeholder="Укажите пароль"
-                        required 
-                        className="h-9 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300"
-                        style={{
-                          outline: 'none !important',
-                          boxShadow: 'none !important',
-                          borderColor: 'rgb(209 213 219) !important'
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.outline = 'none'
-                          e.target.style.boxShadow = 'none'
-                          e.target.style.borderColor = 'rgb(209 213 219)'
-                        }}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="login-password"
+                          name="password"
+                          type={showLoginPassword ? "text" : "password"}
+                          placeholder="Укажите пароль"
+                          required
+                          className="h-9 rounded-full pr-10 focus:outline-none focus:ring-0 focus:border-gray-300"
+                          style={{
+                            outline: 'none !important',
+                            boxShadow: 'none !important',
+                            borderColor: 'rgb(209 213 219) !important'
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.outline = 'none'
+                            e.target.style.boxShadow = 'none'
+                            e.target.style.borderColor = 'rgb(209 213 219)'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   </form>
                   
@@ -295,21 +321,24 @@ export default function AuthPage() {
                         
                         <div className="space-y-1">
                           <Label htmlFor="phone" className="text-sm">Номер телефона</Label>
-                          <Input 
-                            name="phone" 
-                            type="tel" 
-                            placeholder="+7 777 123 45 67" 
-                            required 
+                          <Input
+                            name="phone"
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(formatPhone(e.target.value))}
+                            onFocus={(e) => {
+                              if (!phone) setPhone("+7")
+                              e.target.style.outline = 'none'
+                              e.target.style.boxShadow = 'none'
+                              e.target.style.borderColor = 'rgb(209 213 219)'
+                            }}
+                            placeholder="+7 (___) ___-__-__"
+                            required
                             className="h-9 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300"
                             style={{
                               outline: 'none !important',
                               boxShadow: 'none !important',
                               borderColor: 'rgb(209 213 219) !important'
-                            }}
-                            onFocus={(e) => {
-                              e.target.style.outline = 'none'
-                              e.target.style.boxShadow = 'none'
-                              e.target.style.borderColor = 'rgb(209 213 219)'
                             }}
                           />
                         </div>
@@ -446,23 +475,32 @@ export default function AuthPage() {
                         
                         <div className="space-y-1">
                           <Label htmlFor="password" className="text-sm">Пароль</Label>
-                          <Input 
-                            name="password" 
-                            type="password" 
-                            placeholder="Укажите пароль"
-                            required 
-                            className="h-9 rounded-full focus:outline-none focus:ring-0 focus:border-gray-300"
-                            style={{
-                              outline: 'none !important',
-                              boxShadow: 'none !important',
-                              borderColor: 'rgb(209 213 219) !important'
-                            }}
-                            onFocus={(e) => {
-                              e.target.style.outline = 'none'
-                              e.target.style.boxShadow = 'none'
-                              e.target.style.borderColor = 'rgb(209 213 219)'
-                            }}
-                          />
+                          <div className="relative">
+                            <Input
+                              name="password"
+                              type={showRegPassword ? "text" : "password"}
+                              placeholder="Укажите пароль"
+                              required
+                              className="h-9 rounded-full pr-10 focus:outline-none focus:ring-0 focus:border-gray-300"
+                              style={{
+                                outline: 'none !important',
+                                boxShadow: 'none !important',
+                                borderColor: 'rgb(209 213 219) !important'
+                              }}
+                              onFocus={(e) => {
+                                e.target.style.outline = 'none'
+                                e.target.style.boxShadow = 'none'
+                                e.target.style.borderColor = 'rgb(209 213 219)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowRegPassword(!showRegPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>

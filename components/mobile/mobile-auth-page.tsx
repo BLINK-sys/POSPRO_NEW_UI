@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,10 +11,27 @@ import { toast } from "@/hooks/use-toast"
 
 type OrgType = "individual" | "ip" | "too"
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  // Remove leading 7 or 8 if present (country code)
+  const raw = digits.startsWith("7") || digits.startsWith("8") ? digits.slice(1) : digits
+  const d = raw.slice(0, 10)
+  let result = "+7"
+  if (d.length > 0) result += ` (${d.slice(0, 3)}`
+  if (d.length >= 3) result += ")"
+  if (d.length > 3) result += ` ${d.slice(3, 6)}`
+  if (d.length > 6) result += `-${d.slice(6, 8)}`
+  if (d.length > 8) result += `-${d.slice(8, 10)}`
+  return result
+}
+
 export default function MobileAuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  const [showPassword, setShowPassword] = useState(false)
+  const [showRegPassword, setShowRegPassword] = useState(false)
 
   // Login state
   const [email, setEmail] = useState("")
@@ -59,11 +76,11 @@ export default function MobileAuthPage() {
       formData.append("email", regEmail)
       formData.append("password", regPassword)
       formData.append("phone", regPhone)
-      formData.append("organization_type", orgType)
-      formData.append("delivery_address", deliveryAddress)
-      if (orgType === "individual") formData.append("full_name", fullName)
-      if (orgType === "ip") formData.append("ip_name", ipName)
-      if (orgType === "too") formData.append("too_name", tooName)
+      formData.append("organizationType", orgType)
+      formData.append("deliveryAddress", deliveryAddress)
+      if (orgType === "individual") formData.append("fullName", fullName)
+      if (orgType === "ip") formData.append("ipName", ipName)
+      if (orgType === "too") formData.append("tooName", tooName)
 
       const result = await registerAction({ success: false }, formData)
       if (result.success) {
@@ -132,13 +149,22 @@ export default function MobileAuthPage() {
           </div>
           <div>
             <Label className="text-sm mb-1.5 block">Пароль</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введите пароль"
-              className="h-11 rounded-lg"
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Введите пароль"
+                className="h-11 rounded-lg pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           <Button
             className="w-full bg-brand-yellow text-black hover:bg-yellow-500 font-bold py-2.5 rounded-xl h-11"
@@ -191,7 +217,14 @@ export default function MobileAuthPage() {
 
           <div>
             <Label className="text-sm mb-1.5 block">Телефон</Label>
-            <Input type="tel" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} placeholder="+7 (___) ___-__-__" className="h-11 rounded-lg" />
+            <Input
+              type="tel"
+              value={regPhone}
+              onChange={(e) => setRegPhone(formatPhone(e.target.value))}
+              onFocus={() => { if (!regPhone) setRegPhone("+7") }}
+              placeholder="+7 (___) ___-__-__"
+              className="h-11 rounded-lg"
+            />
           </div>
 
           {orgType === "individual" && (
@@ -222,7 +255,16 @@ export default function MobileAuthPage() {
 
           <div>
             <Label className="text-sm mb-1.5 block">Пароль</Label>
-            <Input type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} placeholder="Минимум 6 символов" className="h-11 rounded-lg" />
+            <div className="relative">
+              <Input type={showRegPassword ? "text" : "password"} value={regPassword} onChange={(e) => setRegPassword(e.target.value)} placeholder="Минимум 6 символов" className="h-11 rounded-lg pr-10" />
+              <button
+                type="button"
+                onClick={() => setShowRegPassword(!showRegPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <Button

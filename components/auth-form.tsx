@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,19 @@ import Link from "next/link"
 
 type OrganizationType = "individual" | "ip" | "too"
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  const raw = digits.startsWith("7") || digits.startsWith("8") ? digits.slice(1) : digits
+  const d = raw.slice(0, 10)
+  let result = "+7"
+  if (d.length > 0) result += ` (${d.slice(0, 3)}`
+  if (d.length >= 3) result += ")"
+  if (d.length > 3) result += ` ${d.slice(3, 6)}`
+  if (d.length > 6) result += `-${d.slice(6, 8)}`
+  if (d.length > 8) result += `-${d.slice(8, 10)}`
+  return result
+}
+
 interface ActionState {
   error?: string
   success?: boolean
@@ -25,6 +39,9 @@ export function AuthForm() {
   const [isPending, startTransition] = useTransition()
   const [loginState, setLoginState] = useState<ActionState>({ success: false })
   const [registerState, setRegisterState] = useState<ActionState>({ success: false })
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegPassword, setShowRegPassword] = useState(false)
+  const [phone, setPhone] = useState("")
   const router = useRouter()
   const { toast } = useToast()
 
@@ -101,7 +118,16 @@ export function AuthForm() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Пароль</Label>
-                    <Input id="login-password" name="password" type="password" required />
+                    <div className="relative">
+                      <Input id="login-password" name="password" type={showLoginPassword ? "text" : "password"} required />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full bg-brand-yellow text-black hover:bg-yellow-500" disabled={isPending}>
                     {isPending ? "Вход..." : "Войти"}
@@ -144,7 +170,15 @@ export function AuthForm() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Номер телефона</Label>
-                    <Input name="phone" type="tel" placeholder="+7 777 123 45 67" required />
+                    <Input
+                      name="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhone(e.target.value))}
+                      onFocus={() => { if (!phone) setPhone("+7") }}
+                      placeholder="+7 (___) ___-__-__"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="deliveryAddress">Адрес доставки</Label>
@@ -152,7 +186,16 @@ export function AuthForm() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Пароль</Label>
-                    <Input name="password" type="password" required />
+                    <div className="relative">
+                      <Input name="password" type={showRegPassword ? "text" : "password"} required />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {organizationType === "individual" && (
