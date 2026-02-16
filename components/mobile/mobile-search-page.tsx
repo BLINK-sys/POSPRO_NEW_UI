@@ -179,6 +179,8 @@ export default function MobileSearchPage() {
         status: product.status && typeof product.status === "object" ? product.status : undefined,
         brand_id: product.brand_id ? Number(product.brand_id) : null,
         brand_info: product.brand_info,
+        supplier_id: product.supplier_id ?? null,
+        supplier_name: product.supplier_name || product.supplier?.name || null,
         description: product.description,
         category_id: product.category_id ? Number(product.category_id) : undefined,
         category: product.category,
