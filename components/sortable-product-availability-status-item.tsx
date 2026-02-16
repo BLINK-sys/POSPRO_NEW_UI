@@ -69,6 +69,11 @@ export function SortableProductAvailabilityStatusItem({
               Неактивен
             </Badge>
           )}
+          {status.supplier_name && (
+            <span className="ml-2 text-xs text-gray-500">
+              ({status.supplier_name})
+            </span>
+          )}
         </div>
 
         {/* Формула */}

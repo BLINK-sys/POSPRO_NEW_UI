@@ -10,18 +10,20 @@ import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
 import { SortableProductAvailabilityStatusItem } from "./sortable-product-availability-status-item"
-import { 
-  getProductAvailabilityStatuses, 
-  createProductAvailabilityStatus, 
-  updateProductAvailabilityStatus, 
+import {
+  getProductAvailabilityStatuses,
+  createProductAvailabilityStatus,
+  updateProductAvailabilityStatus,
   deleteProductAvailabilityStatus,
   reorderProductAvailabilityStatuses,
   type ProductAvailabilityStatus,
   type CreateProductAvailabilityStatusData
 } from "@/app/actions/product-availability-statuses"
+import { getSuppliers, type Supplier } from "@/app/actions/suppliers"
 
 export default function ProductAvailabilityStatusesTab() {
   const [statuses, setStatuses] = useState<ProductAvailabilityStatus[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingStatus, setEditingStatus] = useState<ProductAvailabilityStatus | null>(null)
   const [deletingStatus, setDeletingStatus] = useState<ProductAvailabilityStatus | null>(null)
@@ -48,8 +50,18 @@ export default function ProductAvailabilityStatusesTab() {
     }
   }
 
+  const loadSuppliers = async () => {
+    try {
+      const data = await getSuppliers()
+      setSuppliers(data)
+    } catch (error) {
+      console.error("Error loading suppliers:", error)
+    }
+  }
+
   useEffect(() => {
     loadStatuses()
+    loadSuppliers()
   }, [])
 
   const handleSaveStatus = async (data: Omit<ProductAvailabilityStatus, "id" | "order"> & { order?: number }) => {
@@ -212,6 +224,7 @@ export default function ProductAvailabilityStatusesTab() {
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
           onSave={handleSaveStatus}
+          suppliers={suppliers}
         />
       )}
 

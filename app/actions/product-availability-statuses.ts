@@ -12,6 +12,8 @@ export interface ProductAvailabilityStatus {
   text_color: string
   order: number
   active: boolean
+  supplier_id: number | null
+  supplier_name: string | null
 }
 
 export interface CreateProductAvailabilityStatusData {
@@ -22,6 +24,7 @@ export interface CreateProductAvailabilityStatusData {
   text_color: string
   order?: number
   active?: boolean
+  supplier_id?: number | null
 }
 
 export async function getProductAvailabilityStatuses() {
