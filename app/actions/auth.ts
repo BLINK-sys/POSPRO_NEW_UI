@@ -211,14 +211,18 @@ export async function logoutAction() {
     // Удаляем cookies
     cookies().delete("jwt-token")
     cookies().delete("user-data")
-
-    // Не перенаправляем, пользователь остается на текущей странице
   } catch (error) {
     console.error("Logout Action Error:", error)
     // Принудительно удаляем cookies
     cookies().delete("jwt-token")
     cookies().delete("user-data")
   }
+
+  // redirect() ДОЛЖЕН быть вне try/catch — он бросает специальную ошибку NEXT_REDIRECT.
+  // Когда server action вызывает redirect(), Next.js НЕ перерендеривает текущую страницу,
+  // а отправляет клиенту инструкцию навигации. Это предотвращает ошибку
+  // "Rendered more hooks than during the previous render" на защищённых страницах.
+  redirect("/")
 }
 
 export async function getProfile(): Promise<User | null> {

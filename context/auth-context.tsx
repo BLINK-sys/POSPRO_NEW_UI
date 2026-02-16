@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
 import { logoutAction } from "@/app/actions/auth"
 
 interface User {
@@ -42,21 +41,17 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<User | null>(initialUser)
   const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
-
   useEffect(() => {
     setUser(initialUser)
     setIsLoading(false)
   }, [initialUser])
 
   const handleLogout = useCallback(async () => {
-    await logoutAction()
+    // Сбрасываем user ДО вызова server action — после await код не выполнится,
+    // потому что logoutAction() вызывает redirect("/") на сервере
     setUser(null)
-    // Навигируем на главную — это обновит серверные данные без router.refresh()
-    // (refresh на защищённых страницах вызывает redirect("/auth") на сервере,
-    //  что ломает React Router: "Rendered more hooks than during the previous render")
-    router.push("/")
-  }, [router])
+    await logoutAction()
+  }, [])
 
   return (
     <AuthContext.Provider value={{ user, setUser, logout: handleLogout, isLoading, setIsLoading }}>
