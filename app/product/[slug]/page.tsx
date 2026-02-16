@@ -266,11 +266,13 @@ export default function ProductPage() {
   const productVideos = productMedia.filter(m => m.media_type === 'video')
 
   // Подсчитываем количество активных табов
-  const activeTabsCount = 
-    (product?.description && product.description.trim() !== '' ? 1 : 0) +
-    (product?.characteristics.length > 0 ? 1 : 0) +
-    (product?.documents.length > 0 ? 1 : 0) +
-    (product?.drivers.length > 0 ? 1 : 0)
+  const hasCharacteristics = product?.characteristics && product.characteristics.length > 0
+  const hasDocuments = product?.documents && product.documents.length > 0
+  const hasDrivers = product?.drivers && product.drivers.length > 0
+  const tabCount = (hasCharacteristics ? 1 : 0) + (hasDocuments ? 1 : 0) + (hasDrivers ? 1 : 0)
+  const activeTabsCount =
+    (product?.description && product.description.trim() !== '' ? 1 : 0) + tabCount
+  const gridColsClass = tabCount === 1 ? "grid-cols-1" : tabCount === 2 ? "grid-cols-2" : "grid-cols-3"
 
   const wholesaleUser = isWholesaleUser(user)
   const showWholesalePrice = wholesaleUser
@@ -608,7 +610,7 @@ export default function ProductPage() {
         {activeTabsCount > 0 ? (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 rounded-full shadow-md h-12 p-1">
+              <TabsList className={`grid w-full ${gridColsClass} rounded-full shadow-md h-12 p-1`}>
                 {product.characteristics.length > 0 && (
                   <TabsTrigger value="characteristics" className="rounded-full data-[state=active]:shadow-md mx-1">Характеристики</TabsTrigger>
                 )}

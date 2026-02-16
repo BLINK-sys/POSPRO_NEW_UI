@@ -133,6 +133,10 @@ export async function registerAction(prevState: ActionState, formData: FormData)
       if (error.message.includes("<!DOCTYPE")) {
         return { error: "Сервер недоступен. Проверьте подключение к API." }
       }
+      const msg = error.message.toLowerCase()
+      if (msg.includes("already") || msg.includes("exist") || msg.includes("duplicate") || msg.includes("уже")) {
+        return { error: "Этот Email уже зарегистрирован. Попробуйте войти или используйте другой Email." }
+      }
       return { error: error.message }
     }
     return { error: "Произошла ошибка при регистрации" }
