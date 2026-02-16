@@ -292,10 +292,10 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
             <p className="text-[11px] text-gray-700 font-medium line-clamp-2 leading-tight overflow-hidden">
               {product.name}
             </p>
-            <p className={`text-[11px] font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+            <p className={`text-[11px] font-bold ${getRetailPriceClass(wholesaleUser)}`}>
               <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
             </p>
-            {wholesaleUser && product.wholesale_price && (
+            {wholesaleUser && (
               <p className={`text-[11px] font-bold ${getWholesalePriceClass()}`}>
                 <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
               </p>

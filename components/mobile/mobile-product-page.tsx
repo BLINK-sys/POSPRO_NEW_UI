@@ -337,10 +337,10 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
 
         {/* Цены */}
         <div className="space-y-1">
-          <div className={`text-xl font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+          <div className={`text-xl font-bold ${getRetailPriceClass(wholesaleUser)}`}>
             {formatProductPrice(product.price)}
           </div>
-          {wholesaleUser && product.wholesale_price && (
+          {wholesaleUser && (
             <div className={`text-base font-bold ${getWholesalePriceClass()}`}>
               Оптовая: {formatProductPrice(product.wholesale_price)}
             </div>
@@ -479,7 +479,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
       {/* Sticky кнопка "В корзину" */}
       <div className="fixed bottom-16 left-0 right-0 z-40 bg-white dark:bg-gray-950 border-t border-gray-200 px-4 py-3 flex items-center gap-3">
         <div className="flex-1">
-          <div className={`text-lg font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+          <div className={`text-lg font-bold ${getRetailPriceClass(wholesaleUser)}`}>
             {formatProductPrice(product.price)}
           </div>
         </div>

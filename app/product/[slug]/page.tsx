@@ -276,7 +276,7 @@ export default function ProductPage() {
 
   const wholesaleUser = isWholesaleUser(user)
   const showWholesalePrice = wholesaleUser
-  const retailPriceColor = getRetailPriceClass(product?.price, wholesaleUser)
+  const retailPriceColor = getRetailPriceClass(wholesaleUser)
   const wholesalePriceColor = getWholesalePriceClass()
 
   if (loading) {

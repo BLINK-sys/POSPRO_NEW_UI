@@ -820,7 +820,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                   <span className="font-medium">Товар:</span> {product.name}
                 </div>
                 
-                <div className={`text-xs font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                   <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
                 </div>
 

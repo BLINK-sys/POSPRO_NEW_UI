@@ -478,7 +478,7 @@ export default function CategoryPage() {
                              <span className="font-medium">Товар:</span> {product.name}
                            </div>
                            
-                           <div className={`text-sm font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                           <div className={`text-sm font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
                            </div>
 
@@ -581,7 +581,7 @@ export default function CategoryPage() {
                       {/* Цена */}
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-500 mb-1">Цена</div>
-                        <p className={`text-base font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                        <p className={`text-base font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                           Цена: {formatProductPrice(product.price)}
                         </p>
 

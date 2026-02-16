@@ -126,7 +126,7 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                         <span className="font-medium">Товар:</span> {favorite.product.name}
                       </div>
 
-                      <div className={`text-xs font-bold ${getRetailPriceClass(favorite.product.price, wholesaleUser)}`}>
+                      <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                         <span className="font-medium">Цена:</span>{" "}
                         {formatProductPrice(favorite.product.price)}
                       </div>

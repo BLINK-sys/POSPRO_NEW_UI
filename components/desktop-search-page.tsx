@@ -519,10 +519,10 @@ export default function DesktopSearchPage() {
                                 <div className="text-xs text-gray-600">
                                   <span className="font-medium">Товар:</span> {product.name}
                                 </div>
-                                <div className={`text-xs font-bold ${getRetailPriceClass(product.price, wholesaleUser)}`}>
+                                <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                                   <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
                                 </div>
-                                {wholesaleUser && product.wholesale_price && (
+                                {wholesaleUser && (
                                   <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
                                     <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
                                   </div>

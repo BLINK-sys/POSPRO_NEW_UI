@@ -5,12 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatProductPrice(price?: number | null): string {
-  if (price === null || price === undefined || price <= 0) {
+export function formatProductPrice(price?: number | string | null): string {
+  if (price === null || price === undefined || price === "" || Number(price) <= 0) {
     return "Цену уточняйте"
   }
 
-  return `${price.toLocaleString("ru-RU")} тг`
+  return `${Number(price).toLocaleString("ru-RU")} тг`
 }
 
 export function isWholesaleUser(user?: { role?: string; [key: string]: any } | null): boolean {
@@ -41,16 +41,9 @@ export function isWholesaleUser(user?: { role?: string; [key: string]: any } | n
   return false
 }
 
-export function getRetailPriceClass(price?: number | null, wholesaleUser = false): string {
-  if (wholesaleUser) {
-    return "text-red-600"
-  }
-
-  if (price && price > 0) {
-    return "text-green-600"
-  }
-
-  return "text-red-600"
+export function getRetailPriceClass(showWholesale = false): string {
+  // Если показываем обе цены — розница красная, иначе зелёная
+  return showWholesale ? "text-red-600" : "text-green-600"
 }
 
 export function getWholesalePriceClass(): string {
