@@ -85,14 +85,35 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         maxAge: 60 * 60 * 24 * 7, // 7 дней
       })
 
-      // Сохраняем информацию о пользователе
-      if (data.user) {
-        cookies().set("user-data", JSON.stringify(data.user), {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 7, // 7 дней
+      // Запрашиваем полный профиль (login response может не содержать все поля)
+      try {
+        const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+          method: "GET",
+          headers: { Authorization: `Bearer ${data.token}` },
+          cache: "no-store",
         })
+        if (profileResponse.ok) {
+          const contentType = profileResponse.headers.get("content-type")
+          if (contentType?.includes("application/json")) {
+            const profileData = await profileResponse.json()
+            cookies().set("user-data", JSON.stringify(profileData), {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "lax",
+              maxAge: 60 * 60 * 24 * 7,
+            })
+          }
+        }
+      } catch (profileError) {
+        // Фоллбэк: сохраняем данные из login ответа
+        if (data.user) {
+          cookies().set("user-data", JSON.stringify(data.user), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 7,
+          })
+        }
       }
 
       return { success: true }
@@ -252,13 +273,34 @@ export async function updateProfileAction(formData: FormData): Promise<ActionSta
       body: JSON.stringify(payload),
     })
 
-    const result = await handleApiResponse(response, "Ошибка обновления профиля")
+    await handleApiResponse(response, "Ошибка обновления профиля")
 
-    // Очищаем кэш данных пользователя, чтобы при следующем запросе получить свежие данные
-    cookies().delete("user-data")
+    // Загружаем свежие данные профиля и обновляем куку (НЕ удаляем, иначе разлогинит)
+    try {
+      const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      })
+      if (profileResponse.ok) {
+        const contentType = profileResponse.headers.get("content-type")
+        if (contentType?.includes("application/json")) {
+          const profileData = await profileResponse.json()
+          cookies().set("user-data", JSON.stringify(profileData), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 7,
+          })
+        }
+      }
+    } catch (profileError) {
+      // Если не удалось получить свежие данные — просто удаляем кэш
+      cookies().delete("user-data")
+    }
 
-    // Обновляем кэш для страницы профиля, чтобы отобразить новые данные
     revalidatePath("/profile")
+    revalidatePath("/profile/settings")
 
     return { success: true, message: "Профиль успешно обновлен!" }
   } catch (error) {
