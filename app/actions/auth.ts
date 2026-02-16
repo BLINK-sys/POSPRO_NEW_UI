@@ -85,7 +85,8 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         maxAge: 60 * 60 * 24 * 7, // 7 дней
       })
 
-      // Запрашиваем полный профиль (login response может не содержать все поля)
+      // Пытаемся получить полный профиль (login response может не содержать все поля)
+      let userData = data.user
       try {
         const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
           method: "GET",
@@ -95,25 +96,21 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         if (profileResponse.ok) {
           const contentType = profileResponse.headers.get("content-type")
           if (contentType?.includes("application/json")) {
-            const profileData = await profileResponse.json()
-            cookies().set("user-data", JSON.stringify(profileData), {
-              httpOnly: true,
-              secure: process.env.NODE_ENV === "production",
-              sameSite: "lax",
-              maxAge: 60 * 60 * 24 * 7,
-            })
+            userData = await profileResponse.json()
           }
         }
       } catch (profileError) {
-        // Фоллбэк: сохраняем данные из login ответа
-        if (data.user) {
-          cookies().set("user-data", JSON.stringify(data.user), {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 7,
-          })
-        }
+        console.error("Failed to fetch full profile after login:", profileError)
+      }
+
+      // Всегда сохраняем данные пользователя (полные или из login ответа)
+      if (userData) {
+        cookies().set("user-data", JSON.stringify(userData), {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 60 * 60 * 24 * 7,
+        })
       }
 
       return { success: true }
