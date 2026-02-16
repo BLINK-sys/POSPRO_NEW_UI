@@ -42,7 +42,7 @@ const handleApiResponse = async (response: Response, errorMessage: string) => {
     let apiError = errorMessage
     try {
       const errorData = await response.json()
-      apiError = errorData.message || errorMessage
+      apiError = errorData.message || errorData.error || errorMessage
     } catch (parseError) {
       console.error("Error parsing error response:", parseError)
     }
