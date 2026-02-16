@@ -38,6 +38,7 @@ export default function BrandPage() {
 
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
   
   const [brandData, setBrandData] = useState<PaginatedBrandProducts | null>(null)
   const [categories, setCategories] = useState<CategoryWithCount[]>([])
@@ -542,6 +543,13 @@ export default function BrandPage() {
                                   )}
                                 </div>
                                 
+                                {/* Поставщик (только для админов) */}
+                                {isSystemUser && product.supplier_name && (
+                                  <div className="text-xs text-gray-500 truncate">
+                                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
+                                  </div>
+                                )}
+
                                 {/* Кнопка "Добавить в корзину" */}
                                 <AddToCartButton
                                   productId={product.id}

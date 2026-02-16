@@ -33,6 +33,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   const blockRef = useRef<HTMLElement | null>(null)
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
 
   // Автоматическое вращение карусели
   useEffect(() => {
@@ -849,6 +850,13 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                   )}
                 </div>
                 
+                {/* Поставщик (только для админов) */}
+                {isSystemUser && product.supplier_name && (
+                  <div className="text-xs text-gray-500 truncate">
+                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
+                  </div>
+                )}
+
                 {/* Кнопка "Добавить в корзину" */}
                 <AddToCartButton
                   productId={product.id}

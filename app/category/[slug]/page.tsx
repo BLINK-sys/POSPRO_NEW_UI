@@ -47,6 +47,7 @@ export default function CategoryPage() {
   const isMobile = useIsMobile()
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
 
   const [data, setData] = useState<CategoryPageData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -507,6 +508,13 @@ export default function CategoryPage() {
                              )}
                            </div>
                            
+                           {/* Поставщик (только для админов) */}
+                           {isSystemUser && product.supplier_name && (
+                             <div className="text-xs text-gray-500 truncate">
+                               <span className="font-medium">Поставщик:</span> {product.supplier_name}
+                             </div>
+                           )}
+
                            {/* Кнопка "Добавить в корзину" */}
                            <AddToCartButton
                              productId={product.id}
@@ -541,8 +549,11 @@ export default function CategoryPage() {
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-500 mb-1">Наименование</div>
                         <h3 className="font-bold text-gray-900 text-base line-clamp-2">{product.name}</h3>
+                        {isSystemUser && product.supplier_name && (
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">Поставщик: {product.supplier_name}</p>
+                        )}
                       </div>
-                      
+
                       {/* Бренд */}
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-500 mb-1">Бренд</div>

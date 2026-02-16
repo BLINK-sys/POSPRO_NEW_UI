@@ -252,6 +252,9 @@ function MobileProductsBlock({ items, wholesaleUser }: { items: ProductData[]; w
 }
 
 function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; wholesaleUser: boolean }) {
+  const { user } = useAuth()
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
+
   return (
     <div className="shrink-0 w-[160px]">
       <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
@@ -317,6 +320,13 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
               ) : null}
             </div>
           </div>
+
+          {/* Поставщик (только для админов) */}
+          {isSystemUser && product.supplier_name && (
+            <p className="text-[10px] text-gray-500 truncate">
+              <span className="font-medium">Поставщик:</span> {product.supplier_name}
+            </p>
+          )}
 
           <div className="mt-1.5">
             <AddToCartButton

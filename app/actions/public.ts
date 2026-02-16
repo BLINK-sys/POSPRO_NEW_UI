@@ -66,6 +66,8 @@ export interface ProductData {
     image_url?: string
   }
   quantity: number
+  supplier_id?: number | null
+  supplier_name?: string | null
   image_url?: string
   availability_status?: ProductAvailabilityStatus
 }
@@ -384,6 +386,8 @@ export async function getAllProducts(): Promise<ProductData[]> {
           status: product.status,
           brand_id: product.brand_id,
           brand_info: product.brand_info,
+          supplier_id: product.supplier_id,
+          supplier_name: product.supplier_name || product.supplier?.name || null,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,
@@ -391,7 +395,7 @@ export async function getAllProducts(): Promise<ProductData[]> {
         }
       })
     )
-    
+
     return productsWithStatuses
   } catch (error) {
     console.error("Error fetching products:", error)
@@ -434,6 +438,8 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
       status: product.status && typeof product.status === 'object' ? product.status : undefined,
       brand_id: product.brand_id ? Number(product.brand_id) : null,
       brand_info: product.brand_info,
+      supplier_id: product.supplier_id ?? null,
+      supplier_name: product.supplier_name || product.supplier?.name || null,
       description: product.description,
       category_id: product.category_id ? Number(product.category_id) : undefined,
       category: product.category,
@@ -485,6 +491,8 @@ export async function getProductsByBrand(brandName: string): Promise<{
           status: product.status,
           brand_id: product.brand_id,
           brand_info: product.brand_info,
+          supplier_id: product.supplier_id,
+          supplier_name: product.supplier_name || product.supplier?.name || null,
           description: product.description,
           category_id: product.category_id,
           image_url: product.image,
@@ -738,6 +746,8 @@ const normalizeProduct = (product: any): ProductData => {
     brand_id: product.brand_id,
     brand_info: product.brand_info || product.brand,
     quantity: typeof product.quantity === "number" ? product.quantity : Number(product.quantity) || 0,
+    supplier_id: product.supplier_id ?? null,
+    supplier_name: product.supplier_name || product.supplier?.name || null,
     image_url: product.image_url ?? product.image ?? product.imageUrl ?? undefined,
     availability_status: product.availability_status ?? undefined,
   }

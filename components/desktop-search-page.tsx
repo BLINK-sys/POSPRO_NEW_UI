@@ -24,6 +24,7 @@ const PAGE_SIZE = 50
 export default function DesktopSearchPage() {
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
   const searchParams = useSearchParams()
 
   const [query, setQuery] = useState("")
@@ -543,6 +544,12 @@ export default function DesktopSearchPage() {
                                     <span>{product.quantity} шт.</span>
                                   )}
                                 </div>
+                                {/* Поставщик (только для админов) */}
+                                {isSystemUser && product.supplier_name && (
+                                  <div className="text-xs text-gray-500 truncate">
+                                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
+                                  </div>
+                                )}
                                 <div onClick={(e) => e.preventDefault()}>
                                   <AddToCartButton
                                     productId={product.id}

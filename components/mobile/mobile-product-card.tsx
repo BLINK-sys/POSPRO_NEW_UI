@@ -8,6 +8,7 @@ import { getImageUrl } from "@/lib/image-utils"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass } from "@/lib/utils"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { useAuth } from "@/context/auth-context"
 
 interface MobileProductCardProps {
   product: {
@@ -21,6 +22,7 @@ interface MobileProductCardProps {
     status?: { name: string; background_color: string; text_color: string }
     availability_status?: { status_name: string; background_color: string; text_color: string } | null
     quantity?: number
+    supplier_name?: string | null
   }
   wholesaleUser?: boolean
   showFavorite?: boolean
@@ -28,6 +30,9 @@ interface MobileProductCardProps {
 }
 
 export default function MobileProductCard({ product, wholesaleUser = false, showFavorite = true, onFavoriteToggle }: MobileProductCardProps) {
+  const { user } = useAuth()
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
+
   return (
     <Link href={`/product/${product.slug}`}>
       <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full">
@@ -107,6 +112,13 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
                 <span>{product.quantity} шт.</span>
               ) : null}
             </div>
+
+            {/* Поставщик (только для админов) */}
+            {isSystemUser && product.supplier_name && (
+              <p className="text-[10px] text-gray-500 truncate">
+                <span className="font-medium">Поставщик:</span> {product.supplier_name}
+              </p>
+            )}
 
             {/* Кнопка В корзину */}
             <div className="pt-1" onClick={(e) => e.preventDefault()}>

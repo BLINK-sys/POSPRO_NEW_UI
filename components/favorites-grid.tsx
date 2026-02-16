@@ -19,6 +19,7 @@ interface FavoritesGridProps {
 export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridProps) {
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
+  const isSystemUser = user?.role === "admin" || user?.role === "system"
 
   // Создаем FavoriteButton для страницы избранного (как на главной странице)
   const FavoriteButtonForFavoritePage = ({ productId, productName }: { productId: number, productName: string }) => {
@@ -156,6 +157,13 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                           <span>Наличие уточняйте</span>
                         )}
                       </div>
+
+                      {/* Поставщик (только для админов) */}
+                      {isSystemUser && (favorite.product as any).supplier_name && (
+                        <div className="text-xs text-gray-500 truncate">
+                          <span className="font-medium">Поставщик:</span> {(favorite.product as any).supplier_name}
+                        </div>
+                      )}
 
                       <AddToCartButton
                         productId={favorite.product.id}
