@@ -55,6 +55,8 @@ interface ProductDetail {
   description?: string
   category_id?: number
   image?: string
+  supplier_id?: number | null
+  supplier?: { id: number; name: string } | null
   availability_status?: ProductAvailabilityStatus
   characteristics: Array<{
     id: number
@@ -500,12 +502,18 @@ export default function ProductPage() {
               </div>
             )}
             
+            {user?.role === "system" && product.supplier?.name && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Поставщик:</span> {product.supplier.name}
+              </div>
+            )}
+
             {(product.country || product.brand_info?.country) && (
               <div className="text-sm text-gray-600">
                 <span className="font-medium">Страна производитель:</span> {product.country || product.brand_info?.country}
               </div>
             )}
-            
+
             {/* Статус наличия */}
             <div className="text-sm text-gray-600">
               <span className="font-medium">Наличие:</span>{" "}

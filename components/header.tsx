@@ -29,11 +29,12 @@ import { API_BASE_URL } from "@/lib/api-address"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, usePathname } from "next/navigation"
+import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
-  const { toggleCatalogPanel, closeCatalogPanel } = useCatalogPanel()
+  const { closeCatalogPanel } = useCatalogPanel()
   const router = useRouter()
   const pathname = usePathname()
   const [categories, setCategories] = useState<CategoryData[]>([])
@@ -927,24 +928,8 @@ export default function Header() {
 
       </div>
 
-      {/* Кнопка панели каталога — только на главной, висит под header */}
-      {pathname === "/" && (
-        <Button
-          className="absolute top-full left-1/2 -translate-x-1/2 z-10 bg-brand-yellow text-black hover:bg-yellow-500 rounded-t-none rounded-b-2xl shadow-md hover:shadow-lg transition-shadow duration-200 px-6 py-2 flex items-center gap-2"
-          size="sm"
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: "smooth" })
-            toggleCatalogPanel()
-          }}
-        >
-          {categoriesLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Grid3X3 className="h-5 w-5" />
-          )}
-          <span className="text-sm font-medium">Каталог главная страница</span>
-        </Button>
-      )}
+      {/* Выдвижная панель каталога — только на главной */}
+      {pathname === "/" && <HeaderCatalogSlidePanel />}
     </header>
   )
 }
