@@ -5,7 +5,7 @@ import { updateProfileAction } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { User, Phone, Smile, Lock, Eye, EyeOff, Mail, MapPin, FileText, Building } from "lucide-react"
 
 // Определяем тип для начальных данных

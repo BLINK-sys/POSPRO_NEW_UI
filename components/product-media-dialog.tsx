@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { Loader2, Trash2, Video, GripVertical, Upload, Link, Play, ImageIcon, Youtube } from "lucide-react"
 
 interface ProductMediaDialogProps {
