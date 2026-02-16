@@ -223,7 +223,7 @@ export default function ProductPage() {
         }
         
         // Получаем статус наличия для товара
-        const availabilityStatus = await getProductAvailabilityStatus(productData.quantity)
+        const availabilityStatus = await getProductAvailabilityStatus(productData.quantity, productData.supplier_id)
         
         // Добавляем статус наличия к данным товара
         const productWithStatus = {
