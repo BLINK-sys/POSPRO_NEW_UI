@@ -55,6 +55,25 @@ const handleApiResponse = async (response: Response, errorMessage: string) => {
   return await response.json()
 }
 
+// Маппинг API ответа (camelCase) в формат фронтенда (snake_case)
+function mapApiProfileToUser(data: any): User {
+  return {
+    id: data.id,
+    email: data.email,
+    phone: data.phone,
+    organization_type: data.organizationType || data.organization_type,
+    full_name: data.fullName || data.full_name,
+    ip_name: data.ipName || data.ip_name,
+    too_name: data.tooName || data.too_name,
+    delivery_address: data.deliveryAddress || data.delivery_address,
+    iin: data.iin,
+    bin: data.bin,
+    role: data.role,
+    is_wholesale: data.is_wholesale ?? data.isWholesale,
+    access: data.access,
+  }
+}
+
 export async function loginAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const email = formData.get("email") as string
@@ -85,10 +104,10 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         maxAge: 60 * 60 * 24 * 7, // 7 дней
       })
 
-      // Пытаемся получить полный профиль (login response может не содержать все поля)
-      let userData = data.user
+      // Получаем полный профиль из /api/profile (login и /auth/profile возвращают урезанные данные)
+      let userData: User | null = null
       try {
-        const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+        const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
           method: "GET",
           headers: { Authorization: `Bearer ${data.token}` },
           cache: "no-store",
@@ -96,14 +115,19 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         if (profileResponse.ok) {
           const contentType = profileResponse.headers.get("content-type")
           if (contentType?.includes("application/json")) {
-            userData = await profileResponse.json()
+            const profileData = await profileResponse.json()
+            userData = mapApiProfileToUser(profileData)
           }
         }
       } catch (profileError) {
         console.error("Failed to fetch full profile after login:", profileError)
       }
 
-      // Всегда сохраняем данные пользователя (полные или из login ответа)
+      // Фоллбэк: данные из login ответа (урезанные, но лучше чем ничего)
+      if (!userData && data.user) {
+        userData = mapApiProfileToUser(data.user)
+      }
+
       if (userData) {
         cookies().set("user-data", JSON.stringify(userData), {
           httpOnly: true,
@@ -214,10 +238,10 @@ export async function getProfile(): Promise<User | null> {
       }
     }
 
-    // Если данных в cookies нет, запрашиваем с сервера
-    console.log("Fetching profile from:", getApiUrl(API_ENDPOINTS.AUTH.PROFILE))
+    // Если данных в cookies нет, запрашиваем полный профиль из /api/profile
+    console.log("Fetching profile from:", getApiUrl(API_ENDPOINTS.PROFILE.GET))
 
-    const response = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+    const response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -226,16 +250,17 @@ export async function getProfile(): Promise<User | null> {
     })
 
     const data = await handleApiResponse(response, "Ошибка получения профиля")
+    const user = mapApiProfileToUser(data)
 
     // Сохраняем данные в cookies для следующих запросов
-    cookies().set("user-data", JSON.stringify(data), {
+    cookies().set("user-data", JSON.stringify(user), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 дней
     })
 
-    return data
+    return user
   } catch (error) {
     console.error("Get Profile Error:", error)
     return null
@@ -272,9 +297,9 @@ export async function updateProfileAction(formData: FormData): Promise<ActionSta
 
     await handleApiResponse(response, "Ошибка обновления профиля")
 
-    // Загружаем свежие данные профиля и обновляем куку (НЕ удаляем, иначе разлогинит)
+    // Загружаем свежие данные из /api/profile и обновляем куку
     try {
-      const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+      const profileResponse = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -283,7 +308,8 @@ export async function updateProfileAction(formData: FormData): Promise<ActionSta
         const contentType = profileResponse.headers.get("content-type")
         if (contentType?.includes("application/json")) {
           const profileData = await profileResponse.json()
-          cookies().set("user-data", JSON.stringify(profileData), {
+          const user = mapApiProfileToUser(profileData)
+          cookies().set("user-data", JSON.stringify(user), {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
