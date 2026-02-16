@@ -56,19 +56,20 @@ const handleApiResponse = async (response: Response, errorMessage: string) => {
 }
 
 // Маппинг API ответа (camelCase) в формат фронтенда (snake_case)
-function mapApiProfileToUser(data: any): User {
+function mapApiProfileToUser(data: any): User | null {
+  if (!data || typeof data !== 'object') return null
   return {
     id: data.id,
-    email: data.email,
+    email: data.email || '',
     phone: data.phone,
     organization_type: data.organizationType || data.organization_type,
-    full_name: data.fullName || data.full_name,
+    full_name: data.fullName || data.full_name || data.name,
     ip_name: data.ipName || data.ip_name,
     too_name: data.tooName || data.too_name,
     delivery_address: data.deliveryAddress || data.delivery_address,
     iin: data.iin,
     bin: data.bin,
-    role: data.role,
+    role: data.role || 'client',
     is_wholesale: data.is_wholesale ?? data.isWholesale,
     access: data.access,
   }
@@ -252,13 +253,14 @@ export async function getProfile(): Promise<User | null> {
     const data = await handleApiResponse(response, "Ошибка получения профиля")
     const user = mapApiProfileToUser(data)
 
-    // Сохраняем данные в cookies для следующих запросов
-    cookies().set("user-data", JSON.stringify(user), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 дней
-    })
+    if (user) {
+      cookies().set("user-data", JSON.stringify(user), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    }
 
     return user
   } catch (error) {
@@ -309,12 +311,14 @@ export async function updateProfileAction(formData: FormData): Promise<ActionSta
         if (contentType?.includes("application/json")) {
           const profileData = await profileResponse.json()
           const user = mapApiProfileToUser(profileData)
-          cookies().set("user-data", JSON.stringify(user), {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 7,
-          })
+          if (user) {
+            cookies().set("user-data", JSON.stringify(user), {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "lax",
+              maxAge: 60 * 60 * 24 * 7,
+            })
+          }
         }
       }
     } catch (profileError) {
