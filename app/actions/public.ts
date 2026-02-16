@@ -160,7 +160,7 @@ export async function getHomepageData(): Promise<PublicHomepageData> {
           // Получаем статусы наличия для товаров в блоке
           const productsWithStatuses = await Promise.all(
             block.items.map(async (product: any) => {
-              const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
+              const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
               return {
                 ...product,
                 // Преобразуем brand в brand_info для совместимости
@@ -297,7 +297,7 @@ export async function getCategoryData(
     // Получаем статусы наличия для товаров категории
     const productsWithStatuses = await Promise.all(
       data.products.map(async (product: any) => {
-        const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
+        const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
         return {
           ...product,
           // Преобразуем brand в brand_info для совместимости
@@ -371,12 +371,9 @@ export async function getAllProducts(): Promise<ProductData[]> {
     const products = await response.json()
     
     // Получаем статусы наличия для всех товаров
-    console.log('Getting availability statuses for products...')
     const productsWithStatuses = await Promise.all(
       products.map(async (product: any) => {
-        console.log(`Getting status for product ${product.name} with quantity ${product.quantity}`)
-        const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
-        console.log(`Status for ${product.name}:`, availabilityStatus)
+        const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
         return {
           id: product.id,
           name: product.name,
@@ -477,7 +474,7 @@ export async function getProductsByBrand(brandName: string): Promise<{
     // Получаем статусы наличия для товаров бренда
     const productsWithStatuses = await Promise.all(
       data.products.map(async (product: any) => {
-        const availabilityStatus = await getProductAvailabilityStatus(product.quantity)
+        const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
         return {
           id: product.id,
           name: product.name,
@@ -664,10 +661,14 @@ export interface ProductAvailabilityStatus {
 }
 
 // Функция для получения статуса наличия по количеству товара
-export async function getProductAvailabilityStatus(quantity: number): Promise<ProductAvailabilityStatus | null> {
+export async function getProductAvailabilityStatus(quantity: number, supplierId?: number | null): Promise<ProductAvailabilityStatus | null> {
   try {
-    console.log(`Fetching availability status for quantity: ${quantity}`)
-    const response = await fetch(`${getApiUrl('/api/product-availability-statuses/check')}/${quantity}`, {
+    const params = new URLSearchParams()
+    if (supplierId) {
+      params.append('supplier_id', supplierId.toString())
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+    const response = await fetch(`${getApiUrl('/api/product-availability-statuses/check')}/${quantity}${queryString}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -675,14 +676,11 @@ export async function getProductAvailabilityStatus(quantity: number): Promise<Pr
       cache: 'no-store'
     })
 
-    console.log(`Response status: ${response.status}`)
     if (!response.ok) {
-      console.error('Error fetching availability status:', response.status)
       return null
     }
 
     const data = await response.json()
-    console.log('Response data:', data)
     return data.status || null
   } catch (error) {
     console.error('Error fetching product availability status:', error)
