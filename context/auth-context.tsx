@@ -52,8 +52,10 @@ export function AuthProvider({
   const handleLogout = useCallback(async () => {
     await logoutAction()
     setUser(null)
-    // Не перенаправляем, пользователь остается на текущей странице
-    router.refresh()
+    // Навигируем на главную — это обновит серверные данные без router.refresh()
+    // (refresh на защищённых страницах вызывает redirect("/auth") на сервере,
+    //  что ломает React Router: "Rendered more hooks than during the previous render")
+    router.push("/")
   }, [router])
 
   return (

@@ -1,10 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ShoppingCart, Star, Package, History, Settings, LogOut, User, ChevronRight } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
-import { cn } from "@/lib/utils"
 
 const menuItems = [
   { label: "Заказы", icon: Package, href: "/profile/orders" },
@@ -16,7 +14,6 @@ const menuItems = [
 
 export default function MobileProfilePage() {
   const { user, logout } = useAuth()
-  const router = useRouter()
 
   if (!user) {
     return (
@@ -93,7 +90,7 @@ export default function MobileProfilePage() {
 
         {/* Выход */}
         <button
-          onClick={async () => { await logout(); router.push("/") }}
+          onClick={() => logout()}
           className="flex items-center gap-4 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors w-full text-left"
         >
           <LogOut className="h-5 w-5 text-red-500" />
