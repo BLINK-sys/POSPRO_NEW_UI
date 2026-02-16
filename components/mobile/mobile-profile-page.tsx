@@ -48,6 +48,11 @@ export default function MobileProfilePage() {
             <p className="text-base font-semibold truncate">{displayName}</p>
             <p className="text-sm text-gray-500 truncate">{user.email}</p>
             {user.phone && <p className="text-xs text-gray-400">{user.phone}</p>}
+            {user.organization_type && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {user.organization_type === "individual" ? "Физ. лицо" : user.organization_type === "ip" ? "ИП" : "ТОО"}
+              </p>
+            )}
           </div>
         </div>
       </div>

@@ -20,6 +20,9 @@ export interface User {
   full_name?: string
   ip_name?: string
   too_name?: string
+  delivery_address?: string
+  iin?: string
+  bin?: string
   role: string
   access?: Record<string, boolean>
   is_wholesale?: boolean
@@ -221,7 +224,7 @@ export async function getProfile(): Promise<User | null> {
   }
 }
 
-export async function updateProfileAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
+export async function updateProfileAction(formData: FormData): Promise<ActionState> {
   try {
     const token = cookies().get("jwt-token")?.value
     if (!token) {

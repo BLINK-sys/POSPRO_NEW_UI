@@ -1,20 +1,29 @@
+import { redirect } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { getProfile } from "@/app/actions/auth"
+import { ProfileForm } from "@/components/profile-form"
 import MobilePageWrapper from "@/components/mobile/mobile-page-wrapper"
-import MobileProfilePage from "@/components/mobile/mobile-profile-page"
+import MobileProfileSettings from "@/components/mobile/mobile-profile-settings"
 
-export default function ProfileSettingsPage() {
+export default async function ProfileSettingsPage() {
+  const user = await getProfile()
+
+  if (!user) {
+    redirect("/auth")
+  }
+
   return (
     <MobilePageWrapper
-      mobileComponent={<MobileProfilePage />}
+      mobileComponent={<MobileProfileSettings />}
       desktopContent={
-        <div className="container py-10">
+        <div className="container mx-auto max-w-3xl py-10">
           <Card>
             <CardHeader>
-              <CardTitle>Настройки</CardTitle>
+              <CardTitle>Настройки профиля</CardTitle>
               <CardDescription>Управление настройками вашего аккаунта.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Настройки уведомлений, пароля и т.д. будут здесь.</p>
+              <ProfileForm initialData={user} />
             </CardContent>
           </Card>
         </div>

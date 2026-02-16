@@ -2,31 +2,16 @@
 
 import { useState, useTransition } from "react"
 import { updateProfileAction } from "@/app/actions/auth"
+import type { User } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { User, Phone, Smile, Lock, Eye, EyeOff, Mail, MapPin, FileText, Building } from "lucide-react"
+import { User as UserIcon, Phone, Smile, Lock, Eye, EyeOff, Mail, MapPin, FileText, Building } from "lucide-react"
 
-// Определяем тип для начальных данных
-interface UserProfile {
-  role: "admin" | "client"
-  organizationType?: "individual" | "ip" | "too"
-  email: string
-  phone?: string
-  deliveryAddress?: string
-  fullName?: string
-  iin?: string
-  ipName?: string
-  bin?: string
-  tooName?: string
-  [key: string]: any
-}
-
-export function ProfileForm({ initialData }: { initialData: UserProfile }) {
+export function ProfileForm({ initialData }: { initialData: User }) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
-  const [state, setState] = useState<{ success: boolean; message?: string; error?: string }>({ success: false })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
@@ -34,8 +19,7 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
     startTransition(async () => {
       try {
         const result = await updateProfileAction(formData)
-        setState(result)
-        
+
         if (result.success) {
           toast({
             title: "Успех!",
@@ -59,6 +43,8 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
     })
   }
 
+  const orgType = initialData.organization_type
+
   return (
     <div className="bg-gray-100 rounded-lg p-6">
       <form onSubmit={(e) => {
@@ -70,17 +56,17 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
           {/* Левая колонка - Личные данные */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Личные данные</h3>
-            
+
             {/* ФИО для физических лиц */}
-            {initialData.role === "client" && initialData.organizationType === "individual" && (
+            {initialData.role === "client" && orgType === "individual" && (
               <div className="space-y-2">
                 <Label htmlFor="fullName" className="text-sm text-gray-600">ФИО</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="fullName" 
-                    name="fullName" 
-                    defaultValue={initialData.fullName} 
+                  <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    defaultValue={initialData.full_name}
                     className="pl-10 bg-white border-gray-300"
                   />
                 </div>
@@ -88,15 +74,15 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
             )}
 
             {/* Название ИП для ИП */}
-            {initialData.role === "client" && initialData.organizationType === "ip" && (
+            {initialData.role === "client" && orgType === "ip" && (
               <div className="space-y-2">
                 <Label htmlFor="ipName" className="text-sm text-gray-600">Название ИП</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="ipName" 
-                    name="ipName" 
-                    defaultValue={initialData.ipName} 
+                  <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="ipName"
+                    name="ipName"
+                    defaultValue={initialData.ip_name}
                     className="pl-10 bg-white border-gray-300"
                   />
                 </div>
@@ -104,15 +90,15 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
             )}
 
             {/* Название ТОО для ТОО */}
-            {initialData.role === "client" && initialData.organizationType === "too" && (
+            {initialData.role === "client" && orgType === "too" && (
               <div className="space-y-2">
                 <Label htmlFor="tooName" className="text-sm text-gray-600">Название ТОО</Label>
                 <div className="relative">
                   <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="tooName" 
-                    name="tooName" 
-                    defaultValue={initialData.tooName} 
+                  <Input
+                    id="tooName"
+                    name="tooName"
+                    defaultValue={initialData.too_name}
                     className="pl-10 bg-white border-gray-300"
                   />
                 </div>
@@ -124,12 +110,12 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
               <Label htmlFor="email" className="text-sm text-gray-600">E-mail</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="email" 
-                  name="email" 
-                  type="email" 
-                  defaultValue={initialData.email} 
-                  disabled 
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  defaultValue={initialData.email}
+                  disabled
                   className="pl-10 bg-white border-gray-300"
                 />
               </div>
@@ -137,15 +123,15 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
             </div>
 
             {/* ИИН для ИП */}
-            {initialData.role === "client" && initialData.organizationType === "ip" && (
+            {initialData.role === "client" && orgType === "ip" && (
               <div className="space-y-2">
                 <Label htmlFor="iin" className="text-sm text-gray-600">ИИН</Label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="iin" 
-                    name="iin" 
-                    defaultValue={initialData.iin} 
+                  <Input
+                    id="iin"
+                    name="iin"
+                    defaultValue={initialData.iin}
                     maxLength={12}
                     className="pl-10 bg-white border-gray-300"
                   />
@@ -154,15 +140,15 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
             )}
 
             {/* БИН для ТОО */}
-            {initialData.role === "client" && initialData.organizationType === "too" && (
+            {initialData.role === "client" && orgType === "too" && (
               <div className="space-y-2">
                 <Label htmlFor="bin" className="text-sm text-gray-600">БИН</Label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="bin" 
-                    name="bin" 
-                    defaultValue={initialData.bin} 
+                  <Input
+                    id="bin"
+                    name="bin"
+                    defaultValue={initialData.bin}
                     maxLength={12}
                     className="pl-10 bg-white border-gray-300"
                   />
@@ -175,11 +161,11 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
               <Label htmlFor="phone" className="text-sm text-gray-600">Номер телефона</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="phone" 
-                  name="phone" 
-                  type="tel" 
-                  defaultValue={initialData.phone} 
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  defaultValue={initialData.phone}
                   className="pl-10 bg-white border-gray-300"
                 />
               </div>
@@ -191,10 +177,10 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
                 <Label htmlFor="deliveryAddress" className="text-sm text-gray-600">Адрес доставки</Label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="deliveryAddress" 
-                    name="deliveryAddress" 
-                    defaultValue={initialData.deliveryAddress} 
+                  <Input
+                    id="deliveryAddress"
+                    name="deliveryAddress"
+                    defaultValue={initialData.delivery_address}
                     placeholder="Введите адрес доставки"
                     className="pl-10 bg-white border-gray-300"
                   />
@@ -208,10 +194,10 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
                 <Label htmlFor="fullName" className="text-sm text-gray-600">Полное Имя</Label>
                 <div className="relative">
                   <Smile className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input 
-                    id="fullName" 
-                    name="fullName" 
-                    defaultValue={initialData.fullName} 
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    defaultValue={initialData.full_name}
                     className="pl-10 bg-white border-gray-300"
                   />
                 </div>
@@ -222,15 +208,15 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
           {/* Правая колонка - Управление паролем */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Управление паролем</h3>
-            
+
             {/* Пароль */}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm text-gray-600">Пароль</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="password" 
-                  name="password" 
+                <Input
+                  id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   className="pl-10 pr-10 bg-white border-gray-300"
                 />
@@ -250,9 +236,9 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
               <Label htmlFor="confirmPassword" className="text-sm text-gray-600">Повторите новый пароль</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="confirmPassword" 
-                  name="confirmPassword" 
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   className="pl-10 pr-10 bg-white border-gray-300"
                 />
@@ -270,9 +256,9 @@ export function ProfileForm({ initialData }: { initialData: UserProfile }) {
 
         {/* Кнопка сохранения */}
         <div className="flex justify-end pt-6">
-          <Button 
-            type="submit" 
-            disabled={isPending} 
+          <Button
+            type="submit"
+            disabled={isPending}
             className="bg-brand-yellow text-black hover:bg-yellow-500 px-8 py-2 rounded-lg font-medium"
           >
             {isPending ? "Сохранение..." : "Сохранить изменения"}
