@@ -255,7 +255,7 @@ export function ProfileForm({ initialData }: { initialData: User }) {
         </div>
 
         {/* Кнопка сохранения */}
-        <div className="flex justify-end pt-6">
+        <div className="flex justify-center pt-6">
           <Button
             type="submit"
             disabled={isPending}
