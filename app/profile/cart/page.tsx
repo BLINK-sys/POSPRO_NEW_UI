@@ -28,11 +28,13 @@ interface CartItem {
   product_id: number
   quantity: number
   total_price: number
+  effective_price: number
   product: {
     id: number
     name: string
     slug: string
     price: number
+    wholesale_price?: number | null
     article: string
     image_url: string | null
     status: any
@@ -148,13 +150,13 @@ export default function ProfileCartPage() {
         if (!prev) return prev
         return {
           ...prev,
-          items: prev.items.map(item => 
-            item.id === itemId 
-              ? { ...item, quantity: newQuantity, total_price: item.product.price * newQuantity }
+          items: prev.items.map(item =>
+            item.id === itemId
+              ? { ...item, quantity: newQuantity, total_price: item.effective_price * newQuantity }
               : item
           ),
-          total_amount: prev.items.reduce((sum, item) => 
-            sum + (item.id === itemId ? item.product.price * newQuantity : item.total_price), 0
+          total_amount: prev.items.reduce((sum, item) =>
+            sum + (item.id === itemId ? item.effective_price * newQuantity : item.total_price), 0
           )
         }
       })
@@ -427,7 +429,7 @@ export default function ProfileCartPage() {
                           
                           <div className="text-right">
                             <div className="text-lg font-semibold">
-                              {(localQuantities[item.id] ?? item.quantity)}x{item.product.price.toLocaleString()} тг
+                              {(localQuantities[item.id] ?? item.quantity)}x{item.effective_price.toLocaleString()} тг
                             </div>
                             
                             {/* Счетчик количества под ценой */}

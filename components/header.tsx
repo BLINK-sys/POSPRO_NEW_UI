@@ -932,7 +932,10 @@ export default function Header() {
         <Button
           className="absolute top-full left-1/2 -translate-x-1/2 z-10 bg-brand-yellow text-black hover:bg-yellow-500 rounded-t-none rounded-b-2xl shadow-md hover:shadow-lg transition-shadow duration-200 px-6 py-2 flex items-center gap-2"
           size="sm"
-          onClick={toggleCatalogPanel}
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: "smooth" })
+            toggleCatalogPanel()
+          }}
         >
           {categoriesLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />

@@ -36,6 +36,11 @@ export function AddToCartButton({
   const { updateCartCount } = useCart()
   const router = useRouter()
 
+  // Скрываем кнопку для системных пользователей (админ, модератор)
+  if (user && user.role !== 'client') {
+    return null
+  }
+
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()

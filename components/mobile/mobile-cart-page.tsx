@@ -127,7 +127,7 @@ export default function MobileCartPage() {
   }
 
   const totalAmount = items.reduce((sum, item) => {
-    const price = item.product?.price || 0
+    const price = item.effective_price || item.product?.price || 0
     return sum + price * (item.quantity || 1)
   }, 0)
 
@@ -204,7 +204,7 @@ export default function MobileCartPage() {
             </Link>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium line-clamp-2 leading-tight">{item.product?.name}</p>
-              <p className="text-sm font-bold text-green-600 mt-1">{formatProductPrice(item.product?.price)}</p>
+              <p className="text-sm font-bold text-green-600 mt-1">{formatProductPrice(item.effective_price || item.product?.price)}</p>
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleQuantityChange(item.id, (item.quantity || 1) - 1)}>
