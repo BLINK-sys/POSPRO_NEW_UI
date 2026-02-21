@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { AuthProvider } from "@/context/auth-context"
 import { CartProvider } from "@/context/cart-context"
 import { CatalogPanelProvider } from "@/context/catalog-panel-context"
+import { KPProvider } from "@/context/kp-context"
 import { getProfile } from "./actions/auth"
 import { Toaster } from "@/components/ui/toaster"
 import ConditionalLayout from "./conditional-layout"
@@ -30,10 +31,12 @@ export default async function RootLayout({
       <body className={cn("min-h-screen bg-background font-sans antialiased", inter.className)}>
         <AuthProvider initialUser={user}>
           <CartProvider>
-            <CatalogPanelProvider>
-              <ConditionalLayout>{children}</ConditionalLayout>
-              <Toaster />
-            </CatalogPanelProvider>
+            <KPProvider>
+              <CatalogPanelProvider>
+                <ConditionalLayout>{children}</ConditionalLayout>
+                <Toaster />
+              </CatalogPanelProvider>
+            </KPProvider>
           </CartProvider>
         </AuthProvider>
       </body>

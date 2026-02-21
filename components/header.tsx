@@ -19,10 +19,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
+import { useKP } from "@/context/kp-context"
 import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
@@ -34,6 +35,7 @@ import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
+  const { kpCount } = useKP()
   const { closeCatalogPanel } = useCatalogPanel()
   const router = useRouter()
   const pathname = usePathname()
@@ -888,11 +890,24 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {user.role === "admin" ? (
-                  <Link href="/admin" className="flex items-center gap-2 bg-brand-yellow text-black hover:bg-yellow-500 hover:text-black px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
-                    <Settings className="h-5 w-5" />
-                    <span className="text-sm font-medium">Админ панель</span>
-                  </Link>
+                {(user.role === "admin" || user.role === "system") ? (
+                  <>
+                    <Link href="/kp" className="relative flex items-center gap-2 border-2 border-black text-black hover:bg-gray-100 px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
+                      <FileText className="h-5 w-5" />
+                      <span className="text-sm font-medium">Собрать КП</span>
+                      {kpCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                          {kpCount > 99 ? '99+' : kpCount}
+                        </span>
+                      )}
+                    </Link>
+                    {user.role === "admin" && (
+                      <Link href="/admin" className="flex items-center gap-2 bg-brand-yellow text-black hover:bg-yellow-500 hover:text-black px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
+                        <Settings className="h-5 w-5" />
+                        <span className="text-sm font-medium">Админ панель</span>
+                      </Link>
+                    )}
+                  </>
                 ) : (
                   <>
                     <Link href="/profile/cart" className="flex flex-col items-center gap-1 relative">

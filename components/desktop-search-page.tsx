@@ -17,6 +17,7 @@ import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { AddToKPButton } from "@/components/add-to-kp-button"
 import { Slider } from "@/components/ui/slider"
 
 const PAGE_SIZE = 50
@@ -557,6 +558,21 @@ export default function DesktopSearchPage() {
                                   <AddToCartButton
                                     productId={product.id}
                                     productName={product.name}
+                                    className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
+                                    size="sm"
+                                  />
+                                </div>
+                                <div onClick={(e) => e.preventDefault()}>
+                                  <AddToKPButton
+                                    productId={product.id}
+                                    productName={product.name}
+                                    productSlug={product.slug}
+                                    productPrice={product.price}
+                                    productWholesalePrice={product.wholesale_price}
+                                    productImageUrl={product.image_url}
+                                    productDescription={product.description}
+                                    productSupplierName={product.supplier_name}
+                                    productBrandName={product.brand_info?.name}
                                     className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
                                     size="sm"
                                   />
