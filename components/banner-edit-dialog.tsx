@@ -48,6 +48,8 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [imagePreview, setImagePreview] = useState<string>("")
+  // File stored locally when creating a new banner (uploaded after banner creation)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (banner) {
@@ -79,7 +81,17 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
       })
       setImagePreview("")
     }
+    setPendingFile(null)
   }, [banner, open])
+
+  // Cleanup blob URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreview)
+      }
+    }
+  }, [imagePreview])
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -88,8 +100,8 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
   const handleSetStandardColors = () => {
     setFormData((prev) => ({
       ...prev,
-      button_color: "#fbbf24", // Желтый цвет как у кнопки "Личный кабинет"
-      button_text_color: "#000000" // Черный текст
+      button_color: "#fbbf24",
+      button_text_color: "#000000"
     }))
   }
 
@@ -97,24 +109,31 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast.error("Пожалуйста, выберите файл изображения")
       return
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Размер файла не должен превышать 5MB")
       return
     }
 
-    setIsUploading(true)
+    if (!banner) {
+      // New banner — show local preview immediately, upload after save
+      const blobUrl = URL.createObjectURL(file)
+      setImagePreview(blobUrl)
+      setFormData((prev) => ({ ...prev, image: "__pending__" }))
+      setPendingFile(file)
+      return
+    }
 
+    // Existing banner — upload immediately
+    setIsUploading(true)
     try {
       const uploadData = new FormData()
-      uploadData.append("file", file) // API expects "file" field
-      uploadData.append("banner_id", String(banner.id)) // Добавляем ID баннера
+      uploadData.append("file", file)
+      uploadData.append("banner_id", String(banner.id))
 
       const response = await fetch(`${API_BASE_URL}/api/admin/upload-image`, {
         method: "POST",
@@ -143,18 +162,23 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
   const handleRemoveImage = async () => {
     if (!formData.image) return
 
+    // If it was a pending local file — just clear it
+    if (formData.image === "__pending__") {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview)
+      setFormData((prev) => ({ ...prev, image: "" }))
+      setImagePreview("")
+      setPendingFile(null)
+      return
+    }
+
     try {
-      // Extract filename from path
       const filename = formData.image.split("/").pop()
       if (filename) {
-        const response = await fetch(`${API_BASE_URL}/api/admin/images/${filename}`, {
+        await fetch(`${API_BASE_URL}/api/admin/images/${filename}`, {
           method: "DELETE",
           headers: {},
         })
-
-        if (response.ok) {
-          toast.success("Изображение удалено")
-        }
+        toast.success("Изображение удалено")
       }
     } catch (error) {
       console.error("Error deleting image:", error)
@@ -173,13 +197,10 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     setIsSaving(true)
 
     try {
-      const url = banner ? `${API_BASE_URL}/api/admin/banners/${banner.id}` : `${API_BASE_URL}/api/admin/banners`
-      const method = banner ? "PUT" : "POST"
-
       const payload = {
         title: formData.title,
         subtitle: formData.subtitle,
-        image: formData.image,
+        image: formData.image === "__pending__" ? "" : formData.image,
         active: formData.active,
         button_text: formData.button_text,
         button_link: formData.button_link,
@@ -189,24 +210,55 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
         button_text_color: formData.button_text_color,
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
+      if (!banner) {
+        // Step 1: create banner
+        const createResp = await fetch(`${API_BASE_URL}/api/admin/banners`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        const createResult = await createResp.json()
+        if (!createResp.ok) throw new Error(createResult.message || "Failed to create banner")
 
-      const result = await response.json()
+        const newBannerId = createResult.banner?.id ?? createResult.id
 
-      if (!response.ok) {
-        throw new Error(result.message || "Failed to save banner")
+        // Step 2: upload pending image if any
+        if (pendingFile && newBannerId) {
+          const uploadData = new FormData()
+          uploadData.append("file", pendingFile)
+          uploadData.append("banner_id", String(newBannerId))
+
+          const uploadResp = await fetch(`${API_BASE_URL}/api/admin/upload-image`, {
+            method: "POST",
+            body: uploadData,
+          })
+          const uploadResult = await uploadResp.json()
+
+          if (uploadResult.url) {
+            // Step 3: update banner with image URL
+            await fetch(`${API_BASE_URL}/api/admin/banners/${newBannerId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...payload, image: uploadResult.url }),
+            })
+          }
+        }
+
+        toast.success("Баннер создан")
+      } else {
+        // Update existing banner
+        const updateResp = await fetch(`${API_BASE_URL}/api/admin/banners/${banner.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        const updateResult = await updateResp.json()
+        if (!updateResp.ok) throw new Error(updateResult.message || "Failed to update banner")
+
+        toast.success("Баннер обновлен")
       }
 
-      toast.success(banner ? "Баннер обновлен" : "Баннер создан")
       onOpenChange(false)
-
-      // Refresh the list in background
       onRefreshList()
     } catch (error: any) {
       console.error("Error saving banner:", error)
@@ -237,13 +289,13 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
               {imagePreview ? (
                 <Card>
                   <CardContent className="p-4">
-                    <div className="relative">
+                    {/* Preview with same aspect ratio as homepage banner (~16:5) */}
+                    <div className="relative w-full aspect-[16/5] bg-gray-900 rounded-lg overflow-hidden">
                       <img
-                        src={imagePreview || "/placeholder.svg"}
+                        src={imagePreview}
                         alt="Preview"
-                        className="w-full h-48 object-cover rounded-lg"
+                        className="absolute inset-0 w-full h-full object-contain"
                         onError={(e) => {
-                          console.error("Image preview failed to load:", imagePreview)
                           e.currentTarget.src = "/placeholder.svg?height=192&width=384"
                         }}
                       />
@@ -366,7 +418,6 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
-                    {/* Левая колонка - настройки цветов */}
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="button_color">Цвет кнопки</Label>
@@ -406,7 +457,6 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                       </div>
                     </div>
 
-                    {/* Правая колонка - превью кнопки */}
                     <div className="space-y-2">
                       <Label>Превью кнопки</Label>
                       <Card className="p-6 bg-gray-50 h-full flex items-center justify-center">
