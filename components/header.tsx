@@ -51,14 +51,20 @@ export default function Header() {
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
   const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("cards")
-  const [catalogVisibility, setCatalogVisibility] = useState({ sidebar: true, main: true, slide: true })
+  const [catalogVisibility, setCatalogVisibility] = useState<{ sidebar: boolean; main: boolean; slide: boolean } | null>(null)
 
   // Загружаем видимость каталогов (публичный эндпоинт, без авторизации)
   useEffect(() => {
     fetch('/api/public/catalog-visibility')
       .then(r => r.json())
-      .then(data => { if (data.success && data.visibility) setCatalogVisibility(data.visibility) })
-      .catch(() => {/* fallback: всё показываем */})
+      .then(data => {
+        if (data.success && data.visibility) {
+          setCatalogVisibility(data.visibility)
+        } else {
+          setCatalogVisibility({ sidebar: true, main: true, slide: true })
+        }
+      })
+      .catch(() => { setCatalogVisibility({ sidebar: true, main: true, slide: true }) })
   }, [])
 
   useEffect(() => {
@@ -219,7 +225,7 @@ export default function Header() {
   return (
     <header className="bg-white dark:bg-gray-950 shadow-lg sticky top-0 z-50 relative">
       {/* Кнопка-язычок бокового каталога — фиксирована на краю панели */}
-      {catalogVisibility.sidebar && <button
+      {catalogVisibility?.sidebar && <button
         className="fixed top-12 -translate-y-1/2 z-[100] bg-brand-yellow text-black hover:bg-yellow-500 rounded-r-full shadow-lg px-3 pr-4 py-3 flex items-center gap-2 transition-[left] duration-300 ease-in-out cursor-pointer"
         style={{ left: sidebarOpen ? '90vw' : '0' }}
         onClick={() => handleSidebarOpen(!sidebarOpen)}
@@ -584,7 +590,7 @@ export default function Header() {
           </Link>
 
           {/* Кнопки каталога и поиска — сразу после логотипа */}
-          {catalogVisibility.main && <div className="hidden lg:flex ml-2">
+          {catalogVisibility?.main && <div className="hidden lg:flex ml-2">
             <Button
               className={cn(
                 "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-2 flex items-center gap-2",
@@ -953,7 +959,7 @@ export default function Header() {
       </div>
 
       {/* Выдвижная панель каталога — только на главной */}
-      {pathname === "/" && catalogVisibility.slide && <HeaderCatalogSlidePanel />}
+      {pathname === "/" && catalogVisibility?.slide && <HeaderCatalogSlidePanel />}
     </header>
   )
 }
