@@ -47,7 +47,7 @@ export default function MobileHomePage({ banners, blocks }: MobileHomePageProps)
 function BannerSlide({ banner }: { banner: Banner }) {
   const hasContent = banner.title || banner.subtitle || (banner.show_button && banner.button_text)
   return banner.image ? (
-    <div className="relative w-full aspect-[2/1]">
+    <div className="relative w-full aspect-[5/2]">
       <Image
         src={getImageUrl(banner.image)}
         alt={banner.title}
@@ -72,7 +72,7 @@ function BannerSlide({ banner }: { banner: Banner }) {
       )}
     </div>
   ) : (
-    <div className="w-full aspect-[2/1] bg-gray-100 flex items-center justify-center">
+    <div className="w-full aspect-[5/2] bg-gray-100 flex items-center justify-center">
       <div className="text-center p-4">
         <h2 className="text-lg font-bold mb-1">{banner.title}</h2>
         {banner.subtitle && <p className="text-sm text-gray-600">{banner.subtitle}</p>}
