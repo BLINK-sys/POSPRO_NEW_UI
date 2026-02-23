@@ -290,11 +290,11 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                 <Card>
                   <CardContent className="p-4">
                     {/* Preview with same aspect ratio as homepage banner (~16:5) */}
-                    <div className="relative w-full aspect-[16/5] bg-gray-900 rounded-lg overflow-hidden">
+                    <div className="relative w-full aspect-[16/5] rounded-lg overflow-hidden">
                       <img
                         src={imagePreview}
                         alt="Preview"
-                        className="absolute inset-0 w-full h-full object-contain"
+                        className="absolute inset-0 w-full h-full object-fill"
                         onError={(e) => {
                           e.currentTarget.src = "/placeholder.svg?height=192&width=384"
                         }}

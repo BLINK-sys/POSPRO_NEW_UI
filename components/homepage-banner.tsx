@@ -64,12 +64,12 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
               <CardContent className="p-0">
                 <div className="relative">
                   {firstBanner.image ? (
-                    <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-900">
+                    <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem]">
                       <Image
                         src={getImageUrl(firstBanner.image)}
                         alt={firstBanner.title}
                         fill
-                        className="object-contain"
+                        className="object-fill"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
                       />
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -180,12 +180,12 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                     {banners.map((banner, index) => (
                       <div key={banner.id} className="w-full flex-shrink-0">
                         {banner.image ? (
-                          <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-900">
+                          <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem]">
                             <Image
                               src={getImageUrl(banner.image)}
                               alt={banner.title}
                               fill
-                              className="object-contain"
+                              className="object-fill"
                               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
