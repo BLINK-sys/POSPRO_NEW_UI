@@ -189,11 +189,6 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
   }
 
   const handleSave = async () => {
-    if (!formData.title.trim()) {
-      toast.error("Заголовок обязателен")
-      return
-    }
-
     setIsSaving(true)
 
     try {
@@ -341,7 +336,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
             {/* Content Fields */}
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <Label htmlFor="title">Заголовок *</Label>
+                <Label htmlFor="title">Заголовок</Label>
                 <Input
                   id="title"
                   value={formData.title}

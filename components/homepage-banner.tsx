@@ -72,40 +72,44 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                         className="object-fill"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
-                          <CardContent className="p-6">
-                            <div className="text-center text-white">
-                              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4">
-                                {firstBanner.title}
-                              </h2>
-                              {firstBanner.subtitle && (
-                                <p className="text-lg md:text-xl mb-6 max-w-2xl">
-                                  {firstBanner.subtitle}
-                                </p>
-                              )}
-                              {firstBanner.show_button && firstBanner.button_text && (
-                                <Button
-                                  size="lg"
-                                  style={{
-                                    backgroundColor: firstBanner.button_color || "#fbbf24",
-                                    color: firstBanner.button_text_color || "#000000"
-                                  }}
-                                  asChild
-                                >
-                                  <Link 
-                                    href={firstBanner.button_link || "#"}
-                                    target={firstBanner.open_in_new_tab ? "_blank" : "_self"}
-                                    rel={firstBanner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                      {(firstBanner.title || firstBanner.subtitle || (firstBanner.show_button && firstBanner.button_text)) && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
+                            <CardContent className="p-6">
+                              <div className="text-center text-white">
+                                {firstBanner.title && (
+                                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4">
+                                    {firstBanner.title}
+                                  </h2>
+                                )}
+                                {firstBanner.subtitle && (
+                                  <p className="text-lg md:text-xl mb-6 max-w-2xl">
+                                    {firstBanner.subtitle}
+                                  </p>
+                                )}
+                                {firstBanner.show_button && firstBanner.button_text && (
+                                  <Button
+                                    size="lg"
+                                    style={{
+                                      backgroundColor: firstBanner.button_color || "#fbbf24",
+                                      color: firstBanner.button_text_color || "#000000"
+                                    }}
+                                    asChild
                                   >
-                                    {firstBanner.button_text}
-                                  </Link>
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
+                                    <Link
+                                      href={firstBanner.button_link || "#"}
+                                      target={firstBanner.open_in_new_tab ? "_blank" : "_self"}
+                                      rel={firstBanner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                    >
+                                      {firstBanner.button_text}
+                                    </Link>
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-100 flex items-center justify-center">
@@ -188,40 +192,44 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                               className="object-fill"
                               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
                             />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
-                                <CardContent className="p-6">
-                                  <div className="text-center text-white">
-                                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4">
-                                      {banner.title}
-                                    </h2>
-                                    {banner.subtitle && (
-                                      <p className="text-lg md:text-xl mb-6 max-w-2xl">
-                                        {banner.subtitle}
-                                      </p>
-                                    )}
-                                    {banner.show_button && banner.button_text && (
-                                      <Button
-                                        size="lg"
-                                        style={{
-                                          backgroundColor: banner.button_color || "#fbbf24",
-                                          color: banner.button_text_color || "#000000"
-                                        }}
-                                        asChild
-                                      >
-                                        <Link 
-                                          href={banner.button_link || "#"}
-                                          target={banner.open_in_new_tab ? "_blank" : "_self"}
-                                          rel={banner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                            {(banner.title || banner.subtitle || (banner.show_button && banner.button_text)) && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
+                                  <CardContent className="p-6">
+                                    <div className="text-center text-white">
+                                      {banner.title && (
+                                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4">
+                                          {banner.title}
+                                        </h2>
+                                      )}
+                                      {banner.subtitle && (
+                                        <p className="text-lg md:text-xl mb-6 max-w-2xl">
+                                          {banner.subtitle}
+                                        </p>
+                                      )}
+                                      {banner.show_button && banner.button_text && (
+                                        <Button
+                                          size="lg"
+                                          style={{
+                                            backgroundColor: banner.button_color || "#fbbf24",
+                                            color: banner.button_text_color || "#000000"
+                                          }}
+                                          asChild
                                         >
-                                          {banner.button_text}
-                                        </Link>
-                                      </Button>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            </div>
+                                          <Link
+                                            href={banner.button_link || "#"}
+                                            target={banner.open_in_new_tab ? "_blank" : "_self"}
+                                            rel={banner.open_in_new_tab ? "noopener noreferrer" : undefined}
+                                          >
+                                            {banner.button_text}
+                                          </Link>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-100 flex items-center justify-center">
