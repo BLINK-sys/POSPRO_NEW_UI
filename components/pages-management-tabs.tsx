@@ -5,16 +5,22 @@ import BannersTab from "./banners-tab"
 import MainBlocksTab from "./main-blocks-tab"
 import CardsTab from "./cards-tab"
 import FooterInfoTab from "./footer-info-tab"
+import CatalogVisibilityTab from "./catalog-visibility-tab"
 
 export default function PagesManagementTabs() {
   return (
     <Tabs defaultValue="banners" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-5">
+        <TabsTrigger value="catalog-types">Типы каталогов</TabsTrigger>
         <TabsTrigger value="banners">Баннеры</TabsTrigger>
         <TabsTrigger value="main-blocks">Блоки на главной</TabsTrigger>
         <TabsTrigger value="cards">Карточки</TabsTrigger>
         <TabsTrigger value="footer-info">Инфо подвала</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="catalog-types" className="mt-6">
+        <CatalogVisibilityTab />
+      </TabsContent>
 
       <TabsContent value="banners" className="mt-6">
         <BannersTab />
