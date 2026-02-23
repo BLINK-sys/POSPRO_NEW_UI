@@ -45,28 +45,31 @@ export default function MobileHomePage({ banners, blocks }: MobileHomePageProps)
 
 /* ========== Отдельная карточка баннера ========== */
 function BannerSlide({ banner }: { banner: Banner }) {
+  const hasContent = banner.title || banner.subtitle || (banner.show_button && banner.button_text)
   return banner.image ? (
     <div className="relative w-full aspect-[2/1]">
       <Image
         src={getImageUrl(banner.image)}
         alt={banner.title}
         fill
-        className="object-cover"
+        className="object-fill"
         sizes="100vw"
       />
-      <div className="absolute inset-0 bg-black/30 flex items-center justify-center p-4">
-        <div className="text-center text-white">
-          <h2 className="text-lg font-bold mb-1">{banner.title}</h2>
-          {banner.subtitle && (
-            <p className="text-sm mb-3 line-clamp-2">{banner.subtitle}</p>
-          )}
-          {banner.show_button && banner.button_text && (
-            <Button size="sm" className="bg-brand-yellow text-black hover:bg-yellow-500" asChild>
-              <Link href={banner.button_link || "#"}>{banner.button_text}</Link>
-            </Button>
-          )}
+      {hasContent && (
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center p-4">
+          <div className="text-center text-white">
+            {banner.title && <h2 className="text-lg font-bold mb-1">{banner.title}</h2>}
+            {banner.subtitle && (
+              <p className="text-sm mb-3 line-clamp-2">{banner.subtitle}</p>
+            )}
+            {banner.show_button && banner.button_text && (
+              <Button size="sm" className="bg-brand-yellow text-black hover:bg-yellow-500" asChild>
+                <Link href={banner.button_link || "#"}>{banner.button_text}</Link>
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   ) : (
     <div className="w-full aspect-[2/1] bg-gray-100 flex items-center justify-center">
