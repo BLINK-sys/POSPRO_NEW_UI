@@ -335,8 +335,8 @@ export default function ProfileCartPage() {
 
                           <div className="flex items-center justify-between gap-3">
                             <Link href={`/product/${item.product_slug}`} className="min-w-0 flex-1">
-                              <div className="inline-flex items-center h-10 px-4 py-2 rounded-md border border-input bg-gray-200 hover:bg-yellow-400 hover:text-black text-black text-sm font-medium shadow-sm transition-colors w-full overflow-hidden">
-                                <span className="truncate">{item.product_name}</span>
+                              <div className="inline-flex items-center px-4 py-2 rounded-md border border-input bg-gray-200 hover:bg-yellow-400 hover:text-black text-black text-sm font-medium shadow-sm transition-colors w-full">
+                                <span className="break-words line-clamp-2">{item.product_name}</span>
                               </div>
                             </Link>
 
@@ -609,8 +609,8 @@ export default function ProfileCartPage() {
 
                         <div className="flex items-center justify-between gap-3">
                           <Link href={`/product/${item.product.slug}`} className="min-w-0 flex-1">
-                            <div className="inline-flex items-center h-10 px-4 py-2 rounded-md border border-input bg-gray-200 hover:bg-yellow-400 hover:text-black text-black text-sm font-medium shadow-sm transition-colors w-full overflow-hidden">
-                              <span className="truncate">{item.product.name}</span>
+                            <div className="inline-flex items-center px-4 py-2 rounded-md border border-input bg-gray-200 hover:bg-yellow-400 hover:text-black text-black text-sm font-medium shadow-sm transition-colors w-full">
+                              <span className="break-words line-clamp-2">{item.product.name}</span>
                             </div>
                           </Link>
 
