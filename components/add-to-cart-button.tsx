@@ -7,34 +7,42 @@ import { addToCart } from '@/app/actions/cart'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useCart } from '@/context/cart-context'
-import { useRouter } from 'next/navigation'
 
 interface AddToCartButtonProps {
   productId: number
   productName: string
+  productSlug?: string
+  productPrice?: number
+  productImageUrl?: string | null
+  productArticle?: string
   quantity?: number
   disabled?: boolean
   className?: string
   variant?: "default" | "ghost" | "outline" | "secondary"
   size?: "sm" | "default" | "lg"
   showText?: boolean
+  children?: React.ReactNode
 }
 
 export function AddToCartButton({
   productId,
   productName,
+  productSlug = '',
+  productPrice = 0,
+  productImageUrl = null,
+  productArticle = '',
   quantity = 1,
   disabled = false,
   className,
   variant = "default",
   size = "default",
-  showText = true
+  showText = true,
+  children
 }: AddToCartButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
-  const { updateCartCount } = useCart()
-  const router = useRouter()
+  const { updateCartCount, addToGuestCart } = useCart()
 
   // Скрываем кнопку для системных пользователей (админ, модератор)
   if (user && user.role !== 'client') {
@@ -45,14 +53,20 @@ export function AddToCartButton({
     e.preventDefault()
     e.stopPropagation()
 
-    // Проверяем авторизацию
+    // Гостевая корзина — сохраняем в localStorage
     if (!user) {
+      addToGuestCart({
+        product_id: productId,
+        product_name: productName,
+        product_slug: productSlug,
+        product_price: productPrice,
+        product_image_url: productImageUrl,
+        product_article: productArticle,
+      }, quantity)
       toast({
-        title: 'Требуется авторизация',
-        description: 'Войдите в аккаунт, чтобы добавить товар в корзину',
-        variant: 'destructive'
+        title: 'Добавлено!',
+        description: `${productName} добавлен в корзину`
       })
-      router.push('/auth')
       return
     }
 
@@ -69,7 +83,7 @@ export function AddToCartButton({
     setIsLoading(true)
     try {
       const result = await addToCart(productId, quantity)
-      
+
       if (result.success) {
         toast({
           title: 'Успешно!',
@@ -104,12 +118,18 @@ export function AddToCartButton({
       onClick={handleAddToCart}
       disabled={disabled || isLoading}
     >
-      {isLoading ? (
-        <Loader2 className={`h-4 w-4 animate-spin ${showText ? "mr-2" : ""}`} />
+      {children ? (
+        isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : children
       ) : (
-        <ShoppingCart className={`h-4 w-4 ${showText ? "mr-2" : ""}`} />
+        <>
+          {isLoading ? (
+            <Loader2 className={`h-4 w-4 animate-spin ${showText ? "mr-2" : ""}`} />
+          ) : (
+            <ShoppingCart className={`h-4 w-4 ${showText ? "mr-2" : ""}`} />
+          )}
+          {showText && "В корзину"}
+        </>
       )}
-      {showText && "В корзину"}
     </Button>
   )
 }

@@ -125,6 +125,10 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
               <AddToCartButton
                 productId={product.id}
                 productName={product.name}
+                productSlug={product.slug}
+                productPrice={product.price}
+                productImageUrl={product.image_url}
+                productArticle={product.article || ''}
                 className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1.5 rounded-lg text-xs h-8"
                 size="sm"
               />

@@ -335,6 +335,10 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
             <AddToCartButton
               productId={product.id}
               productName={product.name}
+              productSlug={product.slug}
+              productPrice={product.price}
+              productImageUrl={product.image_url}
+              productArticle={product.article || ''}
               className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1 rounded-lg text-[10px] h-7"
               size="sm"
             />

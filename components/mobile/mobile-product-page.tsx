@@ -46,6 +46,9 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null)
+  const [showPriceInquiry, setShowPriceInquiry] = useState(false)
+  const [inquiryName, setInquiryName] = useState("")
+  const [inquiryPhone, setInquiryPhone] = useState("")
   const touchStartX = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -354,6 +357,44 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
           )}
         </div>
 
+        {(!product.price || Number(product.price) <= 0) && (
+          <div className="space-y-3">
+            <Button
+              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium"
+              onClick={() => setShowPriceInquiry(!showPriceInquiry)}
+            >
+              Уточнить цену
+            </Button>
+
+            {showPriceInquiry && (
+              <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <input
+                  type="text"
+                  placeholder="Имя"
+                  value={inquiryName}
+                  onChange={(e) => setInquiryName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent"
+                />
+                <input
+                  type="tel"
+                  placeholder="Телефон"
+                  value={inquiryPhone}
+                  onChange={(e) => setInquiryPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent"
+                />
+                <Button
+                  className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium"
+                  onClick={() => {
+                    // TODO: отправка запроса на уточнение цены
+                  }}
+                >
+                  Узнать цену
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Описание */}
         {description && (
           <div>
@@ -493,6 +534,10 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
         <AddToCartButton
           productId={product.id}
           productName={product.name}
+          productSlug={product.slug}
+          productPrice={product.price}
+          productImageUrl={product.image_url}
+          productArticle={product.article || ''}
           className="bg-brand-yellow hover:bg-yellow-500 text-black font-bold px-6 py-2.5 rounded-xl shadow-lg text-sm"
         />
       </div>

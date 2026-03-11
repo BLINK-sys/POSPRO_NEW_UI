@@ -519,6 +519,10 @@ export default function CategoryPage() {
                            <AddToCartButton
                              productId={product.id}
                              productName={product.name}
+                             productSlug={product.slug}
+                             productPrice={product.price}
+                             productImageUrl={product.image_url}
+                             productArticle={product.article || ''}
                              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-4 rounded-lg"
                              size="sm"
                            />
@@ -619,6 +623,10 @@ export default function CategoryPage() {
                          <AddToCartButton
                           productId={product.id}
                           productName={product.name}
+                          productSlug={product.slug}
+                          productPrice={product.price}
+                          productImageUrl={product.image_url}
+                          productArticle={product.article || ''}
                           className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-4 rounded-lg"
                           size="sm"
                         />

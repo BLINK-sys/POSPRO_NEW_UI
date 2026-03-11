@@ -168,6 +168,10 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                       <AddToCartButton
                         productId={favorite.product.id}
                         productName={favorite.product.name}
+                        productSlug={favorite.product.slug}
+                        productPrice={favorite.product.price}
+                        productImageUrl={favorite.product.image_url}
+                        productArticle={(favorite.product as any).article || ''}
                         className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
                         size="sm"
                       />

@@ -946,11 +946,24 @@ export default function Header() {
               </>
             ) : (
               !isLoading && (
-                <Link href="/auth">
-                  <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
-                    Войти
-                  </Button>
-                </Link>
+                <>
+                  <Link href="/profile/cart" className="flex flex-col items-center gap-1 relative">
+                    <div className="relative">
+                      <ShoppingCart className="h-6 w-6 text-gray-700" />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                          {cartCount > 99 ? '99+' : cartCount}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm text-gray-700">Корзина</span>
+                  </Link>
+                  <Link href="/auth">
+                    <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
+                      Войти
+                    </Button>
+                  </Link>
+                </>
               )
             )}
           </div>

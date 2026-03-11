@@ -554,6 +554,10 @@ export default function BrandPage() {
                                 <AddToCartButton
                                   productId={product.id}
                                   productName={product.name}
+                                  productSlug={product.slug}
+                                  productPrice={product.price}
+                                  productImageUrl={product.image_url}
+                                  productArticle={product.article || ''}
                                   className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
                                   size="sm"
                                 />
