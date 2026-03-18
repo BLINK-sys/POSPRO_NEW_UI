@@ -4,11 +4,13 @@ import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { API_BASE_URL } from "@/lib/api-address"
 
-interface ActionState {
+export interface UserActionState {
   error?: string
   success?: boolean
   message?: string
 }
+
+type ActionState = UserActionState
 
 export interface Client {
   id: number
@@ -30,6 +32,7 @@ export interface SystemUser {
   id: number
   email: string
   full_name: string
+  phone?: string
   role: string
   access: Record<string, boolean>
   created_at: string
@@ -191,7 +194,7 @@ export async function saveSystemUser(prevState: ActionState, formData: FormData)
 
     // Обработка доступов
     const access: Record<string, boolean> = {}
-    const accessKeys = ["dashboard", "users", "products", "orders", "reports", "settings"]
+    const accessKeys = ["orders", "catalog", "clients", "users", "settings", "dashboard", "brands", "statuses", "pages"]
 
     accessKeys.forEach((key) => {
       access[key] = userData[`access_${key}`] === "on"

@@ -343,6 +343,37 @@ export async function updateProfileAction(formData: FormData): Promise<ActionSta
   }
 }
 
+// Принудительно обновить профиль с сервера (игнорируя кэш в cookie)
+export async function refreshProfile(): Promise<User | null> {
+  try {
+    const token = cookies().get("jwt-token")?.value
+    if (!token) return null
+
+    const response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+
+    const data = await handleApiResponse(response, "Ошибка получения профиля")
+    const user = mapApiProfileToUser(data)
+
+    if (user) {
+      cookies().set("user-data", JSON.stringify(user), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      })
+    }
+
+    return user
+  } catch (error) {
+    console.error("Refresh Profile Error:", error)
+    return null
+  }
+}
+
 export async function isAuthenticated(): Promise<boolean> {
   const token = cookies().get("jwt-token")?.value
   return !!token

@@ -3,11 +3,13 @@
 import React from "react"
 
 import type { ReactNode } from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import AdminSidebar from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/context/auth-context"
 
 export default function AdminLayout({
   children,
@@ -15,6 +17,13 @@ export default function AdminLayout({
   children: ReactNode
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const pathname = usePathname()
+  const { refreshUser } = useAuth()
+
+  // Обновляем профиль (и права доступа) при каждом переходе в админке
+  useEffect(() => {
+    refreshUser()
+  }, [pathname, refreshUser])
 
   return (
     <div className="flex min-h-screen bg-gray-100/40 dark:bg-gray-800/40">

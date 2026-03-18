@@ -16,10 +16,18 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
+  // Проверка доступа по полю access
+  // Если access не задан (нет ограничений) — показываем всё
+  const hasAccess = (key: string) => {
+    if (!user) return false
+    if (!user.access) return true
+    return user.access[key] === true
+  }
+
   const navItems = [
     { href: "/", icon: Store, label: "Страница магазина" },
-    { href: "/admin", icon: LayoutDashboard, label: "Дашборд" },
-    { href: "/admin/orders", icon: ShoppingCart, label: "Заказы" },
+    ...(hasAccess("dashboard") ? [{ href: "/admin", icon: LayoutDashboard, label: "Дашборд" }] : []),
+    ...(hasAccess("orders") ? [{ href: "/admin/orders", icon: ShoppingCart, label: "Заказы" }] : []),
   ]
 
   const isActive = (href: string) => {
@@ -61,95 +69,107 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               </Link>
             ))}
 
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="catalog" className="border-b-0">
-                <AccordionTrigger
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50 [&[data-state=open]>svg]:rotate-180",
-                    (isActive("/admin/catalog/categories") || isActive("/admin/catalog/products")) &&
-                      "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Package className="h-4 w-4" />
-                    <span>Каталог</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pl-8">
-                  <Link
-                    href="/admin/catalog/categories"
+            {hasAccess("catalog") && (
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="catalog" className="border-b-0">
+                  <AccordionTrigger
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                      isActive("/admin/catalog/categories") && "text-gray-900 dark:text-gray-50",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50 [&[data-state=open]>svg]:rotate-180",
+                      (isActive("/admin/catalog/categories") || isActive("/admin/catalog/products")) &&
+                        "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
                     )}
                   >
-                    Категории
-                  </Link>
-                  <Link
-                    href="/admin/catalog/products"
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                      isActive("/admin/catalog/products") && "text-gray-900 dark:text-gray-50",
-                    )}
-                  >
-                    Товары
-                  </Link>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                    <div className="flex items-center gap-3">
+                      <Package className="h-4 w-4" />
+                      <span>Каталог</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pl-8">
+                    <Link
+                      href="/admin/catalog/categories"
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                        isActive("/admin/catalog/categories") && "text-gray-900 dark:text-gray-50",
+                      )}
+                    >
+                      Категории
+                    </Link>
+                    <Link
+                      href="/admin/catalog/products"
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                        isActive("/admin/catalog/products") && "text-gray-900 dark:text-gray-50",
+                      )}
+                    >
+                      Товары
+                    </Link>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
 
-            <Link
-              href="/admin/users"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                isActive("/admin/users") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-              )}
-            >
-              <Users className="h-4 w-4" />
-              {"Пользователи"}
-            </Link>
-            <Link
-              href="/admin/brands-and-statuses"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                isActive("/admin/brands-and-statuses") &&
-                  "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-              )}
-            >
-              <Tags className="h-4 w-4" />
-              {"Бренды и Статусы"}
-            </Link>
-            <Link
-              href="/admin/suppliers"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                isActive("/admin/suppliers") &&
-                  "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-              )}
-            >
-              <Truck className="h-4 w-4" />
-              {"Поставщики"}
-            </Link>
-            <Link
-              href="/admin/pages"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                isActive("/admin/pages") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-              )}
-            >
-              <FileText className="h-4 w-4" />
-              {"Страницы"}
-            </Link>
-            <Link
-              href="/admin/settings"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                isActive("/admin/settings") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
-              )}
-            >
-              <Settings className="h-4 w-4" />
-              {"Настройки"}
-            </Link>
+            {hasAccess("users") && (
+              <Link
+                href="/admin/users"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                  isActive("/admin/users") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
+                )}
+              >
+                <Users className="h-4 w-4" />
+                Пользователи
+              </Link>
+            )}
+            {(hasAccess("brands") || hasAccess("statuses")) && (
+              <Link
+                href="/admin/brands-and-statuses"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                  isActive("/admin/brands-and-statuses") &&
+                    "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
+                )}
+              >
+                <Tags className="h-4 w-4" />
+                Бренды и Статусы
+              </Link>
+            )}
+            {hasAccess("catalog") && (
+              <Link
+                href="/admin/suppliers"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                  isActive("/admin/suppliers") &&
+                    "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
+                )}
+              >
+                <Truck className="h-4 w-4" />
+                Поставщики
+              </Link>
+            )}
+            {hasAccess("pages") && (
+              <Link
+                href="/admin/pages"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                  isActive("/admin/pages") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
+                )}
+              >
+                <FileText className="h-4 w-4" />
+                Страницы
+              </Link>
+            )}
+            {hasAccess("settings") && (
+              <Link
+                href="/admin/settings"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                  isActive("/admin/settings") && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50",
+                )}
+              >
+                <Settings className="h-4 w-4" />
+                Настройки
+              </Link>
+            )}
           </nav>
         </div>
         <div className="mt-auto p-4 border-t shrink-0">

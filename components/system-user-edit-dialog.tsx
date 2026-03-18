@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/auth-context"
 
 interface SystemUserEditDialogProps {
   user?: SystemUser | null
@@ -36,6 +37,7 @@ const accessTranslations: Record<string, string> = {
 
 export function SystemUserEditDialog({ user, onClose }: SystemUserEditDialogProps) {
   const { toast } = useToast()
+  const { user: currentUser, refreshUser } = useAuth()
   const [isPending, startTransition] = useTransition()
   const [state, setState] = useState<UserActionState>({ success: false })
 
@@ -46,8 +48,12 @@ export function SystemUserEditDialog({ user, onClose }: SystemUserEditDialogProp
       try {
         const result = await saveSystemUser(state, formData)
         setState(result)
-        
+
         if (result.success) {
+          // Если редактировали себя — обновить права в контексте
+          if (user && currentUser && user.id === currentUser.id) {
+            await refreshUser()
+          }
           toast({ title: "Успех!", description: result.message })
           onClose()
         } else {

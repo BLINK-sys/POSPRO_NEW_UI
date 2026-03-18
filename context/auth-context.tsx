@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import { logoutAction } from "@/app/actions/auth"
+import { logoutAction, refreshProfile } from "@/app/actions/auth"
 
 interface User {
   id: number
@@ -26,6 +26,7 @@ interface AuthContextType {
   user: User | null
   setUser: (user: User | null) => void
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
 }
@@ -53,8 +54,15 @@ export function AuthProvider({
     await logoutAction()
   }, [])
 
+  const handleRefreshUser = useCallback(async () => {
+    const freshUser = await refreshProfile()
+    if (freshUser) {
+      setUser(freshUser as User)
+    }
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, setUser, logout: handleLogout, isLoading, setIsLoading }}>
+    <AuthContext.Provider value={{ user, setUser, logout: handleLogout, refreshUser: handleRefreshUser, isLoading, setIsLoading }}>
       {children}
     </AuthContext.Provider>
   )

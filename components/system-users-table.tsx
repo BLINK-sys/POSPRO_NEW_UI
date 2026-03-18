@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SystemUserEditDialog } from "./system-user-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
-import { useToast } from "./ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 export function SystemUsersTable({ data }: { data: SystemUser[] }) {
   const [isCreating, setIsCreating] = useState(false)
