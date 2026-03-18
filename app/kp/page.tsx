@@ -672,8 +672,8 @@ export default function KPPage() {
       const name = kpSettings.kpName || 'КП'
       pdf.save(`${name}_${dateStr}.pdf`)
 
-      // Автосохранение в историю
-      saveToHistory()
+      // Автосохранение в историю (с позициями)
+      saveToHistory({ logoPos, managerPos })
     } catch (err) {
       console.error('PDF export error:', err)
       // Restore scale on error
@@ -683,7 +683,7 @@ export default function KPPage() {
     } finally {
       setExporting(false)
     }
-  }, [exporting, scale, kpSettings.kpName, selectedElement, saveToHistory])
+  }, [exporting, scale, kpSettings.kpName, selectedElement, saveToHistory, logoPos, managerPos])
 
   // ── Guard ─────────────────────────────────────
   if (!isSystemUser) return null
@@ -850,7 +850,9 @@ export default function KPPage() {
                       disabled={loadingHistoryId === entry.id}
                       onClick={async () => {
                         setLoadingHistoryId(entry.id)
-                        await loadFromHistory(entry.id)
+                        const result = await loadFromHistory(entry.id)
+                        if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
+                        if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
                         setLoadingHistoryId(null)
                       }}
                     >
@@ -946,9 +948,11 @@ export default function KPPage() {
                       disabled={loadingHistoryId === entry.id}
                       onClick={async () => {
                         setLoadingHistoryId(entry.id)
-                        const ok = await loadFromHistory(entry.id)
+                        const result = await loadFromHistory(entry.id)
+                        if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
+                        if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
                         setLoadingHistoryId(null)
-                        if (ok) setShowHistory(false)
+                        if (result.success) setShowHistory(false)
                       }}
                     >
                       <div className="text-sm font-medium truncate">{entry.name}</div>

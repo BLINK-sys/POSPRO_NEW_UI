@@ -177,8 +177,8 @@ interface KPContextType {
   historyLoading: boolean
   activeHistoryId: number | null
   fetchHistory: () => Promise<void>
-  saveToHistory: () => Promise<boolean>
-  loadFromHistory: (id: number) => Promise<boolean>
+  saveToHistory: (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }) => Promise<boolean>
+  loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } } }>
   deleteFromHistory: (id: number) => Promise<boolean>
 }
 
@@ -433,14 +433,20 @@ export function KPProvider({ children }: { children: ReactNode }) {
     }
   }, [isSystemUser])
 
-  const saveToHistory = useCallback(async (): Promise<boolean> => {
+  const saveToHistory = useCallback(async (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }): Promise<boolean> => {
     if (!isSystemUser || kpItems.length === 0) return false
     try {
       const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      // Сохраняем позиции вместе с настройками
+      const settingsWithPositions = {
+        ...kpSettings,
+        _logoPos: positions?.logoPos,
+        _managerPos: positions?.managerPos,
+      }
       const payload = {
         name: kpSettings.kpName || 'КП без названия',
         items: kpItems,
-        settings: kpSettings,
+        settings: settingsWithPositions,
         total_amount: totalAmount,
       }
 
@@ -475,8 +481,8 @@ export function KPProvider({ children }: { children: ReactNode }) {
     return false
   }, [isSystemUser, kpItems, kpSettings, activeHistoryId, fetchHistory])
 
-  const loadFromHistory = useCallback(async (id: number): Promise<boolean> => {
-    if (!isSystemUser) return false
+  const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } } }> => {
+    if (!isSystemUser) return { success: false }
     try {
       const resp = await fetch(`/api/kp-history/${id}`)
       const data = await resp.json()
@@ -485,17 +491,22 @@ export function KPProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(items)) {
           setKpItems(items)
         }
+        // Извлекаем позиции из settings
+        const positions = {
+          logoPos: settings?._logoPos,
+          managerPos: settings?._managerPos,
+        }
         if (settings && typeof settings === 'object') {
           skipApiSaveRef.current = true
           setKpSettings(mergeWithDefaults(settings))
         }
         setActiveHistoryId(id)
-        return true
+        return { success: true, positions }
       }
     } catch (e) {
       console.error('Ошибка загрузки КП из истории:', e)
     }
-    return false
+    return { success: false }
   }, [isSystemUser])
 
   const deleteFromHistory = useCallback(async (id: number): Promise<boolean> => {
