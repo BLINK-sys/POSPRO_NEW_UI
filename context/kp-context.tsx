@@ -175,6 +175,7 @@ interface KPContextType {
   // History
   kpHistory: KPHistoryEntry[]
   historyLoading: boolean
+  activeHistoryId: number | null
   fetchHistory: () => Promise<void>
   saveToHistory: () => Promise<boolean>
   loadFromHistory: (id: number) => Promise<boolean>
@@ -193,6 +194,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [kpHistory, setKpHistory] = useState<KPHistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -329,7 +331,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setKpItems(prev => prev.map(item => item.id === productId ? { ...item, ...updates } : item))
   }, [])
 
-  const clearAll = useCallback(() => { setKpItems([]) }, [])
+  const clearAll = useCallback(() => { setKpItems([]); setActiveHistoryId(null) }, [])
 
   const isInKP = useCallback((productId: number) => {
     return kpItems.some(item => item.id === productId)
@@ -435,18 +437,35 @@ export function KPProvider({ children }: { children: ReactNode }) {
     if (!isSystemUser || kpItems.length === 0) return false
     try {
       const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const resp = await fetch('/api/kp-history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: kpSettings.kpName || 'КП без названия',
-          items: kpItems,
-          settings: kpSettings,
-          total_amount: totalAmount,
-        }),
-      })
+      const payload = {
+        name: kpSettings.kpName || 'КП без названия',
+        items: kpItems,
+        settings: kpSettings,
+        total_amount: totalAmount,
+      }
+
+      let resp: Response
+      if (activeHistoryId) {
+        // Перезаписываем существующее КП
+        resp = await fetch(`/api/kp-history/${activeHistoryId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else {
+        // Создаём новое
+        resp = await fetch('/api/kp-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
+
       const data = await resp.json()
       if (data.success) {
+        if (!activeHistoryId && data.id) {
+          setActiveHistoryId(data.id)
+        }
         await fetchHistory()
         return true
       }
@@ -454,7 +473,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
       console.error('Ошибка сохранения КП в историю:', e)
     }
     return false
-  }, [isSystemUser, kpItems, kpSettings, fetchHistory])
+  }, [isSystemUser, kpItems, kpSettings, activeHistoryId, fetchHistory])
 
   const loadFromHistory = useCallback(async (id: number): Promise<boolean> => {
     if (!isSystemUser) return false
@@ -470,6 +489,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
           skipApiSaveRef.current = true
           setKpSettings(mergeWithDefaults(settings))
         }
+        setActiveHistoryId(id)
         return true
       }
     } catch (e) {
@@ -505,7 +525,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     addItem, removeItem, updateItemQuantity, updateItem, clearAll, isInKP,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
-    kpHistory, historyLoading, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
+    kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
   }
 
   return (

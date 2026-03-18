@@ -29,6 +29,33 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   }
 }
 
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  const token = cookies().get('jwt-token')?.value
+
+  if (!token) {
+    return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json()
+
+    const response = await fetch(getApiUrl(`${BACKEND_ENDPOINT}/${params.id}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('Error proxying KP history PUT:', error)
+    return NextResponse.json({ error: 'Ошибка обновления КП' }, { status: 500 })
+  }
+}
+
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   const token = cookies().get('jwt-token')?.value
 

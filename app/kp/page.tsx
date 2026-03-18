@@ -383,11 +383,12 @@ export default function KPPage() {
         setScale(Math.min(containerWidth / A4_WIDTH, 1))
       }
     }
-    updateScale()
+    // Небольшая задержка для корректного измерения после смены layout
+    const timer = setTimeout(updateScale, 50)
     const observer = new ResizeObserver(updateScale)
     if (containerRef.current) observer.observe(containerRef.current)
-    return () => observer.disconnect()
-  }, [])
+    return () => { clearTimeout(timer); observer.disconnect() }
+  }, [kpItems.length])
 
   // ── Measure real row heights ──────────────────
   useLayoutEffect(() => {
