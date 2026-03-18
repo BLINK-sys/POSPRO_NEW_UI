@@ -218,11 +218,7 @@ export async function logoutAction() {
     cookies().delete("user-data")
   }
 
-  // redirect() ДОЛЖЕН быть вне try/catch — он бросает специальную ошибку NEXT_REDIRECT.
-  // Когда server action вызывает redirect(), Next.js НЕ перерендеривает текущую страницу,
-  // а отправляет клиенту инструкцию навигации. Это предотвращает ошибку
-  // "Rendered more hooks than during the previous render" на защищённых страницах.
-  redirect("/")
+  revalidatePath("/", "layout")
 }
 
 export async function getProfile(): Promise<User | null> {

@@ -3,6 +3,9 @@
 import { useState } from "react"
 import type { SystemUser } from "@/app/actions/users"
 import { deleteSystemUser } from "@/app/actions/users"
+import { useAuth } from "@/context/auth-context"
+
+const PROTECTED_EMAIL = "bocan.anton@mail.ru"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Edit, Trash2, PlusCircle } from "lucide-react"
@@ -22,6 +25,8 @@ export function SystemUsersTable({ data }: { data: SystemUser[] }) {
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null)
   const [deletingUser, setDeletingUser] = useState<SystemUser | null>(null)
   const { toast } = useToast()
+  const { user: currentUser } = useAuth()
+  const currentEmail = currentUser?.email
 
   const handleDelete = async () => {
     if (!deletingUser) return
@@ -60,26 +65,28 @@ export function SystemUsersTable({ data }: { data: SystemUser[] }) {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.phone}</TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setEditingUser(user)}
-                        className="h-8 w-8"
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Редактировать</span>
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeletingUser(user)}
-                        className="h-8 w-8 text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Удалить</span>
-                      </Button>
-                    </div>
+                    {!(user.email === PROTECTED_EMAIL && currentEmail !== PROTECTED_EMAIL) && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setEditingUser(user)}
+                          className="h-8 w-8"
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Редактировать</span>
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeletingUser(user)}
+                          className="h-8 w-8 text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Удалить</span>
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

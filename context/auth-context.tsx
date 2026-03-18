@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { logoutAction, refreshProfile } from "@/app/actions/auth"
 
 interface User {
@@ -42,17 +43,18 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<User | null>(initialUser)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
   useEffect(() => {
     setUser(initialUser)
     setIsLoading(false)
   }, [initialUser])
 
   const handleLogout = useCallback(async () => {
-    // Сбрасываем user ДО вызова server action — после await код не выполнится,
-    // потому что logoutAction() вызывает redirect("/") на сервере
     setUser(null)
     await logoutAction()
-  }, [])
+    router.push("/")
+    router.refresh()
+  }, [router])
 
   const handleRefreshUser = useCallback(async () => {
     const freshUser = await refreshProfile()
