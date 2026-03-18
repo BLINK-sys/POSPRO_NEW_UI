@@ -141,6 +141,14 @@ function mergeWithDefaults(parsed: any): KPSettings {
   return merged
 }
 
+// --- History types ---
+export interface KPHistoryEntry {
+  id: number
+  name: string
+  total_amount: number
+  created_at: string
+}
+
 // --- Context type ---
 interface KPContextType {
   kpItems: KPItem[]
@@ -164,6 +172,13 @@ interface KPContextType {
   addTextElement: (text?: string, page?: number) => void
   updateTextElement: (id: string, updates: Partial<KPTextElement>) => void
   removeTextElement: (id: string) => void
+  // History
+  kpHistory: KPHistoryEntry[]
+  historyLoading: boolean
+  fetchHistory: () => Promise<void>
+  saveToHistory: () => Promise<boolean>
+  loadFromHistory: (id: number) => Promise<boolean>
+  deleteFromHistory: (id: number) => Promise<boolean>
 }
 
 const KP_STORAGE_KEY = "kp-items"
@@ -176,6 +191,8 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [kpItems, setKpItems] = useState<KPItem[]>([])
   const [kpSettings, setKpSettings] = useState<KPSettings>(DEFAULT_SETTINGS)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [kpHistory, setKpHistory] = useState<KPHistoryEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -397,11 +414,98 @@ export function KPProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  // --- History functions ---
+  const fetchHistory = useCallback(async () => {
+    if (!isSystemUser) return
+    setHistoryLoading(true)
+    try {
+      const resp = await fetch('/api/kp-history')
+      const data = await resp.json()
+      if (data.success && Array.isArray(data.history)) {
+        setKpHistory(data.history)
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки истории КП:', e)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [isSystemUser])
+
+  const saveToHistory = useCallback(async (): Promise<boolean> => {
+    if (!isSystemUser || kpItems.length === 0) return false
+    try {
+      const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      const resp = await fetch('/api/kp-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: kpSettings.kpName || 'КП без названия',
+          items: kpItems,
+          settings: kpSettings,
+          total_amount: totalAmount,
+        }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        await fetchHistory()
+        return true
+      }
+    } catch (e) {
+      console.error('Ошибка сохранения КП в историю:', e)
+    }
+    return false
+  }, [isSystemUser, kpItems, kpSettings, fetchHistory])
+
+  const loadFromHistory = useCallback(async (id: number): Promise<boolean> => {
+    if (!isSystemUser) return false
+    try {
+      const resp = await fetch(`/api/kp-history/${id}`)
+      const data = await resp.json()
+      if (data.success && data.data) {
+        const { items, settings } = data.data
+        if (Array.isArray(items)) {
+          setKpItems(items)
+        }
+        if (settings && typeof settings === 'object') {
+          skipApiSaveRef.current = true
+          setKpSettings(mergeWithDefaults(settings))
+        }
+        return true
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки КП из истории:', e)
+    }
+    return false
+  }, [isSystemUser])
+
+  const deleteFromHistory = useCallback(async (id: number): Promise<boolean> => {
+    if (!isSystemUser) return false
+    try {
+      const resp = await fetch(`/api/kp-history/${id}`, { method: 'DELETE' })
+      const data = await resp.json()
+      if (data.success) {
+        setKpHistory(prev => prev.filter(entry => entry.id !== id))
+        return true
+      }
+    } catch (e) {
+      console.error('Ошибка удаления КП из истории:', e)
+    }
+    return false
+  }, [isSystemUser])
+
+  // Загружаем историю при первом входе
+  useEffect(() => {
+    if (isLoaded && isSystemUser) {
+      fetchHistory()
+    }
+  }, [isLoaded, isSystemUser, fetchHistory])
+
   const value: KPContextType = {
     kpItems, kpCount: kpItems.length,
     addItem, removeItem, updateItemQuantity, updateItem, clearAll, isInKP,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
+    kpHistory, historyLoading, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
   }
 
   return (

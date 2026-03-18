@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2 } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -351,6 +351,7 @@ export default function KPPage() {
     kpItems, kpCount, removeItem, updateItemQuantity, updateItem, clearAll,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
+    kpHistory, historyLoading, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
   } = useKP()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -362,6 +363,8 @@ export default function KPPage() {
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [measuredHeights, setMeasuredHeights] = useState<number[]>([])
   const [exporting, setExporting] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
   const [newTextPage, setNewTextPage] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
@@ -667,6 +670,9 @@ export default function KPPage() {
       ].join('-')
       const name = kpSettings.kpName || 'КП'
       pdf.save(`${name}_${dateStr}.pdf`)
+
+      // Автосохранение в историю
+      saveToHistory()
     } catch (err) {
       console.error('PDF export error:', err)
       // Restore scale on error
@@ -676,7 +682,7 @@ export default function KPPage() {
     } finally {
       setExporting(false)
     }
-  }, [exporting, scale, kpSettings.kpName, selectedElement])
+  }, [exporting, scale, kpSettings.kpName, selectedElement, saveToHistory])
 
   // ── Guard ─────────────────────────────────────
   if (!isSystemUser) return null
@@ -881,6 +887,62 @@ export default function KPPage() {
         <Panel defaultSize={25} minSize={15}>
           <div className="h-full overflow-y-auto border-r bg-gray-50">
             <div className="p-3 space-y-2">
+              {/* История КП */}
+              {kpHistory.length > 0 && (
+                <div className="mb-2">
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="flex items-center justify-between w-full px-2 py-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <History className="h-4 w-4" />
+                      История КП ({kpHistory.length})
+                    </span>
+                    {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {showHistory && (
+                    <div className="mt-1 space-y-1 max-h-48 overflow-y-auto">
+                      {kpHistory.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between px-2 py-1.5 bg-white rounded border border-gray-200 hover:border-yellow-400 transition-colors group"
+                        >
+                          <button
+                            className="flex-1 text-left min-w-0"
+                            disabled={loadingHistoryId === entry.id}
+                            onClick={async () => {
+                              setLoadingHistoryId(entry.id)
+                              const ok = await loadFromHistory(entry.id)
+                              setLoadingHistoryId(null)
+                              if (ok) setShowHistory(false)
+                            }}
+                          >
+                            <div className="text-sm font-medium truncate">{entry.name}</div>
+                            <div className="text-xs text-gray-400 flex items-center gap-2">
+                              <span>{new Date(entry.created_at).toLocaleDateString('ru-RU')}</span>
+                              <span>{entry.total_amount.toLocaleString()} тг</span>
+                            </div>
+                          </button>
+                          {loadingHistoryId === entry.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 ml-2 shrink-0" />
+                          ) : (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                await deleteFromHistory(entry.id)
+                              }}
+                              className="ml-2 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Удалить из истории"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <h2 className="text-sm font-semibold text-gray-600 px-1">Товары в КП</h2>
               {kpItems.map((item) => (
                 <KPProductCard
