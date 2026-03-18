@@ -10,6 +10,7 @@ import type { Supplier } from "@/app/actions/suppliers"
 import { API_BASE_URL } from "@/lib/api-address"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import AdminLoading from "@/components/admin-loading"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -561,9 +562,7 @@ export function ProductsTable({
               </div>
             </div>
 
-            {isLoading && (
-              <div className="text-sm text-gray-500">Загрузка товаров...</div>
-            )}
+            {isLoading && <AdminLoading text="Загрузка товаров..." />}
 
             {/* Таблица товаров */}
             <div className="rounded-md border">

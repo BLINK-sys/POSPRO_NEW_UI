@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import AdminLoading from "@/components/admin-loading"
 import { Card, CardContent } from "@/components/ui/card"
 import { Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -120,7 +121,7 @@ export default function BenefitsTab() {
     setIsDeleteDialogOpen(true)
   }
 
-  if (isLoading) return <div>Загрузка преимуществ...</div>
+  if (isLoading) return <AdminLoading text="Загрузка преимуществ..." />
 
   return (
     <div className="space-y-6">

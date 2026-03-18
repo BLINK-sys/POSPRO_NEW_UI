@@ -30,9 +30,9 @@ export interface CreateProductAvailabilityStatusData {
 export async function getProductAvailabilityStatuses() {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: [] }
   }
 
   try {
@@ -45,22 +45,12 @@ export async function getProductAvailabilityStatuses() {
       cache: 'no-store'
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      return { 
-        success: false, 
-        message: errorData.message || `HTTP error! status: ${response.status}` 
-      }
-    }
-
+    if (!response.ok) return { success: true, data: [] }
     const data = await response.json()
-    return { success: true, data }
+    return { success: true, data: Array.isArray(data) ? data : [] }
   } catch (error) {
     console.error('Ошибка получения статусов наличия:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении статусов наличия' 
-    }
+    return { success: true, data: [] }
   }
 }
 

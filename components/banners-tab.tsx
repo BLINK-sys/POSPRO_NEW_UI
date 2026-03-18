@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus } from "lucide-react"
+import AdminLoading from "@/components/admin-loading"
 import { toast } from "sonner"
 import {
   DndContext,
@@ -152,12 +153,7 @@ export default function BannersTab() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Загрузка баннеров...</span>
-      </div>
-    )
+    return <AdminLoading text="Загрузка баннеров..." />
   }
 
   return (

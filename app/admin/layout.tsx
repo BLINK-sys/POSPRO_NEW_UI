@@ -4,7 +4,7 @@ import React from "react"
 
 import type { ReactNode } from "react"
 import { useState, useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import AdminSidebar from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -17,13 +17,30 @@ export default function AdminLayout({
   children: ReactNode
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
   const pathname = usePathname()
-  const { refreshUser } = useAuth()
+  const router = useRouter()
+  const { user, refreshUser } = useAuth()
 
-  // Обновляем профиль (и права доступа) при каждом переходе в админке
+  // Проверяем авторизацию при каждом переходе в админке
   useEffect(() => {
-    refreshUser()
+    const checkAuth = async () => {
+      await refreshUser()
+      setAuthChecked(true)
+    }
+    checkAuth()
   }, [pathname, refreshUser])
+
+  // Редирект на главную если не авторизован
+  useEffect(() => {
+    if (authChecked && !user) {
+      router.replace("/")
+    }
+  }, [authChecked, user, router])
+
+  if (!authChecked || !user) {
+    return null
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-100/40 dark:bg-gray-800/40">

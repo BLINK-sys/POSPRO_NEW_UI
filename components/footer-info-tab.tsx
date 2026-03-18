@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import AdminLoading from "@/components/admin-loading"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -93,14 +94,7 @@ export default function FooterInfoTab() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-          <p className="text-sm text-muted-foreground">Загрузка настроек...</p>
-        </div>
-      </div>
-    )
+    return <AdminLoading text="Загрузка настроек..." />
   }
 
   return (

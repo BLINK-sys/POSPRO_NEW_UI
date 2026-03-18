@@ -87,9 +87,9 @@ export interface OrderItem {
 export async function getAdminOrders(page: number = 1, perPage: number = 20) {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 
   try {
@@ -102,14 +102,12 @@ export async function getAdminOrders(page: number = 1, perPage: number = 20) {
       cache: 'no-store'
     })
 
+    if (!response.ok) return { orders: [], total: 0, pages: 0 }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения заказов:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении заказов' 
-    }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 }
 
@@ -117,9 +115,9 @@ export async function getAdminOrders(page: number = 1, perPage: number = 20) {
 export async function getManagers() {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: [] }
   }
 
   try {
@@ -132,14 +130,12 @@ export async function getManagers() {
       cache: 'no-store'
     })
 
+    if (!response.ok) return { success: true, data: [] }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения списка менеджеров:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении списка менеджеров' 
-    }
+    return { success: true, data: [] }
   }
 }
 
@@ -361,9 +357,9 @@ export async function getOrderItems(orderId: number) {
 export async function getNewOrders(page: number = 1, perPage: number = 20) {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 
   try {
@@ -376,29 +372,27 @@ export async function getNewOrders(page: number = 1, perPage: number = 20) {
       cache: 'no-store'
     })
 
+    if (!response.ok) return { orders: [], total: 0, pages: 0 }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения новых заказов:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении новых заказов' 
-    }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 }
 
 // Получить заказы текущего менеджера с фильтрацией
 export async function getMyOrders(
-  page: number = 1, 
+  page: number = 1,
   perPage: number = 20,
   statusId?: number,
   search?: string
 ) {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 
   try {
@@ -406,11 +400,11 @@ export async function getMyOrders(
       page: page.toString(),
       per_page: perPage.toString()
     })
-    
+
     if (statusId) {
       params.append('status_id', statusId.toString())
     }
-    
+
     if (search) {
       params.append('search', search)
     }
@@ -424,29 +418,27 @@ export async function getMyOrders(
       cache: 'no-store'
     })
 
+    if (!response.ok) return { orders: [], total: 0, pages: 0 }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения моих заказов:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении моих заказов' 
-    }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 }
 
 // Получить завершенные заказы текущего менеджера с фильтрацией
 export async function getCompletedOrders(
-  page: number = 1, 
+  page: number = 1,
   perPage: number = 20,
   statusId?: number,
   search?: string
 ) {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 
   try {
@@ -454,11 +446,11 @@ export async function getCompletedOrders(
       page: page.toString(),
       per_page: perPage.toString()
     })
-    
+
     if (statusId) {
       params.append('status_id', statusId.toString())
     }
-    
+
     if (search) {
       params.append('search', search)
     }
@@ -472,13 +464,11 @@ export async function getCompletedOrders(
       cache: 'no-store'
     })
 
+    if (!response.ok) return { orders: [], total: 0, pages: 0 }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения завершенных заказов:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении завершенных заказов' 
-    }
+    return { success: true, data: { orders: [], total: 0, pages: 0 } }
   }
 }

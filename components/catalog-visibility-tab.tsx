@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
+import AdminLoading from "@/components/admin-loading"
 import { useToast } from "@/hooks/use-toast"
 
 interface CatalogVisibility {
@@ -81,11 +82,7 @@ export default function CatalogVisibilityTab() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-      </div>
-    )
+    return <AdminLoading />
   }
 
   return (

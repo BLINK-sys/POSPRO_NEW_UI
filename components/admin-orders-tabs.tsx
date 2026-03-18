@@ -5,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { 
+import AdminLoading from '@/components/admin-loading'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -185,9 +186,7 @@ export function AdminOrdersTabs({ managers, statuses }: AdminOrdersTabsProps) {
             </CardHeader>
             <CardContent>
               {newOrdersLoading ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
+                <AdminLoading />
               ) : (
                 <AdminOrdersTable 
                   initialOrders={newOrders}
@@ -247,9 +246,7 @@ export function AdminOrdersTabs({ managers, statuses }: AdminOrdersTabsProps) {
               </div>
 
               {myOrdersLoading ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
+                <AdminLoading />
               ) : (
                 <AdminOrdersTable 
                   initialOrders={myOrders}
@@ -310,9 +307,7 @@ export function AdminOrdersTabs({ managers, statuses }: AdminOrdersTabsProps) {
               </div>
 
               {completedOrdersLoading ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
+                <AdminLoading />
               ) : (
                 <AdminOrdersTable 
                   initialOrders={completedOrders}

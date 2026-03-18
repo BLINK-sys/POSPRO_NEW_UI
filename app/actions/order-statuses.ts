@@ -27,9 +27,9 @@ export interface CreateOrderStatusData {
 export async function getOrderStatuses() {
   const cookieStore = cookies()
   const token = cookieStore.get('jwt-token')
-  
+
   if (!token) {
-    return { success: false, message: 'Не авторизован' }
+    return { success: true, data: [] }
   }
 
   try {
@@ -42,14 +42,12 @@ export async function getOrderStatuses() {
       cache: 'no-store'
     })
 
+    if (!response.ok) return { success: true, data: [] }
     const data = await response.json()
     return data
   } catch (error) {
     console.error('Ошибка получения статусов заказов:', error)
-    return { 
-      success: false, 
-      message: 'Ошибка при получении статусов заказов' 
-    }
+    return { success: true, data: [] }
   }
 }
 

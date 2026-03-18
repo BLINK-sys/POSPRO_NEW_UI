@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import AdminLoading from "@/components/admin-loading"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Edit, Trash2, GripVertical } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -150,12 +151,7 @@ export default function ProductAvailabilityStatusesTab() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <span className="ml-2">Загрузка статусов наличия...</span>
-      </div>
-    )
+    return <AdminLoading text="Загрузка статусов наличия..." />
   }
 
   return (

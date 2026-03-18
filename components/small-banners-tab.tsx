@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import AdminLoading from "@/components/admin-loading"
 import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
@@ -88,7 +89,7 @@ export default function SmallBannersTab() {
   }
 
 
-  if (isLoading) return <div>Загрузка информационных карточек...</div>
+  if (isLoading) return <AdminLoading text="Загрузка информационных карточек..." />
 
   return (
     <div className="space-y-6">
