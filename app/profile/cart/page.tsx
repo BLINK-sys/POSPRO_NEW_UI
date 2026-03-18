@@ -9,11 +9,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
 import { getCart, updateCartItemQuantity, removeFromCart, clearCart } from '@/app/actions/cart'
 import { createOrder } from '@/app/actions/orders'
+import { createBitrixDeal } from '@/app/actions/bitrix'
 import { useAuth } from '@/context/auth-context'
 import { useCart } from '@/context/cart-context'
 import { GuestCartItem } from '@/context/cart-context'
 import { getImageUrl } from '@/lib/image-utils'
-import { formatProductPrice } from '@/lib/utils'
+import { formatProductPrice, formatPhone } from '@/lib/utils'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -110,7 +111,7 @@ export default function ProfileCartPage() {
       setOrderForm(prev => ({
         ...prev,
         customer_name: user.fullName || user.ipName || user.tooName || '',
-        customer_phone: user.phone || '',
+        customer_phone: user.phone ? formatPhone(user.phone) : '',
         customer_email: user.email || '',
       }))
     }
@@ -237,6 +238,29 @@ export default function ProfileCartPage() {
           title: 'Успешно',
           description: `Заказ ${result.data.order_number} создан!`
         })
+
+        // Отправка сделки в Bitrix24
+        if (cartData) {
+          createBitrixDeal({
+            customer_name: orderForm.customer_name,
+            customer_phone: orderForm.customer_phone,
+            customer_email: orderForm.customer_email,
+            organization_type: user?.organization_type,
+            organization_name: user?.ip_name || user?.too_name,
+            iin: user?.iin,
+            bin: user?.bin,
+            payment_method: orderForm.payment_method,
+            customer_comment: orderForm.customer_comment,
+            items: cartData.items.map(item => ({
+              product_name: item.product.name,
+              product_slug: item.product.slug,
+              price: item.effective_price,
+              quantity: localQuantities[item.id] ?? item.quantity,
+            })),
+            total_amount: cartData.total_amount,
+          })
+        }
+
         fetchCart()
         await updateCartCount()
       } else {
@@ -433,7 +457,8 @@ export default function ProfileCartPage() {
                   <Input
                     id="guest_phone"
                     value={orderForm.customer_phone}
-                    onChange={(e) => setOrderForm(prev => ({ ...prev, customer_phone: e.target.value }))}
+                    onChange={(e) => setOrderForm(prev => ({ ...prev, customer_phone: formatPhone(e.target.value) }))}
+                    onFocus={() => { if (!orderForm.customer_phone) setOrderForm(prev => ({ ...prev, customer_phone: '+7 (' })) }}
                     placeholder="+7 (___) ___-__-__"
                     className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
                     style={{ outline: 'none', boxShadow: 'none' }}
@@ -492,12 +517,34 @@ export default function ProfileCartPage() {
                 <Button
                   className="w-full bg-yellow-400 hover:bg-yellow-500 text-black shadow-md"
                   size="lg"
-                  disabled={!orderForm.customer_phone.trim()}
-                  onClick={() => {
-                    toast({ title: 'Заказ принят', description: 'Мы свяжемся с вами для подтверждения' })
+                  disabled={isCreatingOrder || !orderForm.customer_phone.trim()}
+                  onClick={async () => {
+                    setIsCreatingOrder(true)
+                    try {
+                      await createBitrixDeal({
+                        customer_name: orderForm.customer_name,
+                        customer_phone: orderForm.customer_phone,
+                        customer_email: orderForm.customer_email,
+                        payment_method: orderForm.payment_method,
+                        customer_comment: orderForm.customer_comment,
+                        items: guestCartItems.map(item => ({
+                          product_name: item.product_name,
+                          product_slug: item.product_slug,
+                          price: item.product_price,
+                          quantity: item.quantity,
+                        })),
+                        total_amount: guestTotal,
+                      })
+                      toast({ title: 'Заказ принят', description: 'Мы свяжемся с вами для подтверждения' })
+                      clearGuestCart()
+                    } catch {
+                      toast({ title: 'Ошибка', description: 'Не удалось оформить заказ', variant: 'destructive' })
+                    } finally {
+                      setIsCreatingOrder(false)
+                    }
                   }}
                 >
-                  Оформить заказ
+                  {isCreatingOrder ? 'Оформление...' : 'Оформить заказ'}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </CardContent>
@@ -724,7 +771,8 @@ export default function ProfileCartPage() {
                 <Input
                   id="customer_phone"
                   value={orderForm.customer_phone}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, customer_phone: e.target.value }))}
+                  onChange={(e) => setOrderForm(prev => ({ ...prev, customer_phone: formatPhone(e.target.value) }))}
+                  onFocus={() => { if (!orderForm.customer_phone) setOrderForm(prev => ({ ...prev, customer_phone: '+7 (' })) }}
                   placeholder="+7 (___) ___-__-__"
                   className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
                   style={{ outline: 'none', boxShadow: 'none' }}

@@ -49,3 +49,16 @@ export function getRetailPriceClass(showWholesale = false): string {
 export function getWholesalePriceClass(): string {
   return "text-green-600"
 }
+
+export function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  const raw = digits.startsWith("7") || digits.startsWith("8") ? digits.slice(1) : digits
+  const d = raw.slice(0, 10)
+  let result = "+7"
+  if (d.length > 0) result += ` (${d.slice(0, 3)}`
+  if (d.length >= 3) result += ")"
+  if (d.length > 3) result += ` ${d.slice(3, 6)}`
+  if (d.length > 6) result += `-${d.slice(6, 8)}`
+  if (d.length > 8) result += `-${d.slice(8, 10)}`
+  return result
+}

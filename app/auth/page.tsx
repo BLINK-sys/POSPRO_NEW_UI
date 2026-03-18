@@ -18,18 +18,7 @@ export const dynamic = 'force-dynamic'
 
 type OrganizationType = "individual" | "ip" | "too"
 
-function formatPhone(value: string): string {
-  const digits = value.replace(/\D/g, "")
-  const raw = digits.startsWith("7") || digits.startsWith("8") ? digits.slice(1) : digits
-  const d = raw.slice(0, 10)
-  let result = "+7"
-  if (d.length > 0) result += ` (${d.slice(0, 3)}`
-  if (d.length >= 3) result += ")"
-  if (d.length > 3) result += ` ${d.slice(3, 6)}`
-  if (d.length > 6) result += `-${d.slice(6, 8)}`
-  if (d.length > 8) result += `-${d.slice(8, 10)}`
-  return result
-}
+import { formatPhone } from "@/lib/utils"
 type AuthMode = "login" | "register"
 
 interface ActionState {
@@ -327,7 +316,7 @@ export default function AuthPage() {
                             value={phone}
                             onChange={(e) => setPhone(formatPhone(e.target.value))}
                             onFocus={(e) => {
-                              if (!phone) setPhone("+7")
+                              if (!phone) setPhone("+7 (")
                               e.target.style.outline = 'none'
                               e.target.style.boxShadow = 'none'
                               e.target.style.borderColor = 'rgb(209 213 219)'

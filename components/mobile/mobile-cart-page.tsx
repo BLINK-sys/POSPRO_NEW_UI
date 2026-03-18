@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getCart, updateCartItemQuantity, removeFromCart, clearCart } from "@/app/actions/cart"
 import { createOrder } from "@/app/actions/orders"
+import { createBitrixDeal } from "@/app/actions/bitrix"
 import { getImageUrl } from "@/lib/image-utils"
-import { formatProductPrice } from "@/lib/utils"
+import { formatProductPrice, formatPhone } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
 import { toast } from "@/hooks/use-toast"
@@ -39,7 +40,7 @@ export default function MobileCartPage() {
       return
     }
     loadCart()
-    if (user?.phone && !phone) setPhone(user.phone)
+    if (user?.phone && !phone) setPhone(formatPhone(user.phone))
   }, [user, authLoading])
 
   const loadCart = async () => {
@@ -127,6 +128,27 @@ export default function MobileCartPage() {
       })
       if (result.success) {
         toast({ title: "Заказ оформлен!", description: `Заказ ${result.data?.order_number || ""} создан` })
+
+        // Отправка сделки в Bitrix24
+        createBitrixDeal({
+          customer_name: user?.full_name || user?.ip_name || user?.too_name || "",
+          customer_phone: phone,
+          customer_email: user?.email || "",
+          organization_type: user?.organization_type,
+          organization_name: user?.ip_name || user?.too_name,
+          iin: user?.iin,
+          bin: user?.bin,
+          payment_method: paymentMethod,
+          customer_comment: comment,
+          items: items.map(item => ({
+            product_name: item.product?.name || "",
+            product_slug: item.product?.slug || "",
+            price: item.effective_price || item.product?.price || 0,
+            quantity: item.quantity || 1,
+          })),
+          total_amount: totalAmount,
+        })
+
         setItems([])
         updateCartCount()
         router.push("/profile/orders")
@@ -219,7 +241,7 @@ export default function MobileCartPage() {
 
           <div>
             <label className="text-sm text-gray-600 mb-1 block">Телефон</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 (___) ___-__-__" className="h-10" />
+            <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} onFocus={() => { if (!phone) setPhone('+7 (') }} placeholder="+7 (___) ___-__-__" className="h-10" />
           </div>
 
           <div>
@@ -260,11 +282,34 @@ export default function MobileCartPage() {
           </div>
           <Button
             className="w-full bg-brand-yellow text-black hover:bg-yellow-500 font-bold py-2.5 rounded-xl shadow-lg"
-            disabled={!phone}
-            onClick={() => {
-              toast({ title: "Заказ принят", description: "Мы свяжемся с вами для подтверждения" })
+            disabled={submitting || !phone}
+            onClick={async () => {
+              setSubmitting(true)
+              try {
+                await createBitrixDeal({
+                  customer_name: guestName,
+                  customer_phone: phone,
+                  customer_email: guestEmail,
+                  payment_method: paymentMethod,
+                  customer_comment: comment,
+                  items: guestCartItems.map(item => ({
+                    product_name: item.product_name,
+                    product_slug: item.product_slug,
+                    price: item.product_price,
+                    quantity: item.quantity,
+                  })),
+                  total_amount: guestTotal,
+                })
+                toast({ title: "Заказ принят", description: "Мы свяжемся с вами для подтверждения" })
+                clearGuestCart()
+              } catch {
+                toast({ title: "Ошибка", description: "Не удалось оформить заказ", variant: "destructive" })
+              } finally {
+                setSubmitting(false)
+              }
             }}
           >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Оформить заказ
           </Button>
         </div>
@@ -340,7 +385,7 @@ export default function MobileCartPage() {
 
         <div>
           <label className="text-sm text-gray-600 mb-1 block">Телефон</label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 (___) ___-__-__" className="h-10" />
+          <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} onFocus={() => { if (!phone) setPhone('+7 (') }} placeholder="+7 (___) ___-__-__" className="h-10" />
         </div>
 
         <div>

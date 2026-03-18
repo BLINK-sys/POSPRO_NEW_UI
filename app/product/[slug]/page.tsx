@@ -22,6 +22,8 @@ import {
   Image as ImageIcon
 } from "lucide-react"
 import { getProductBySlug } from "@/app/actions/products"
+import { createBitrixPriceInquiry } from "@/app/actions/bitrix"
+import { toast } from "@/hooks/use-toast"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
@@ -29,7 +31,7 @@ import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/a
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
-import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { formatProductPrice, formatPhone, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 
 
@@ -107,6 +109,7 @@ export default function ProductPage() {
   const [showPriceInquiry, setShowPriceInquiry] = useState(false)
   const [inquiryName, setInquiryName] = useState("")
   const [inquiryPhone, setInquiryPhone] = useState("")
+  const [submittingInquiry, setSubmittingInquiry] = useState(false)
 
   // Функция для получения правильного URL изображения
   const getImageUrl = (url: string | null | undefined): string => {
@@ -578,18 +581,40 @@ export default function ProductPage() {
                     />
                     <input
                       type="tel"
-                      placeholder="Телефон"
+                      placeholder="+7 (___) ___-__-__"
                       value={inquiryPhone}
-                      onChange={(e) => setInquiryPhone(e.target.value)}
+                      onChange={(e) => setInquiryPhone(formatPhone(e.target.value))}
+                      onFocus={() => { if (!inquiryPhone) setInquiryPhone('+7 (') }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent"
                     />
                     <Button
                       className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium"
-                      onClick={() => {
-                        // TODO: отправка запроса на уточнение цены
+                      disabled={submittingInquiry || !inquiryPhone.trim()}
+                      onClick={async () => {
+                        setSubmittingInquiry(true)
+                        try {
+                          const result = await createBitrixPriceInquiry({
+                            customer_name: inquiryName,
+                            customer_phone: inquiryPhone,
+                            product_name: product.name,
+                            product_slug: product.slug,
+                          })
+                          if (result.success) {
+                            toast({ title: "Запрос отправлен", description: "Мы свяжемся с вами для уточнения цены" })
+                            setInquiryName("")
+                            setInquiryPhone("")
+                            setShowPriceInquiry(false)
+                          } else {
+                            toast({ title: "Ошибка", description: "Не удалось отправить запрос", variant: "destructive" })
+                          }
+                        } catch {
+                          toast({ title: "Ошибка", description: "Не удалось отправить запрос", variant: "destructive" })
+                        } finally {
+                          setSubmittingInquiry(false)
+                        }
                       }}
                     >
-                      Узнать цену
+                      {submittingInquiry ? "Отправка..." : "Узнать цену"}
                     </Button>
                   </div>
                 )}
