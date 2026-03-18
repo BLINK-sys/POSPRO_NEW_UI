@@ -829,6 +829,56 @@ export default function KPPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* История КП */}
+        {kpHistory.length > 0 && (
+          <Card className="mt-6">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <History className="h-5 w-5 text-gray-500" />
+                <h2 className="text-lg font-semibold">Ранее сформированные КП</h2>
+              </div>
+              <div className="space-y-2">
+                {kpHistory.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 transition-colors group"
+                  >
+                    <button
+                      className="flex-1 text-left min-w-0"
+                      disabled={loadingHistoryId === entry.id}
+                      onClick={async () => {
+                        setLoadingHistoryId(entry.id)
+                        await loadFromHistory(entry.id)
+                        setLoadingHistoryId(null)
+                      }}
+                    >
+                      <div className="font-medium truncate">{entry.name}</div>
+                      <div className="text-sm text-gray-500 flex items-center gap-3 mt-0.5">
+                        <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
+                      </div>
+                    </button>
+                    {loadingHistoryId === entry.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400 ml-3 shrink-0" />
+                    ) : (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          await deleteFromHistory(entry.id)
+                        }}
+                        className="ml-3 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Удалить из истории"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     )
   }
