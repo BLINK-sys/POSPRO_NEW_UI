@@ -108,6 +108,7 @@ export function SuppliersManagement({ initialSuppliers }: SuppliersManagementPro
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Название</TableHead>
                   <TableHead>Контактное лицо</TableHead>
                   <TableHead>Телефон</TableHead>
@@ -119,6 +120,7 @@ export function SuppliersManagement({ initialSuppliers }: SuppliersManagementPro
               <TableBody>
                 {suppliers.map((supplier) => (
                   <TableRow key={supplier.id}>
+                    <TableCell className="text-muted-foreground">{supplier.id}</TableCell>
                     <TableCell className="font-medium">{supplier.name}</TableCell>
                     <TableCell>{supplier.contact_person || "-"}</TableCell>
                     <TableCell>{supplier.phone || "-"}</TableCell>
