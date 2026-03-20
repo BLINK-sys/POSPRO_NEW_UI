@@ -47,6 +47,7 @@ const nextConfig = {
   async redirects() {
     return [
     { source: '/catalog/oborudovanie_dlya_avtomatizatsii/sistema_podscheta_posetiteley/346/', destination: '/product/schetchik-posetitelei-sm-counter/', permanent: true },
+    { source: '/catalog/oborudovanie_dlya_avtomatizatsii/sistema_podscheta_posetiteley/', destination: '/product/schetchik-posetitelei-sm-counter/', permanent: true },
     { source: '/catalog/osnovnoe/zonty-vytyazhnye/37684/', destination: '/product/zont-vytyazhnoi-kobor-ztsv-90160/', permanent: true },
     { source: '/catalog/osnovnoe/zonty-vytyazhnye/37678/', destination: '/product/zont-vytyazhnoi-kobor-ztsv-230200/', permanent: true },
     { source: '/catalog/osnovnoe/zonty-vytyazhnye/37676/', destination: '/product/zont-vytyazhnoi-kobor-ztsv-200200/', permanent: true },
