@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Loader2, Plus, Edit, Trash2, Save, X } from "lucide-react"
+import { Loader2, Plus, Edit, Trash2, Save, X, Search } from "lucide-react"
 import { 
   getCharacteristicsList, 
   createCharacteristic, 
@@ -31,9 +31,15 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
     characteristic_key: '',
     unit_of_measurement: ''
   })
+  const [searchQuery, setSearchQuery] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [characteristicToDelete, setCharacteristicToDelete] = useState<CharacteristicsListItem | null>(null)
   const { toast } = useToast()
+
+  // Фильтрация по поиску
+  const filteredCharacteristics = characteristics.filter(char =>
+    char.characteristic_key.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   // Загрузка списка характеристик
   const loadCharacteristics = async () => {
@@ -264,9 +270,19 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
         </DialogHeader>
 
         <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
-          {/* Кнопка добавления */}
-          <div className="flex justify-between items-center">
-            <Button 
+          {/* Поиск + кнопка добавления */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск по наименованию..."
+                className="pl-9 focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                style={{ outline: 'none', boxShadow: 'none' }}
+              />
+            </div>
+            <Button
               onClick={() => setIsCreating(true)}
               disabled={isCreating || editingId !== null}
             >
@@ -324,87 +340,65 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
-            ) : characteristics.length === 0 ? (
+            ) : filteredCharacteristics.length === 0 ? (
               <div className="flex justify-center items-center h-full text-gray-500">
-                Справочник характеристик пуст
+                {searchQuery ? `Ничего не найдено по запросу "${searchQuery}"` : 'Справочник характеристик пуст'}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
-                {characteristics.map((characteristic) => (
-                  <div key={characteristic.id} className="border rounded-lg p-4 bg-white shadow-md">
-                    <div className="space-y-3">
+              <div className="grid grid-cols-3 lg:grid-cols-4 gap-2">
+                {filteredCharacteristics.map((characteristic) => (
+                  <div key={characteristic.id} className="border rounded-md px-3 py-2 bg-white shadow-sm">
+                    <div className="space-y-1">
                       {/* Ключ характеристики */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Ключ характеристики</label>
-                        {editingId === characteristic.id ? (
-                            <Input
-                              value={formData.characteristic_key}
-                              onChange={(e) => setFormData(prev => ({ ...prev, characteristic_key: e.target.value }))}
-                              placeholder="Например: ВЕС"
-                              autoFocus
-                              className="mt-1 focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                              style={{ outline: 'none', boxShadow: 'none' }}
-                            />
-                        ) : (
-                          <div className="mt-1 text-sm font-bold">{characteristic.characteristic_key}</div>
-                        )}
-                      </div>
-                      
+                      {editingId === characteristic.id ? (
+                        <Input
+                          value={formData.characteristic_key}
+                          onChange={(e) => setFormData(prev => ({ ...prev, characteristic_key: e.target.value }))}
+                          placeholder="Например: ВЕС"
+                          autoFocus
+                          className="h-7 text-xs focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                          style={{ outline: 'none', boxShadow: 'none' }}
+                        />
+                      ) : (
+                        <div className="text-sm font-semibold truncate" title={characteristic.characteristic_key}>
+                          {characteristic.characteristic_key}
+                        </div>
+                      )}
+
                       {/* Единица измерения */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Единица измерения</label>
-                        {editingId === characteristic.id ? (
-                            <Input
-                              value={formData.unit_of_measurement}
-                              onChange={(e) => setFormData(prev => ({ ...prev, unit_of_measurement: e.target.value }))}
-                              placeholder="Например: кг"
-                              className="mt-1 focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                              style={{ outline: 'none', boxShadow: 'none' }}
-                            />
-                        ) : (
-                          <div className="mt-1 text-sm font-bold">{characteristic.unit_of_measurement || '-'}</div>
-                        )}
-                      </div>
-                      
+                      {editingId === characteristic.id ? (
+                        <Input
+                          value={formData.unit_of_measurement}
+                          onChange={(e) => setFormData(prev => ({ ...prev, unit_of_measurement: e.target.value }))}
+                          placeholder="Например: кг"
+                          className="h-7 text-xs focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
+                          style={{ outline: 'none', boxShadow: 'none' }}
+                        />
+                      ) : (
+                        <div className="text-xs text-gray-500">
+                          {characteristic.unit_of_measurement || '—'}
+                        </div>
+                      )}
+
                       {/* Действия */}
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex gap-1 justify-end">
                         {editingId === characteristic.id ? (
                           <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpdate(characteristic.id)}
-                              disabled={loading}
-                            >
-                              <Save className="h-4 w-4" />
+                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleUpdate(characteristic.id)} disabled={loading}>
+                              <Save className="h-3 w-3" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={cancelEdit}
-                            >
-                              <X className="h-4 w-4" />
+                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={cancelEdit}>
+                              <X className="h-3 w-3" />
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => startEdit(characteristic)}
-                              disabled={editingId !== null || isCreating}
-                            >
-                              <Edit className="h-4 w-4" />
+                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => startEdit(characteristic)} disabled={editingId !== null || isCreating}>
+                              <Edit className="h-3 w-3" />
                             </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDeleteDialog(characteristic)}
-                                disabled={editingId !== null || isCreating}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <Button variant="outline" size="icon" className="h-6 w-6 text-red-600 hover:text-red-700" onClick={() => openDeleteDialog(characteristic)} disabled={editingId !== null || isCreating}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
                           </>
                         )}
                       </div>

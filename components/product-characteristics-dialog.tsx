@@ -25,7 +25,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Plus, Trash2, GripVertical, Edit, Check, X } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Loader2, Plus, Trash2, GripVertical, Edit, Check, X, Search } from "lucide-react"
 
 interface ProductCharacteristicsDialogProps {
   productId: number
@@ -67,7 +68,33 @@ function SortableCharacteristicItem({
         <GripVertical className="h-5 w-5" />
       </Button>
 
-      {char.isEditing ? (
+      {char.isNew && !char.isEditing ? (
+        /* Новая характеристика из picker — показываем название + инпут значения + удалить */
+        <>
+          <div className="flex-1 px-3 py-2 text-sm font-medium">
+            {char.key}
+          </div>
+          <Input
+            placeholder="Значение"
+            value={char.tempValue ?? char.value}
+            onChange={(e) => onTempUpdate(char.id, "value", e.target.value)}
+            className="flex-1"
+            disabled={isPending}
+          />
+          <div className="text-sm text-gray-500 min-w-[60px]">
+            {char.unit_of_measurement || ''}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(char.id)}
+            className="text-red-500"
+            disabled={isPending}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </>
+      ) : char.isEditing ? (
         <>
           <Select
             value={char.tempCharacteristicId?.toString() || ""}
@@ -93,8 +120,8 @@ function SortableCharacteristicItem({
             disabled={isPending}
           />
           <div className="text-sm text-gray-500 min-w-[60px]">
-            {char.tempCharacteristicId ? 
-              characteristicsList.find(cl => cl.id === char.tempCharacteristicId)?.unit_of_measurement || '' 
+            {char.tempCharacteristicId ?
+              characteristicsList.find(cl => cl.id === char.tempCharacteristicId)?.unit_of_measurement || ''
               : char.unit_of_measurement || ''}
           </div>
           <Button
@@ -185,22 +212,68 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
     fetchCharacteristicsList()
   }, [fetchChars, fetchCharacteristicsList])
 
-  const handleAdd = () => {
-    const newOrder = characteristics.length > 0 ? Math.max(...characteristics.map((c) => c.sort_order)) + 1 : 1
-    const newChar: EditableCharacteristic = {
-      id: nextTempId,
-      key: "",
-      value: "",
-      sort_order: newOrder,
-      isEditing: true,
-      isNew: true,
-      tempCharacteristicId: undefined,
-      tempValue: "",
-    }
+  // Picker dialog state
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerSearch, setPickerSearch] = useState('')
+  const [pickerSelected, setPickerSelected] = useState<Set<number>>(new Set())
 
-    setCharacteristics((prev) => [...prev, newChar])
-    setNextTempId((prev) => prev - 1)
+  const handleOpenPicker = () => {
+    setPickerSearch('')
+    setPickerSelected(new Set())
+    setPickerOpen(true)
   }
+
+  const handlePickerToggle = (id: number) => {
+    setPickerSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handlePickerConfirm = () => {
+    if (pickerSelected.size === 0) return
+
+    const newOrder = characteristics.length > 0 ? Math.max(...characteristics.map((c) => c.sort_order)) + 1 : 1
+    let tempId = nextTempId
+    const newChars: EditableCharacteristic[] = []
+
+    pickerSelected.forEach((charListId) => {
+      const listItem = characteristicsList.find(cl => cl.id === charListId)
+      if (!listItem) return
+      // Skip if already added
+      if (characteristics.some(c => c.characteristic_id === charListId && !c.isNew)) return
+
+      newChars.push({
+        id: tempId,
+        key: listItem.characteristic_key,
+        value: "",
+        sort_order: newOrder + newChars.length,
+        unit_of_measurement: listItem.unit_of_measurement,
+        characteristic_id: charListId,
+        isEditing: false,
+        isNew: true,
+        tempCharacteristicId: charListId,
+        tempValue: "",
+      })
+      tempId--
+    })
+
+    if (newChars.length > 0) {
+      setCharacteristics(prev => [...prev, ...newChars])
+      setNextTempId(tempId)
+    }
+    setPickerOpen(false)
+  }
+
+  // Фильтрованный список для picker
+  const filteredPickerList = characteristicsList.filter(item =>
+    item.characteristic_key.toLowerCase().includes(pickerSearch.toLowerCase())
+  )
+
+  // IDs характеристик уже добавленных к товару
+  const existingCharIds = new Set(characteristics.filter(c => !c.isNew).map(c => c.characteristic_id))
 
   const handleDelete = (id: number) => {
     const char = characteristics.find((c) => c.id === id)
@@ -233,8 +306,8 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
     const char = characteristics.find((c) => c.id === id)
     if (!char) return
 
-    const characteristicId = char.tempCharacteristicId
-    const value = char.tempValue || char.value
+    const characteristicId = char.tempCharacteristicId || char.characteristic_id
+    const value = char.tempValue ?? char.value
 
     if (!characteristicId) {
       toast({ variant: "destructive", title: "Ошибка", description: "Выберите характеристику из списка" })
@@ -270,6 +343,27 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
       )
       toast({ title: "Изменения сохранены" })
     }
+  }
+
+  // Сохранить все новые характеристики разом
+  const handleSaveAllNew = () => {
+    const newChars = characteristics.filter(c => c.isNew)
+    if (newChars.length === 0) return
+
+    startTransition(async () => {
+      try {
+        for (const char of newChars) {
+          const characteristicId = char.tempCharacteristicId || char.characteristic_id
+          if (!characteristicId) continue
+          const value = char.tempValue ?? char.value
+          await addCharacteristic(productId, characteristicId, value)
+        }
+        toast({ title: `Добавлено характеристик: ${newChars.length}` })
+        await fetchChars()
+      } catch (error) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Не удалось сохранить характеристики" })
+      }
+    })
   }
 
   const handleCancelEdit = (id: number) => {
@@ -367,14 +461,80 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
           )}
         </div>
         <DialogFooter className="flex justify-between">
-          <Button onClick={handleAdd} disabled={isPending}>
-            <Plus className="mr-2 h-4 w-4" /> Добавить
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleOpenPicker} disabled={isPending}>
+              <Plus className="mr-2 h-4 w-4" /> Добавить
+            </Button>
+            {characteristics.some(c => c.isNew) && (
+              <Button onClick={handleSaveAllNew} disabled={isPending} variant="default" className="bg-green-600 hover:bg-green-700">
+                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                Сохранить новые ({characteristics.filter(c => c.isNew).length})
+              </Button>
+            )}
+          </div>
           <Button type="button" variant="ghost" onClick={onClose}>
             Закрыть
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Диалог выбора характеристик */}
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Выберите характеристики</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              placeholder="Поиск по наименованию..."
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto border rounded-md divide-y max-h-[50vh]">
+            {filteredPickerList.length === 0 ? (
+              <div className="p-4 text-center text-gray-500 text-sm">
+                {pickerSearch ? 'Ничего не найдено' : 'Справочник пуст'}
+              </div>
+            ) : (
+              filteredPickerList.map(item => {
+                const alreadyAdded = existingCharIds.has(item.id) || characteristics.some(c => c.isNew && c.characteristic_id === item.id)
+                return (
+                  <label
+                    key={item.id}
+                    className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 ${alreadyAdded ? 'opacity-50' : ''}`}
+                  >
+                    <Checkbox
+                      checked={pickerSelected.has(item.id)}
+                      onCheckedChange={() => handlePickerToggle(item.id)}
+                      disabled={alreadyAdded}
+                    />
+                    <span className="text-sm flex-1">{item.characteristic_key}</span>
+                    {item.unit_of_measurement && (
+                      <span className="text-xs text-gray-400">{item.unit_of_measurement}</span>
+                    )}
+                    {alreadyAdded && (
+                      <span className="text-xs text-gray-400">добавлена</span>
+                    )}
+                  </label>
+                )
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPickerOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handlePickerConfirm} disabled={pickerSelected.size === 0}>
+              <Plus className="mr-2 h-4 w-4" />
+              Добавить ({pickerSelected.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
