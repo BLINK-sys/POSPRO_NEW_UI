@@ -23,7 +23,9 @@ import {
   Loader2,
   Bot,
   Eye,
+  Trash2,
 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { API_BASE_URL } from "@/lib/api-address"
 import Image from "next/image"
@@ -108,6 +110,8 @@ export default function AdminDashboardPage() {
   const [topProductsOpen, setTopProductsOpen] = useState(false)
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [topProductsLoading, setTopProductsLoading] = useState(false)
+  const [topLimit, setTopLimit] = useState(20)
+  const [customLimit, setCustomLimit] = useState("")
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -212,11 +216,10 @@ export default function AdminDashboardPage() {
     }
   }
 
-  const openTopProducts = async () => {
-    setTopProductsOpen(true)
+  const fetchTopProducts = async (limit: number) => {
     setTopProductsLoading(true)
     try {
-      let url = `/api/admin/top-products?period=${period}`
+      let url = `/api/admin/top-products?period=${period}&limit=${limit}`
       if (period === "custom" && dateFrom && dateTo) {
         url += `&date_from=${format(dateFrom, "yyyy-MM-dd")}&date_to=${format(dateTo, "yyyy-MM-dd")}`
       }
@@ -230,6 +233,34 @@ export default function AdminDashboardPage() {
     } finally {
       setTopProductsLoading(false)
     }
+  }
+
+  const openTopProducts = async () => {
+    setTopProductsOpen(true)
+    fetchTopProducts(topLimit)
+  }
+
+  const handleLimitChange = (limit: number) => {
+    setTopLimit(limit)
+    setCustomLimit("")
+    fetchTopProducts(limit)
+  }
+
+  const handleCustomLimit = () => {
+    const num = parseInt(customLimit)
+    if (num > 0) {
+      setTopLimit(num)
+      fetchTopProducts(num)
+    }
+  }
+
+  const handleClearViews = async () => {
+    if (!confirm("Очистить все данные просмотров товаров?")) return
+    try {
+      await fetch("/api/admin/clear-product-views", { method: "DELETE" })
+      setTopProducts([])
+      fetchStats()
+    } catch {}
   }
 
   const formatNumber = (n: number) => n.toLocaleString("ru-RU")
@@ -529,6 +560,38 @@ export default function AdminDashboardPage() {
           <DialogHeader>
             <DialogTitle>Топ просматриваемых товаров</DialogTitle>
           </DialogHeader>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[5, 10, 20, 50].map((n) => (
+              <Button
+                key={n}
+                variant={topLimit === n && !customLimit ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleLimitChange(n)}
+              >
+                {n}
+              </Button>
+            ))}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                placeholder="Своё"
+                className="h-8 w-20"
+                value={customLimit}
+                onChange={(e) => setCustomLimit(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCustomLimit()}
+              />
+              <Button size="sm" variant="outline" onClick={handleCustomLimit} disabled={!customLimit}>
+                ОК
+              </Button>
+            </div>
+            <div className="ml-auto">
+              <Button size="sm" variant="destructive" className="gap-1" onClick={handleClearViews}>
+                <Trash2 className="h-3 w-3" />
+                Очистить
+              </Button>
+            </div>
+          </div>
 
           <div className="flex-1 overflow-auto">
             {topProductsLoading ? (
