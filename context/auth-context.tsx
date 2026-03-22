@@ -60,6 +60,8 @@ export function AuthProvider({
     const freshUser = await refreshProfile()
     if (freshUser) {
       setUser(freshUser as User)
+    } else {
+      setUser(null)
     }
   }, [])
 
