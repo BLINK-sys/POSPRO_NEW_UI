@@ -241,7 +241,21 @@ export default function ProductPage() {
         }
         
         setProduct(productWithStatus)
-        
+
+        // Трекинг просмотра товара (кроме системных пользователей)
+        if (user?.role !== 'admin' && user?.role !== 'system') {
+          fetch(`${API_BASE_URL}/api/track-product-view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              product_id: productData.id,
+              product_name: productData.name,
+              product_slug: slug,
+              user_agent: navigator.userAgent,
+            }),
+          }).catch(() => {})
+        }
+
         // Устанавливаем первый медиафайл как активный
         if (productData.media.length > 0) {
           setActiveMediaIndex(0)

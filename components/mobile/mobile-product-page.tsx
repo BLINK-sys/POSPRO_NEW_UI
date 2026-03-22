@@ -61,6 +61,20 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
       try {
         const data = await getProductBySlug(slug)
         setProduct(data)
+
+        // Трекинг просмотра товара (кроме системных пользователей)
+        if (user?.role !== 'admin' && user?.role !== 'system') {
+          fetch(`${API_BASE_URL}/api/track-product-view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              product_id: data.id,
+              product_name: data.name,
+              product_slug: slug,
+              user_agent: navigator.userAgent,
+            }),
+          }).catch(() => {})
+        }
       } catch (error) {
         console.error("Error loading product:", error)
       } finally {

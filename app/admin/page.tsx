@@ -22,8 +22,11 @@ import {
   CalendarIcon,
   Loader2,
   Bot,
+  Eye,
 } from "lucide-react"
 import { format } from "date-fns"
+import { API_BASE_URL } from "@/lib/api-address"
+import Image from "next/image"
 import { ru } from "date-fns/locale"
 
 type Period = "today" | "week" | "month" | "3months" | "custom"
@@ -44,6 +47,7 @@ interface DashboardStats {
     orders: number
     price_inquiries: number
   }
+  product_views: number
   recent_requests: {
     id: number
     request_type: string
@@ -54,6 +58,15 @@ interface DashboardStats {
     assigned_to: string | null
     created_at: string | null
   }[]
+}
+
+interface TopProduct {
+  product_id: number
+  product_name: string
+  product_slug: string
+  image_url: string | null
+  views: number
+  unique_views: number
 }
 
 interface VisitorDetail {
@@ -90,6 +103,11 @@ export default function AdminDashboardPage() {
   const [botTab, setBotTab] = useState<"period" | "all">("period")
   const [botAllData, setBotAllData] = useState<VisitorDetail[]>([])
   const [botAllLoading, setBotAllLoading] = useState(false)
+
+  // Диалог топ товаров
+  const [topProductsOpen, setTopProductsOpen] = useState(false)
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([])
+  const [topProductsLoading, setTopProductsLoading] = useState(false)
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -191,6 +209,26 @@ export default function AdminDashboardPage() {
       setBotAllData([])
     } finally {
       setBotAllLoading(false)
+    }
+  }
+
+  const openTopProducts = async () => {
+    setTopProductsOpen(true)
+    setTopProductsLoading(true)
+    try {
+      let url = `/api/admin/top-products?period=${period}`
+      if (period === "custom" && dateFrom && dateTo) {
+        url += `&date_from=${format(dateFrom, "yyyy-MM-dd")}&date_to=${format(dateTo, "yyyy-MM-dd")}`
+      }
+      const res = await fetch(url, { cache: "no-store" })
+      const json = await res.json()
+      if (json.success && json.data) {
+        setTopProducts(json.data.products)
+      }
+    } catch {
+      setTopProducts([])
+    } finally {
+      setTopProductsLoading(false)
     }
   }
 
@@ -347,6 +385,20 @@ export default function AdminDashboardPage() {
         />
       </div>
 
+      {/* Топ просматриваемых товаров */}
+      <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openTopProducts}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Просмотры товаров</CardTitle>
+          <Eye className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {loading ? "—" : stats?.product_views?.toLocaleString("ru-RU") ?? 0}
+          </div>
+          <p className="text-xs text-muted-foreground">Просмотров за период · нажмите для топа товаров</p>
+        </CardContent>
+      </Card>
+
       {/* Последние заявки */}
       <Card>
         <CardHeader>
@@ -467,6 +519,73 @@ export default function AdminDashboardPage() {
 
           <div className="border-t pt-2 text-xs text-muted-foreground">
             Записей: {currentDetailRows.length}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог топ товаров */}
+      <Dialog open={topProductsOpen} onOpenChange={setTopProductsOpen}>
+        <DialogContent className="w-[90vw] max-w-[90vw] h-[90vh] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Топ просматриваемых товаров</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto">
+            {topProductsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : topProducts.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Нет данных</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {topProducts.map((p, i) => (
+                  <a
+                    key={p.product_id}
+                    href={`/product/${p.product_slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
+                          alt={p.product_name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                          Нет фото
+                        </div>
+                      )}
+                      <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
+                        {i + 1}
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {p.product_name || `ID ${p.product_id}`}
+                      </p>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Eye className="h-3 w-3" />
+                          <span className="font-semibold text-foreground">{p.views}</span> просм.
+                        </span>
+                        <span>
+                          <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t pt-2 text-xs text-muted-foreground">
+            Товаров: {topProducts.length}
           </div>
         </DialogContent>
       </Dialog>
