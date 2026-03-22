@@ -276,6 +276,16 @@ export default function AdminDashboardPage() {
     } catch {}
   }
 
+  const handleDeleteRequest = async (id: number) => {
+    try {
+      const res = await fetch(`/api/admin/delete-request/${id}`, { method: "DELETE" })
+      const json = await res.json()
+      if (json.success) {
+        fetchStats()
+      }
+    } catch {}
+  }
+
   const formatNumber = (n: number) => n.toLocaleString("ru-RU")
 
   const currentDetailRows = detailType === "bot" && botTab === "all" ? botAllData : detailData
@@ -478,16 +488,44 @@ export default function AdminDashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    {r.total_amount != null && (
-                      <p className="text-sm font-medium">
-                        {formatNumber(r.total_amount)} ₸
-                      </p>
-                    )}
-                    {r.created_at && (
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(r.created_at), "dd.MM.yy HH:mm", { locale: ru })}
-                      </p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      {r.total_amount != null && (
+                        <p className="text-sm font-medium">
+                          {formatNumber(r.total_amount)} ₸
+                        </p>
+                      )}
+                      {r.created_at && (
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(r.created_at), "dd.MM.yy HH:mm", { locale: ru })}
+                        </p>
+                      )}
+                    </div>
+                    {user?.email === "bocan.anton@mail.ru" && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Удалить заявку?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Заявка от {r.customer_name || r.customer_phone || "—"} будет удалена безвозвратно.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Отмена</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteRequest(r.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Да, удалить
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </div>
