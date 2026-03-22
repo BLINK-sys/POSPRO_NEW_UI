@@ -15,6 +15,7 @@ import {
   CircleDollarSign,
   CalendarIcon,
   Loader2,
+  Bot,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
@@ -30,6 +31,8 @@ interface DashboardStats {
   visitors: {
     web: number
     mobile: number
+    bots: number
+    bots_total: number
   }
   requests: {
     orders: number
@@ -215,7 +218,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Карточки: Посетители и заявки */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Посетители WEB"
           value={stats?.visitors.web}
@@ -230,6 +233,20 @@ export default function AdminDashboardPage() {
           subtitle="Уникальные по IP"
           loading={loading}
         />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Боты</CardTitle>
+            <Bot className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.visitors.bots?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              За период · всего {loading ? "—" : stats?.visitors.bots_total?.toLocaleString("ru-RU") ?? 0}
+            </p>
+          </CardContent>
+        </Card>
         <StatCard
           title="Оформление заказа"
           value={stats?.requests.orders}
