@@ -62,6 +62,7 @@ interface DashboardStats {
     price_inquiries: number
   }
   product_views: number
+  quick_views: number
   recent_requests: {
     id: number
     request_type: string
@@ -127,6 +128,13 @@ export default function AdminDashboardPage() {
   const [topLimit, setTopLimit] = useState(20)
   const [customLimit, setCustomLimit] = useState("")
   const [requestTypeFilter, setRequestTypeFilter] = useState<"all" | "order" | "price_inquiry">("all")
+
+  // Диалог быстрых просмотров
+  const [quickViewsOpen, setQuickViewsOpen] = useState(false)
+  const [quickViewProducts, setQuickViewProducts] = useState<TopProduct[]>([])
+  const [quickViewsLoading, setQuickViewsLoading] = useState(false)
+  const [quickViewLimit, setQuickViewLimit] = useState(20)
+  const [quickViewCustomLimit, setQuickViewCustomLimit] = useState("")
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -274,8 +282,66 @@ export default function AdminDashboardPage() {
 
   const handleClearViews = async () => {
     try {
-      await fetch("/api/admin/clear-product-views", { method: "DELETE" })
+      await fetch("/api/admin/clear-product-views?view_type=detail", { method: "DELETE" })
       setTopProducts([])
+      fetchStats()
+    } catch {}
+  }
+
+  const fetchQuickViewProducts = async (limit: number) => {
+    setQuickViewsLoading(true)
+    try {
+      let url = `/api/admin/top-products?period=${period}&limit=${limit}&view_type=quick`
+      if (period === "custom" && dateFrom && dateTo) {
+        url += `&date_from=${format(dateFrom, "yyyy-MM-dd")}&date_to=${format(dateTo, "yyyy-MM-dd")}`
+      }
+      const res = await fetch(url, { cache: "no-store" })
+      const json = await res.json()
+      if (json.success && json.data) {
+        setQuickViewProducts(json.data.products)
+      }
+    } catch {
+      setQuickViewProducts([])
+    } finally {
+      setQuickViewsLoading(false)
+    }
+  }
+
+  const openQuickViews = () => {
+    setQuickViewsOpen(true)
+    fetchQuickViewProducts(quickViewLimit)
+  }
+
+  const handleQuickViewLimitChange = (limit: number) => {
+    setQuickViewLimit(limit)
+    setQuickViewCustomLimit("")
+    fetchQuickViewProducts(limit)
+  }
+
+  const handleQuickViewCustomLimit = () => {
+    const num = parseInt(quickViewCustomLimit)
+    if (num > 0) {
+      setQuickViewLimit(num)
+      fetchQuickViewProducts(num)
+    }
+  }
+
+  const handleDeleteProductViews = async (productId: number, viewType: string) => {
+    try {
+      await fetch(`/api/admin/delete-product-views/${productId}?view_type=${viewType}`, { method: "DELETE" })
+      if (viewType === "quick") {
+        fetchQuickViewProducts(quickViewLimit)
+      } else {
+        fetchTopProducts(topLimit)
+      }
+      fetchStats()
+    } catch {}
+  }
+
+  const handleClearQuickViews = async () => {
+    try {
+      await fetch("/api/admin/clear-product-views?view_type=quick", { method: "DELETE" })
+      setQuickViewProducts([])
       fetchStats()
     } catch {}
   }
@@ -459,19 +525,34 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Топ просматриваемых товаров */}
-      <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openTopProducts}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Просмотры товаров</CardTitle>
-          <Eye className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {loading ? "—" : stats?.product_views?.toLocaleString("ru-RU") ?? 0}
-          </div>
-          <p className="text-xs text-muted-foreground">Просмотров за период · нажмите для топа товаров</p>
-        </CardContent>
-      </Card>
+      {/* Просмотры товаров */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openQuickViews}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Быстрый просмотр</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.quick_views?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Быстрых просмотров за период</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openTopProducts}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Просмотры товаров</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.product_views?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Просмотров за период · нажмите для топа товаров</p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Последние заявки */}
       <Card>
@@ -713,45 +794,58 @@ export default function AdminDashboardPage() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {topProducts.map((p, i) => (
-                  <a
+                  <div
                     key={p.product_id}
-                    href={`/product/${p.product_slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
+                    className="relative flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                      {p.image_url ? (
-                        <img
-                          src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
-                          alt={p.product_name}
-                          className="h-full w-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                          Нет фото
+                    <a
+                      href={`/product/${p.product_slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                        {p.image_url ? (
+                          <img
+                            src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
+                            alt={p.product_name}
+                            className="h-full w-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                            Нет фото
+                          </div>
+                        )}
+                        <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
+                          {i + 1}
                         </div>
-                      )}
-                      <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
-                        {i + 1}
                       </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {p.product_name || `ID ${p.product_id}`}
-                      </p>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Eye className="h-3 w-3" />
-                          <span className="font-semibold text-foreground">{p.views}</span> просм.
-                        </span>
-                        <span>
-                          <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
-                        </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {p.product_name || `ID ${p.product_id}`}
+                        </p>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            <span className="font-semibold text-foreground">{p.views}</span> просм.
+                          </span>
+                          <span>
+                            <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </a>
+                    </a>
+                    {user?.email === "bocan.anton@mail.ru" && (
+                      <button
+                        onClick={() => handleDeleteProductViews(p.product_id, "detail")}
+                        className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Удалить просмотры"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -759,6 +853,141 @@ export default function AdminDashboardPage() {
 
           <div className="border-t pt-2 text-xs text-muted-foreground">
             Товаров: {topProducts.length}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог быстрых просмотров */}
+      <Dialog open={quickViewsOpen} onOpenChange={setQuickViewsOpen}>
+        <DialogContent className="w-[90vw] max-w-[90vw] h-[90vh] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Топ товаров — Быстрый просмотр</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[5, 10, 20, 50].map((n) => (
+              <Button
+                key={n}
+                variant={quickViewLimit === n && !quickViewCustomLimit ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleQuickViewLimitChange(n)}
+              >
+                {n}
+              </Button>
+            ))}
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                placeholder="Своё"
+                className="h-8 w-20"
+                value={quickViewCustomLimit}
+                onChange={(e) => setQuickViewCustomLimit(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleQuickViewCustomLimit()}
+              />
+              <Button size="sm" variant="outline" onClick={handleQuickViewCustomLimit} disabled={!quickViewCustomLimit}>
+                ОК
+              </Button>
+            </div>
+            {user?.email === "bocan.anton@mail.ru" && (
+              <div className="ml-auto">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive" className="gap-1">
+                      <Trash2 className="h-3 w-3" />
+                      Очистить
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Очистить данные быстрых просмотров?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Все данные о быстрых просмотрах товаров будут удалены безвозвратно. Это действие нельзя отменить.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Отмена</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearQuickViews}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Да, удалить
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-auto">
+            {quickViewsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : quickViewProducts.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Нет данных</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {quickViewProducts.map((p, i) => (
+                  <div
+                    key={p.product_id}
+                    className="relative flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <a
+                      href={`/product/${p.product_slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                        {p.image_url ? (
+                          <img
+                            src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
+                            alt={p.product_name}
+                            className="h-full w-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                            Нет фото
+                          </div>
+                        )}
+                        <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
+                          {i + 1}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {p.product_name || `ID ${p.product_id}`}
+                        </p>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            <span className="font-semibold text-foreground">{p.views}</span> просм.
+                          </span>
+                          <span>
+                            <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+                    {user?.email === "bocan.anton@mail.ru" && (
+                      <button
+                        onClick={() => handleDeleteProductViews(p.product_id, "quick")}
+                        className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Удалить просмотры"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t pt-2 text-xs text-muted-foreground">
+            Товаров: {quickViewProducts.length}
           </div>
         </DialogContent>
       </Dialog>

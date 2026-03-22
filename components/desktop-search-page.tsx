@@ -19,6 +19,7 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { Slider } from "@/components/ui/slider"
+import { QuickViewButton } from "@/components/quick-view-modal"
 
 const PAGE_SIZE = 50
 
@@ -507,6 +508,11 @@ export default function DesktopSearchPage() {
                                     className="w-7 h-7 bg-white/95 hover:bg-white rounded-full shadow-md hover:shadow-lg"
                                     size="sm"
                                   />
+                                </div>
+
+                                {/* Кнопка быстрого просмотра */}
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                                  <QuickViewButton slug={product.slug} />
                                 </div>
 
                                 {/* Brand on hover */}

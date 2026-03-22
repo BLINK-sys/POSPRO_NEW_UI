@@ -9,6 +9,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { getImageUrl } from "@/lib/image-utils"
 import { useAuth } from "@/context/auth-context"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { QuickViewButton } from "@/components/quick-view-modal"
 import type { Favorite as FavoriteItem } from "@/app/actions/favorites"
 
 interface FavoritesGridProps {
@@ -104,6 +105,11 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                           productId={favorite.product.id}
                           productName={favorite.product.name}
                         />
+                      </div>
+
+                      {/* Кнопка быстрого просмотра */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                        <QuickViewButton slug={favorite.product.slug} />
                       </div>
 
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">

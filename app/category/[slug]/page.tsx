@@ -18,6 +18,7 @@ import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWhol
 import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { QuickViewButton } from "@/components/quick-view-modal"
 
 interface CategoryPageData {
   category: CategoryData
@@ -456,6 +457,11 @@ export default function CategoryPage() {
                             />
                           </div>
                           
+                           {/* Кнопка быстрого просмотра */}
+                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                             <QuickViewButton slug={product.slug} />
+                           </div>
+
                            {/* Панель с дополнительной информацией при наведении - только снизу */}
                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                              <div className="p-3 w-full">
