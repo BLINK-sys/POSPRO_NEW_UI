@@ -43,7 +43,7 @@ import { API_BASE_URL } from "@/lib/api-address"
 import Image from "next/image"
 import { ru } from "date-fns/locale"
 
-type Period = "today" | "week" | "month" | "3months" | "custom"
+type Period = "today" | "week" | "month" | "3months" | "all" | "custom"
 
 interface DashboardStats {
   users: {
@@ -94,6 +94,7 @@ const PERIOD_LABELS: Record<Period, string> = {
   week: "Неделя",
   month: "Месяц",
   "3months": "3 месяца",
+  all: "За всё время",
   custom: "Период",
 }
 
