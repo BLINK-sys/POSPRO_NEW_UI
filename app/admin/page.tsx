@@ -126,6 +126,7 @@ export default function AdminDashboardPage() {
   const [topProductsLoading, setTopProductsLoading] = useState(false)
   const [topLimit, setTopLimit] = useState(20)
   const [customLimit, setCustomLimit] = useState("")
+  const [requestTypeFilter, setRequestTypeFilter] = useState<"all" | "order" | "price_inquiry">("all")
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -133,6 +134,9 @@ export default function AdminDashboardPage() {
       let url = `/api/admin/dashboard-stats?period=${period}`
       if (period === "custom" && dateFrom && dateTo) {
         url += `&date_from=${format(dateFrom, "yyyy-MM-dd")}&date_to=${format(dateTo, "yyyy-MM-dd")}`
+      }
+      if (requestTypeFilter !== "all") {
+        url += `&request_type=${requestTypeFilter}`
       }
 
       const res = await fetch(url, { cache: "no-store" })
@@ -146,7 +150,7 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, dateFrom, dateTo])
+  }, [period, dateFrom, dateTo, requestTypeFilter])
 
   useEffect(() => {
     if (period !== "custom" || (dateFrom && dateTo)) {
@@ -423,20 +427,36 @@ export default function AdminDashboardPage() {
             </p>
           </CardContent>
         </Card>
-        <StatCard
-          title="Оформление заказа"
-          value={stats?.requests.orders}
-          icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />}
-          subtitle="Заявок за период"
-          loading={loading}
-        />
-        <StatCard
-          title="Уточнение цены"
-          value={stats?.requests.price_inquiries}
-          icon={<CircleDollarSign className="h-4 w-4 text-muted-foreground" />}
-          subtitle="Запросов за период"
-          loading={loading}
-        />
+        <Card
+          className={`cursor-pointer transition-colors hover:bg-muted/50 ${requestTypeFilter === "order" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setRequestTypeFilter(requestTypeFilter === "order" ? "all" : "order")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Оформление заказа</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.requests.orders?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Заявок за период</p>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors hover:bg-muted/50 ${requestTypeFilter === "price_inquiry" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setRequestTypeFilter(requestTypeFilter === "price_inquiry" ? "all" : "price_inquiry")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Уточнение цены</CardTitle>
+            <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.requests.price_inquiries?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Запросов за период</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Топ просматриваемых товаров */}
@@ -455,8 +475,24 @@ export default function AdminDashboardPage() {
 
       {/* Последние заявки */}
       <Card>
-        <CardHeader>
-          <CardTitle>Последние заявки</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>
+            {requestTypeFilter === "order"
+              ? "Оформление заказа"
+              : requestTypeFilter === "price_inquiry"
+                ? "Уточнение цены"
+                : "Последние заявки"}
+          </CardTitle>
+          {requestTypeFilter !== "all" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRequestTypeFilter("all")}
+              className="text-xs text-muted-foreground"
+            >
+              Показать все
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {!stats?.recent_requests?.length ? (
