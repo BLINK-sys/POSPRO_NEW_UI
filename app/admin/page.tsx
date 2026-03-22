@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Users,
   UserCheck,
   Shield,
@@ -49,6 +55,12 @@ interface DashboardStats {
   }[]
 }
 
+interface VisitorDetail {
+  ip: string
+  user_agent: string | null
+  visited_at: string | null
+}
+
 const PERIOD_LABELS: Record<Period, string> = {
   today: "Сегодня",
   week: "Неделя",
@@ -66,6 +78,17 @@ export default function AdminDashboardPage() {
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [tempFrom, setTempFrom] = useState<Date | undefined>()
   const [tempTo, setTempTo] = useState<Date | undefined>()
+
+  // Диалог детализации
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailTitle, setDetailTitle] = useState("")
+  const [detailData, setDetailData] = useState<VisitorDetail[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  // Для ботов — 2 вкладки
+  const [detailType, setDetailType] = useState<"web" | "mobile" | "bot">("web")
+  const [botTab, setBotTab] = useState<"period" | "all">("period")
+  const [botAllData, setBotAllData] = useState<VisitorDetail[]>([])
+  const [botAllLoading, setBotAllLoading] = useState(false)
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -123,7 +146,57 @@ export default function AdminDashboardPage() {
     }
   }
 
+  const fetchVisitorDetails = async (deviceType: string, showAll = false) => {
+    let url = `/api/admin/visitor-details?device_type=${deviceType}&period=${period}`
+    if (showAll) {
+      url = `/api/admin/visitor-details?device_type=${deviceType}&all=true`
+    } else if (period === "custom" && dateFrom && dateTo) {
+      url += `&date_from=${format(dateFrom, "yyyy-MM-dd")}&date_to=${format(dateTo, "yyyy-MM-dd")}`
+    }
+
+    const res = await fetch(url, { cache: "no-store" })
+    const json = await res.json()
+    return json.success ? json.data : []
+  }
+
+  const openDetail = async (type: "web" | "mobile" | "bot") => {
+    setDetailType(type)
+    setBotTab("period")
+    setDetailOpen(true)
+    setDetailLoading(true)
+    setBotAllData([])
+
+    const titles = { web: "Посетители WEB", mobile: "Посетители Mobile", bot: "Боты" }
+    setDetailTitle(titles[type])
+
+    try {
+      const data = await fetchVisitorDetails(type)
+      setDetailData(data)
+    } catch {
+      setDetailData([])
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const loadBotAll = async () => {
+    setBotTab("all")
+    if (botAllData.length > 0) return
+    setBotAllLoading(true)
+    try {
+      const data = await fetchVisitorDetails("bot", true)
+      setBotAllData(data)
+    } catch {
+      setBotAllData([])
+    } finally {
+      setBotAllLoading(false)
+    }
+  }
+
   const formatNumber = (n: number) => n.toLocaleString("ru-RU")
+
+  const currentDetailRows = detailType === "bot" && botTab === "all" ? botAllData : detailData
+  const currentDetailLoading = detailType === "bot" && botTab === "all" ? botAllLoading : detailLoading
 
   return (
     <div className="flex flex-col gap-4">
@@ -219,21 +292,31 @@ export default function AdminDashboardPage() {
 
       {/* Карточки: Посетители и заявки */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <StatCard
-          title="Посетители WEB"
-          value={stats?.visitors.web}
-          icon={<Monitor className="h-4 w-4 text-muted-foreground" />}
-          subtitle="Уникальные по IP"
-          loading={loading}
-        />
-        <StatCard
-          title="Посетители Mobile"
-          value={stats?.visitors.mobile}
-          icon={<Smartphone className="h-4 w-4 text-muted-foreground" />}
-          subtitle="Уникальные по IP"
-          loading={loading}
-        />
-        <Card>
+        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("web")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Посетители WEB</CardTitle>
+            <Monitor className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.visitors.web?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Уникальные по IP</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("mobile")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Посетители Mobile</CardTitle>
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : stats?.visitors.mobile?.toLocaleString("ru-RU") ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Уникальные по IP</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("bot")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Боты</CardTitle>
             <Bot className="h-4 w-4 text-muted-foreground" />
@@ -312,6 +395,76 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Диалог детализации посетителей */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="w-[90vw] max-w-[90vw] h-[90vh] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{detailTitle}</DialogTitle>
+          </DialogHeader>
+
+          {/* Вкладки для ботов */}
+          {detailType === "bot" && (
+            <div className="flex gap-2">
+              <Button
+                variant={botTab === "period" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBotTab("period")}
+              >
+                За период
+              </Button>
+              <Button
+                variant={botTab === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={loadBotAll}
+              >
+                Все
+              </Button>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-auto">
+            {currentDetailLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : currentDetailRows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Нет данных</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4">#</th>
+                    <th className="pb-2 pr-4">IP</th>
+                    <th className="pb-2 pr-4">User-Agent</th>
+                    <th className="pb-2">Время</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentDetailRows.map((v, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{v.ip}</td>
+                      <td className="max-w-md truncate py-2 pr-4 text-xs text-muted-foreground">
+                        {v.user_agent || "—"}
+                      </td>
+                      <td className="py-2 text-xs whitespace-nowrap">
+                        {v.visited_at
+                          ? format(new Date(v.visited_at), "dd.MM.yy HH:mm", { locale: ru })
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="border-t pt-2 text-xs text-muted-foreground">
+            Записей: {currentDetailRows.length}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
