@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getApiUrl } from '@/lib/api-address'
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   const token = cookies().get('jwt-token')?.value
 
   if (!token) {
@@ -10,7 +10,10 @@ export async function DELETE() {
   }
 
   try {
-    const response = await fetch(getApiUrl('/api/clear-product-views'), {
+    const searchParams = request.nextUrl.searchParams.toString()
+    const url = getApiUrl(`/api/clear-product-views${searchParams ? `?${searchParams}` : ''}`)
+
+    const response = await fetch(url, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

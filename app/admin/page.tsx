@@ -525,7 +525,7 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Просмотры товаров */}
+      {/* Детальный просмотр товаров */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openQuickViews}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -542,7 +542,7 @@ export default function AdminDashboardPage() {
 
         <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openTopProducts}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Просмотры товаров</CardTitle>
+            <CardTitle className="text-sm font-medium">Детальный просмотр товаров</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
