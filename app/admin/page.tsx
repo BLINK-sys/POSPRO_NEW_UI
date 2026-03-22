@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
+import { useAuth } from "@/context/auth-context"
 import { API_BASE_URL } from "@/lib/api-address"
 import Image from "next/image"
 import { ru } from "date-fns/locale"
@@ -86,6 +87,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 }
 
 export default function AdminDashboardPage() {
+  const { user } = useAuth()
   const [period, setPeriod] = useState<Period>("today")
   const [dateFrom, setDateFrom] = useState<Date | undefined>()
   const [dateTo, setDateTo] = useState<Date | undefined>()
@@ -585,12 +587,14 @@ export default function AdminDashboardPage() {
                 ОК
               </Button>
             </div>
-            <div className="ml-auto">
-              <Button size="sm" variant="destructive" className="gap-1" onClick={handleClearViews}>
-                <Trash2 className="h-3 w-3" />
-                Очистить
-              </Button>
-            </div>
+            {user?.email === "bocan.anton@mail.ru" && (
+              <div className="ml-auto">
+                <Button size="sm" variant="destructive" className="gap-1" onClick={handleClearViews}>
+                  <Trash2 className="h-3 w-3" />
+                  Очистить
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-auto">
