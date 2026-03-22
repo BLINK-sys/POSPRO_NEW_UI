@@ -12,6 +12,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Users,
   UserCheck,
   Shield,
@@ -257,7 +268,6 @@ export default function AdminDashboardPage() {
   }
 
   const handleClearViews = async () => {
-    if (!confirm("Очистить все данные просмотров товаров?")) return
     try {
       await fetch("/api/admin/clear-product-views", { method: "DELETE" })
       setTopProducts([])
@@ -589,10 +599,31 @@ export default function AdminDashboardPage() {
             </div>
             {user?.email === "bocan.anton@mail.ru" && (
               <div className="ml-auto">
-                <Button size="sm" variant="destructive" className="gap-1" onClick={handleClearViews}>
-                  <Trash2 className="h-3 w-3" />
-                  Очистить
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive" className="gap-1">
+                      <Trash2 className="h-3 w-3" />
+                      Очистить
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Очистить данные просмотров?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Все данные о просмотрах товаров будут удалены безвозвратно. Это действие нельзя отменить.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Отмена</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearViews}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Да, удалить
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>
