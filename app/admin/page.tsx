@@ -61,6 +61,8 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [tempFrom, setTempFrom] = useState<Date | undefined>()
+  const [tempTo, setTempTo] = useState<Date | undefined>()
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -92,19 +94,28 @@ export default function AdminDashboardPage() {
   const handlePeriodChange = (newPeriod: Period) => {
     if (newPeriod === "custom") {
       setPeriod("custom")
+      setTempFrom(dateFrom)
+      setTempTo(dateTo)
       setCalendarOpen(true)
     } else {
       setPeriod(newPeriod)
       setDateFrom(undefined)
       setDateTo(undefined)
+      setTempFrom(undefined)
+      setTempTo(undefined)
       setCalendarOpen(false)
     }
   }
 
   const handleDateSelect = (range: { from?: Date; to?: Date } | undefined) => {
-    if (range?.from) setDateFrom(range.from)
-    if (range?.to) {
-      setDateTo(range.to)
+    setTempFrom(range?.from)
+    setTempTo(range?.to)
+  }
+
+  const handleDateConfirm = () => {
+    if (tempFrom && tempTo) {
+      setDateFrom(tempFrom)
+      setDateTo(tempTo)
       setCalendarOpen(false)
     }
   }
@@ -140,11 +151,27 @@ export default function AdminDashboardPage() {
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="range"
-                    selected={dateFrom && dateTo ? { from: dateFrom, to: dateTo } : undefined}
+                    selected={tempFrom ? { from: tempFrom, to: tempTo } : undefined}
                     onSelect={handleDateSelect as any}
                     numberOfMonths={2}
                     locale={ru}
                   />
+                  <div className="flex items-center justify-between border-t px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      {tempFrom && tempTo
+                        ? `${format(tempFrom, "dd.MM.yy")} – ${format(tempTo, "dd.MM.yy")}`
+                        : tempFrom
+                          ? `${format(tempFrom, "dd.MM.yy")} – ...`
+                          : "Выберите даты"}
+                    </p>
+                    <Button
+                      size="sm"
+                      disabled={!tempFrom || !tempTo}
+                      onClick={handleDateConfirm}
+                    >
+                      ОК
+                    </Button>
+                  </div>
                 </PopoverContent>
               </Popover>
             )
@@ -268,6 +295,7 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
     </div>
   )
 }
