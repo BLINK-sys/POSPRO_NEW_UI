@@ -152,6 +152,11 @@ export const API_ENDPOINTS = {
     REORDER_ITEMS: (id: number) => `/api/admin/homepage-blocks/${id}/items/reorder`,
   },
 
+  // Dashboard
+  DASHBOARD: {
+    STATS: "/api/admin/dashboard-stats",
+  },
+
   // Footer settings
   FOOTER: {
     GET: "/api/footer-settings",

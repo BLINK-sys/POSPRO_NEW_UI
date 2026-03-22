@@ -2,6 +2,7 @@
 
 const BITRIX_WEBHOOK = "https://pospro24.bitrix24.kz/rest/4243/xpp4z3mhx0q52h6i/"
 const SITE_URL = "https://pospro-new-ui.onrender.com"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new-server.onrender.com"
 
 // Ответственные (чередуются):
 //   ID=1  - Амирхан
@@ -197,6 +198,19 @@ export async function createBitrixDeal(data: BitrixDealData) {
       })
     }
 
+    // Логируем заявку в нашу БД для статистики дашборда
+    fetch(`${API_BASE_URL}/api/track-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_type: 'order',
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        customer_email: data.customer_email,
+        total_amount: data.total_amount,
+      }),
+    }).catch(() => {})
+
     return { success: true, dealId }
   } catch (error) {
     console.error('Bitrix24: ошибка:', error)
@@ -257,6 +271,19 @@ export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
       console.error('Bitrix24: ошибка создания запроса цены:', dealResult)
       return { success: false, message: 'Ошибка отправки запроса' }
     }
+
+    // Логируем заявку в нашу БД для статистики дашборда
+    fetch(`${API_BASE_URL}/api/track-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_type: 'price_inquiry',
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        product_name: data.product_name,
+        product_slug: data.product_slug,
+      }),
+    }).catch(() => {})
 
     return { success: true, dealId: dealResult.result }
   } catch (error) {
