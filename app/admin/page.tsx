@@ -51,6 +51,7 @@ interface DashboardStats {
     customer_phone: string | null
     product_name: string | null
     total_amount: number | null
+    assigned_to: string | null
     created_at: string | null
   }[]
 }
@@ -369,11 +370,15 @@ export default function AdminDashboardPage() {
                     )}
                     <div>
                       <p className="text-sm font-medium">
-                        {r.customer_name || r.customer_phone || "—"}
+                        {r.customer_name || "—"}
+                        {r.customer_phone && (
+                          <span className="ml-2 font-normal text-muted-foreground">{r.customer_phone}</span>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {r.request_type === "order" ? "Заказ" : "Уточнение цены"}
                         {r.product_name && ` · ${r.product_name}`}
+                        {r.assigned_to && ` → ${r.assigned_to}`}
                       </p>
                     </div>
                   </div>

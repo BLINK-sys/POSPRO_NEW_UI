@@ -8,6 +8,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new
 //   ID=1  - Амирхан
 //   ID=11 - Алексей
 const ASSIGNEES = [1, 11]
+const ASSIGNEE_NAMES: Record<number, string> = {
+  1: "Амирхан",
+  11: "Алексей",
+}
 
 // Определяет следующего ответственного для воронки (round-robin)
 // Запрашивает последнюю сделку в воронке и возвращает другого
@@ -208,6 +212,7 @@ export async function createBitrixDeal(data: BitrixDealData) {
         customer_phone: data.customer_phone,
         customer_email: data.customer_email,
         total_amount: data.total_amount,
+        assigned_to: ASSIGNEE_NAMES[assignedId] || `ID ${assignedId}`,
       }),
     }).catch(() => {})
 
@@ -282,6 +287,7 @@ export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
         customer_phone: data.customer_phone,
         product_name: data.product_name,
         product_slug: data.product_slug,
+        assigned_to: ASSIGNEE_NAMES[assignedId] || `ID ${assignedId}`,
       }),
     }).catch(() => {})
 
