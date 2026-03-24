@@ -16,7 +16,11 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Интернет-магазин",
   description: "Современный интернет-магазин на Next.js",
-    generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: {
+    icon: "/ui/favicon.ico",
+    apple: "/ui/favicon.ico",
+  },
 }
 
 export default async function RootLayout({
