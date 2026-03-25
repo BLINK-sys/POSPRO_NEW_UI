@@ -7,8 +7,8 @@ import { type Product, updateProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
-import type { Warehouse } from "@/app/actions/warehouses"
-import type { ProductCost } from "@/app/actions/product-costs"
+import { type Warehouse, getWarehouses } from "@/app/actions/warehouses"
+import { type ProductCost, getProductCosts, createProductCost, deleteProductCost } from "@/app/actions/product-costs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -126,13 +126,9 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
     const loadAllCosts = async () => {
       setIsLoadingCosts(true)
       try {
-        const [costsModule, warehousesModule] = await Promise.all([
-          import("@/app/actions/product-costs"),
-          import("@/app/actions/warehouses"),
-        ])
         const [costs, warehouses] = await Promise.all([
-          costsModule.getProductCosts({ product_id: product.id }),
-          warehousesModule.getWarehouses(),
+          getProductCosts({ product_id: product.id }),
+          getWarehouses(),
         ])
         setAllCosts(costs)
         setAllWarehouses(warehouses)
@@ -156,7 +152,6 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
   const handleAddWarehouseCost = () => {
     if (!addingWarehouseId || !addingCostPrice) return
     startTransition(async () => {
-      const { createProductCost } = await import("@/app/actions/product-costs")
       const result = await createProductCost({
         product_id: product.id,
         warehouse_id: Number(addingWarehouseId),
@@ -177,7 +172,6 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
   const handleDeleteWarehouseCost = (costId: number) => {
     startTransition(async () => {
-      const { deleteProductCost } = await import("@/app/actions/product-costs")
       const result = await deleteProductCost(costId)
       if (result.success) {
         setAllCosts(allCosts?.filter((c) => c.id !== costId))
