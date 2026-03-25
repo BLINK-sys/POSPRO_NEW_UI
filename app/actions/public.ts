@@ -1,6 +1,19 @@
 "use server"
 
+import { cookies } from "next/headers"
 import { getApiUrl } from "@/lib/api-address"
+
+// Get optional auth headers for system users to see hidden items
+async function getOptionalAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get("jwt-token")?.value
+    if (token) {
+      return { Authorization: `Bearer ${token}` }
+    }
+  } catch {}
+  return {}
+}
 
 // Типы данных
 export interface PublicHomepageData {
@@ -143,7 +156,8 @@ export async function getHomepageData(): Promise<PublicHomepageData> {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -200,7 +214,8 @@ export async function getCatalogCategories(): Promise<CategoryData[]> {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -285,7 +300,8 @@ export async function getCategoryData(
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -327,6 +343,7 @@ export async function getFooterSettings(): Promise<FooterSettings> {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -361,7 +378,8 @@ export async function getAllProducts(): Promise<ProductData[]> {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -416,7 +434,8 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -466,7 +485,8 @@ export async function getProductsByBrand(brandName: string): Promise<{
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -534,7 +554,8 @@ export async function getProductsByBrandDetailed(
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -575,7 +596,8 @@ export async function getCategoriesByBrand(brandName: string): Promise<{
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -629,7 +651,8 @@ export async function getProductsByBrandAndCategory(
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
@@ -680,6 +703,7 @@ export async function getProductAvailabilityStatus(quantity: number, supplierId?
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...await getOptionalAuthHeaders(),
       },
       cache: 'no-store'
     })
@@ -705,7 +729,8 @@ export async function getAllBrands(): Promise<AllBrandsData[]> {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
-        "Expires": "0"
+        "Expires": "0",
+        ...await getOptionalAuthHeaders(),
       },
       cache: "no-store",
     })
