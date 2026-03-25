@@ -410,7 +410,7 @@ export function ProductsTable({
           />
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         </div>
-        <Button onClick={() => setIsCreating(true)} className="w-full sm:w-auto">
+        <Button onClick={() => router.push("/admin/catalog/products/create")} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           Создать товар
         </Button>

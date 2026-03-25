@@ -1,20 +1,20 @@
 import { getSuppliers } from "@/app/actions/suppliers"
-import { SuppliersManagement } from "@/components/suppliers-management"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCurrencies } from "@/app/actions/currencies"
+import { getWarehouses } from "@/app/actions/warehouses"
+import { SuppliersPageClient } from "@/components/suppliers-page-client"
 
 export default async function SuppliersPage() {
-  const suppliers = await getSuppliers()
+  const [suppliers, currencies, warehouses] = await Promise.all([
+    getSuppliers(),
+    getCurrencies(),
+    getWarehouses(),
+  ])
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Поставщики</CardTitle>
-        <CardDescription>Управление справочником поставщиков. Создание, редактирование, удаление и поиск поставщиков.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <SuppliersManagement initialSuppliers={suppliers} />
-      </CardContent>
-    </Card>
+    <SuppliersPageClient
+      initialSuppliers={suppliers}
+      initialCurrencies={currencies}
+      initialWarehouses={warehouses}
+    />
   )
 }
-

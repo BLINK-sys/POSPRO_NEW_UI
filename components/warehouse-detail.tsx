@@ -1,0 +1,1156 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import {
+  type Warehouse,
+  type WarehouseVariable,
+  saveVariables,
+  saveSingleVariable,
+  saveFormula,
+  deleteFormula,
+  recalculateWarehouse,
+  calculatePreview,
+} from "@/app/actions/warehouses"
+import {
+  type ProductCost,
+  createProductCost,
+  updateProductCost,
+  deleteProductCost,
+} from "@/app/actions/product-costs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { FormulaBuilder } from "@/components/formula-builder"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Save,
+  Calculator,
+  RefreshCw,
+  GripVertical,
+  Check,
+  X,
+  Pencil,
+  Eye,
+} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+
+interface RangeRow {
+  from: number
+  to: number | null  // null = infinity
+  value: string      // can be number or formula like "37700 + (расчётный_вес - 30) * 261"
+}
+
+interface RangeConfig {
+  type: "range"
+  compareVar: string
+  ranges: RangeRow[]
+}
+
+function generateRangeFormula(config: RangeConfig): string {
+  const { compareVar, ranges } = config
+  if (!ranges.length || !compareVar) return "0"
+
+  const sorted = [...ranges].sort((a, b) => a.from - b.from)
+
+  if (sorted.length === 1) return sorted[0].value || "0"
+
+  // Build from last to first: nested ternary
+  // (value1) if var <= to1 else ((value2) if var <= to2 else (default))
+  let formula = `(${sorted[sorted.length - 1].value || "0"})`
+
+  for (let i = sorted.length - 2; i >= 0; i--) {
+    const r = sorted[i]
+    const boundary = r.to ?? r.from
+    const val = r.value || "0"
+    formula = `(${val}) if ${compareVar} <= ${boundary} else (${formula})`
+  }
+
+  return formula
+}
+
+interface WarehouseDetailProps {
+  initialWarehouse: Warehouse
+  initialProductCosts: ProductCost[]
+}
+
+export function WarehouseDetail({ initialWarehouse, initialProductCosts }: WarehouseDetailProps) {
+  const [warehouse] = useState(initialWarehouse)
+  const [variables, setVariables] = useState<WarehouseVariable[]>(
+    initialWarehouse.variables || []
+  )
+  const [formulaText, setFormulaText] = useState(
+    initialWarehouse.formula?.formula || ""
+  )
+  const [productCosts, setProductCosts] = useState<ProductCost[]>(initialProductCosts)
+  const [isPending, startTransition] = useTransition()
+  const [isAddingProduct, setIsAddingProduct] = useState(false)
+  const [newProductId, setNewProductId] = useState("")
+  const [newCostPrice, setNewCostPrice] = useState("")
+  const [editingCostId, setEditingCostId] = useState<number | null>(null)
+  const [editCostPrice, setEditCostPrice] = useState("")
+  const [deletingCost, setDeletingCost] = useState<ProductCost | null>(null)
+  const [previewResult, setPreviewResult] = useState<{
+    calculated_price: number
+    variables: Record<string, number>
+    steps?: { name: string; formula?: string; value: number }[]
+  } | null>(null)
+  const [previewCostPrice, setPreviewCostPrice] = useState("")
+  const [previewWeight, setPreviewWeight] = useState("")
+  const [previewDimensions, setPreviewDimensions] = useState("")
+  const [expandedVars, setExpandedVars] = useState<Set<number>>(new Set())
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  // ===== Variable expand/collapse =====
+
+  const toggleExpanded = (index: number) => {
+    const next = new Set(expandedVars)
+    if (next.has(index)) next.delete(index)
+    else next.add(index)
+    setExpandedVars(next)
+  }
+
+  // ===== Drag & Drop =====
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    // Only allow drag from collapsed card header
+    if (expandedVars.has(index)) {
+      e.preventDefault()
+      return
+    }
+    setDragIndex(index)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (dragIndex === null || dragIndex === index) return
+    const updated = [...variables]
+    const [moved] = updated.splice(dragIndex, 1)
+    updated.splice(index, 0, moved)
+    setVariables(updated)
+    setDragIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    if (dragIndex !== null) {
+      // Auto-save order after drag
+      setDragIndex(null)
+      startTransition(async () => {
+        const result = await saveVariables(
+          warehouse.id,
+          variables.map((v, i) => ({ ...v, sort_order: i }))
+        )
+        if (result.success) {
+          toast({ title: "Порядок сохранён" })
+        } else {
+          toast({ variant: "destructive", title: "Ошибка", description: result.message })
+        }
+      })
+    }
+  }
+
+  // ===== Variables =====
+
+  const addVariable = (type: "formula" | "range" = "formula") => {
+    setVariables([
+      ...variables,
+      {
+        name: "",
+        label: type === "range" ? JSON.stringify({ type: "range", compareVar: "вес", ranges: [{ from: 0, to: 30, value: "0" }] }) : "",
+        formula: "",
+        sort_order: variables.length,
+      },
+    ])
+    // Auto-expand new variable
+    setExpandedVars(new Set([...expandedVars, variables.length]))
+  }
+
+  const isRangeVariable = (variable: WarehouseVariable) => {
+    try {
+      const parsed = JSON.parse(variable.label || "")
+      return parsed?.type === "range"
+    } catch {
+      return false
+    }
+  }
+
+  const getRangeConfig = (variable: WarehouseVariable) => {
+    try {
+      return JSON.parse(variable.label || "")
+    } catch {
+      return { type: "range", compareVar: "вес", ranges: [{ from: 0, to: 30, value: 0 }] }
+    }
+  }
+
+  const updateRangeConfig = (index: number, config: RangeConfig) => {
+    const updated = [...variables]
+    updated[index] = {
+      ...updated[index],
+      label: JSON.stringify(config),
+      formula: generateRangeFormula(config),
+    }
+    setVariables(updated)
+  }
+
+  const updateVariable = (index: number, field: string, value: string) => {
+    const updated = [...variables]
+    updated[index] = { ...updated[index], [field]: value }
+    setVariables(updated)
+  }
+
+  const removeVariable = (index: number) => {
+    setVariables(variables.filter((_, i) => i !== index))
+  }
+
+  const handleSaveVariables = () => {
+    // Validate
+    for (const v of variables) {
+      if (!v.name.trim() || !v.formula.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Ошибка",
+          description: "У всех переменных должны быть заполнены имя и формула",
+        })
+        return
+      }
+    }
+
+    startTransition(async () => {
+      const result = await saveVariables(
+        warehouse.id,
+        variables.map((v, i) => ({ ...v, sort_order: i }))
+      )
+      if (result.success) {
+        toast({ title: "Успех!", description: result.message })
+        // Reload warehouse data to sync variable names with server
+        await _reloadWarehouse()
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.message })
+      }
+    })
+  }
+
+  const handleSaveSingleVariable = (index: number) => {
+    const variable = variables[index]
+    if (!variable.name.trim() || !variable.formula.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Заполните имя и формулу переменной",
+      })
+      return
+    }
+
+    startTransition(async () => {
+      const varsAbove = variables
+        .slice(0, index)
+        .filter((v) => v.name.trim())
+        .map((v) => v.name)
+
+      const result = await saveSingleVariable(warehouse.id, {
+        ...variable,
+        sort_order: index,
+        vars_above: varsAbove,
+      } as any)
+      if (result.success) {
+        toast({ title: "Успех!", description: result.message })
+        // Update local state with server data (gets ID for new variables)
+        if (result.data) {
+          const updated = [...variables]
+          updated[index] = result.data
+          setVariables(updated)
+        }
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.message })
+      }
+    })
+  }
+
+  const _reloadWarehouse = async () => {
+    try {
+      const { getWarehouse } = await import("@/app/actions/warehouses")
+      const updated = await getWarehouse(warehouse.id)
+      if (updated) {
+        setVariables(updated.variables || [])
+        if (updated.formula) {
+          setFormulaText(updated.formula.formula)
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // ===== Formula =====
+
+  const handleSaveFormula = () => {
+    if (!formulaText.trim()) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Формула не может быть пустой" })
+      return
+    }
+    startTransition(async () => {
+      const result = await saveFormula(warehouse.id, formulaText.trim())
+      if (result.success) {
+        toast({ title: "Успех!", description: result.message })
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.message })
+      }
+    })
+  }
+
+  const handleDeleteFormula = () => {
+    startTransition(async () => {
+      const result = await deleteFormula(warehouse.id)
+      if (result.success) {
+        setFormulaText("")
+        toast({ title: "Успех!", description: result.message })
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.message })
+      }
+    })
+  }
+
+  // ===== Preview =====
+
+  const handlePreview = () => {
+    if (!previewCostPrice) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Укажите себестоимость для расчёта" })
+      return
+    }
+    startTransition(async () => {
+      const result = await calculatePreview(warehouse.id, 0, Number(previewCostPrice), {
+        weight: previewWeight ? Number(previewWeight) : undefined,
+        dimensions: previewDimensions || undefined,
+      })
+      if (result.success && result.data) {
+        setPreviewResult(result.data)
+      } else {
+        toast({ variant: "destructive", title: "Ошибка расчёта", description: result.message })
+        setPreviewResult(null)
+      }
+    })
+  }
+
+  // ===== Recalculate =====
+
+  const handleRecalculate = () => {
+    startTransition(async () => {
+      const result = await recalculateWarehouse(warehouse.id)
+      if (result.success) {
+        toast({ title: "Пересчёт завершён", description: result.message })
+        // Refresh costs
+        const { getProductCosts } = await import("@/app/actions/product-costs")
+        const costs = await getProductCosts({ warehouse_id: warehouse.id })
+        setProductCosts(costs)
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.message })
+      }
+    })
+  }
+
+  // ===== Product Costs =====
+
+  const handleAddProduct = () => {
+    if (!newProductId || !newCostPrice) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Заполните ID товара и себестоимость" })
+      return
+    }
+    startTransition(async () => {
+      const result = await createProductCost({
+        product_id: Number(newProductId),
+        warehouse_id: warehouse.id,
+        cost_price: Number(newCostPrice),
+      })
+      if (result.success && result.data) {
+        toast({ title: "Успех!", description: result.message })
+        setProductCosts([...productCosts, result.data])
+        setNewProductId("")
+        setNewCostPrice("")
+        setIsAddingProduct(false)
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+    })
+  }
+
+  const handleUpdateCost = (costId: number) => {
+    if (!editCostPrice) return
+    startTransition(async () => {
+      const result = await updateProductCost(costId, { cost_price: Number(editCostPrice) })
+      if (result.success && result.data) {
+        toast({ title: "Успех!", description: result.message })
+        setProductCosts(productCosts.map((c) => (c.id === costId ? result.data! : c)))
+        setEditingCostId(null)
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+    })
+  }
+
+  const handleDeleteCost = () => {
+    if (!deletingCost) return
+    startTransition(async () => {
+      const result = await deleteProductCost(deletingCost.id)
+      if (result.success) {
+        toast({ title: "Успех!", description: result.message })
+        setProductCosts(productCosts.filter((c) => c.id !== deletingCost.id))
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+      setDeletingCost(null)
+    })
+  }
+
+  // ===== Built-in variables reference =====
+  const builtinVars = [
+    { name: "себестоимость", desc: "Себестоимость товара" },
+    { name: "курс_валюты", desc: `Курс ${warehouse.currency?.code || "?"} → тг (${warehouse.currency?.rate_to_tenge || "?"})` },
+    { name: "габариты", desc: "Д×Ш×В (упаковка → без упаковки, 0 если пусто)" },
+    { name: "вес", desc: "Из характеристик товара" },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push("/admin/suppliers")}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">{warehouse.name}</h1>
+          <p className="text-gray-500">
+            {warehouse.supplier_name} · {warehouse.city || "Город не указан"} ·{" "}
+            {warehouse.currency?.code} ({warehouse.currency?.rate_to_tenge} тг)
+          </p>
+        </div>
+      </div>
+
+      {/* Built-in Variables Reference */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Встроенные переменные</CardTitle>
+          <CardDescription>
+            Эти переменные доступны автоматически и берутся из данных товара
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {builtinVars.map((v) => (
+              <div key={v.name} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                <code className="text-sm font-mono bg-white px-2 py-0.5 rounded border">
+                  {v.name}
+                </code>
+                <span className="text-xs text-gray-500">{v.desc}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Custom Variables */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Пользовательские переменные</CardTitle>
+              <CardDescription>
+                Промежуточные переменные для расчётов. Порядок важен — переменная может использовать только те, что выше неё.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => addVariable("formula")}>
+                <Plus className="h-4 w-4 mr-1" />
+                Формула
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => addVariable("range")}>
+                <Plus className="h-4 w-4 mr-1" />
+                По диапазонам
+              </Button>
+              <Button size="sm" onClick={handleSaveVariables} disabled={isPending}>
+                <Save className="h-4 w-4 mr-1" />
+                Сохранить
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {variables.length > 0 ? (
+            <div className="space-y-2">
+              {variables.map((variable, index) => {
+                const isExpanded = expandedVars.has(index)
+                return (
+                  <div
+                    key={index}
+                    draggable={!isExpanded}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={cn(
+                      "border rounded-lg bg-gray-50 transition-shadow",
+                      dragIndex === index && "opacity-50 shadow-lg",
+                      !isExpanded && "cursor-grab active:cursor-grabbing"
+                    )}
+                  >
+                    {/* Collapsed header */}
+                    <div
+                      className="flex items-center gap-3 p-3 select-none"
+                      onClick={() => toggleExpanded(index)}
+                    >
+                      <div className="text-gray-400">
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs text-gray-400 w-4">{index + 1}</span>
+                      <code className="font-mono text-sm font-semibold text-blue-700">
+                        {variable.name || "без имени"}
+                      </code>
+                      {variable.label && (
+                        <span className="text-xs text-gray-500">— {variable.label}</span>
+                      )}
+                      {isRangeVariable(variable) ? (
+                        <Badge variant="outline" className="ml-auto text-xs bg-amber-50 text-amber-700 border-amber-200">
+                          По диапазонам · {getRangeConfig(variable).compareVar}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400 ml-auto font-mono truncate max-w-[300px]">
+                          = {variable.formula || "..."}
+                        </span>
+                      )}
+                      <svg
+                        className={cn(
+                          "h-4 w-4 text-gray-400 transition-transform shrink-0",
+                          isExpanded && "rotate-180"
+                        )}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div className="px-3 pb-3 pt-0 border-t space-y-3">
+                        {isRangeVariable(variable) ? (
+                          /* Range variable UI */
+                          <>
+                            <div className="grid grid-cols-2 gap-3 mt-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Имя переменной</Label>
+                                <Input
+                                  value={variable.name}
+                                  onChange={(e) => updateVariable(index, "name", e.target.value)}
+                                  placeholder="тариф_доставки"
+                                  className="font-mono text-sm"
+                                  disabled={isPending}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Сравнивать с переменной</Label>
+                                <Select
+                                  value={getRangeConfig(variable).compareVar}
+                                  onValueChange={(val) => {
+                                    const config = getRangeConfig(variable)
+                                    updateRangeConfig(index, { ...config, compareVar: val })
+                                  }}
+                                  disabled={isPending}
+                                >
+                                  <SelectTrigger className="text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {builtinVars.map((v) => (
+                                      <SelectItem key={v.name} value={v.name}>{v.name}</SelectItem>
+                                    ))}
+                                    {variables.slice(0, index).filter((v) => v.name.trim()).map((v) => (
+                                      <SelectItem key={v.name} value={v.name}>{v.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* Range table */}
+                            <div className="space-y-2">
+                              <Label className="text-xs">Диапазоны</Label>
+                              <div className="border rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left font-medium">От</th>
+                                      <th className="px-3 py-2 text-left font-medium">До</th>
+                                      <th className="px-3 py-2 text-left font-medium">Значение / Формула</th>
+                                      <th className="px-3 py-2 w-10"></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {getRangeConfig(variable).ranges.map((range: RangeRow, ri: number) => (
+                                      <tr key={ri} className="border-t">
+                                        <td className="px-3 py-1.5">
+                                          <Input
+                                            type="number"
+                                            value={range.from}
+                                            onChange={(e) => {
+                                              const config = getRangeConfig(variable)
+                                              const ranges = [...config.ranges]
+                                              ranges[ri] = { ...ranges[ri], from: Number(e.target.value) }
+                                              updateRangeConfig(index, { ...config, ranges })
+                                            }}
+                                            className="h-8 text-sm"
+                                            disabled={isPending}
+                                          />
+                                        </td>
+                                        <td className="px-3 py-1.5">
+                                          {ri === getRangeConfig(variable).ranges.length - 1 ? (
+                                            <span className="text-gray-400 text-sm">∞</span>
+                                          ) : (
+                                            <Input
+                                              type="number"
+                                              value={range.to ?? ""}
+                                              onChange={(e) => {
+                                                const config = getRangeConfig(variable)
+                                                const ranges = [...config.ranges]
+                                                ranges[ri] = { ...ranges[ri], to: e.target.value ? Number(e.target.value) : null }
+                                                updateRangeConfig(index, { ...config, ranges })
+                                              }}
+                                              className="h-8 text-sm"
+                                              disabled={isPending}
+                                            />
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-1.5">
+                                          <div className="space-y-1">
+                                            <Input
+                                              value={range.value}
+                                              onChange={(e) => {
+                                                const config = getRangeConfig(variable)
+                                                const ranges = [...config.ranges]
+                                                ranges[ri] = { ...ranges[ri], value: e.target.value }
+                                                updateRangeConfig(index, { ...config, ranges })
+                                              }}
+                                              placeholder="37700 или формула"
+                                              className="h-8 text-sm font-mono"
+                                              disabled={isPending}
+                                            />
+                                            <div className="space-y-0.5">
+                                              <div className="flex flex-wrap gap-0.5">
+                                                {builtinVars.map((v) => (
+                                                  <button
+                                                    key={v.name}
+                                                    type="button"
+                                                    className="px-1.5 py-0 text-[10px] rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"
+                                                    onClick={() => {
+                                                      const config = getRangeConfig(variable)
+                                                      const ranges = [...config.ranges]
+                                                      const cur = ranges[ri].value || ""
+                                                      ranges[ri] = { ...ranges[ri], value: cur + (cur && !cur.endsWith(" ") && !cur.endsWith("(") ? " " : "") + v.name }
+                                                      updateRangeConfig(index, { ...config, ranges })
+                                                    }}
+                                                    disabled={isPending}
+                                                  >
+                                                    {v.name}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                              {variables.slice(0, index).filter((v) => v.name.trim()).length > 0 && (
+                                                <div className="flex flex-wrap gap-0.5">
+                                                  {variables.slice(0, index).filter((v) => v.name.trim()).map((v) => (
+                                                    <button
+                                                      key={v.name}
+                                                      type="button"
+                                                      className="px-1.5 py-0 text-[10px] rounded bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"
+                                                      onClick={() => {
+                                                        const config = getRangeConfig(variable)
+                                                        const ranges = [...config.ranges]
+                                                        const cur = ranges[ri].value || ""
+                                                        ranges[ri] = { ...ranges[ri], value: cur + (cur && !cur.endsWith(" ") && !cur.endsWith("(") ? " " : "") + v.name }
+                                                        updateRangeConfig(index, { ...config, ranges })
+                                                      }}
+                                                      disabled={isPending}
+                                                    >
+                                                      {v.name}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              <div className="flex flex-wrap gap-0.5">
+                                                {["+", "-", "*", "/", "(", ")"].map((op) => (
+                                                  <button
+                                                    key={op}
+                                                    type="button"
+                                                    className="px-1.5 py-0 text-[10px] rounded bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 font-bold"
+                                                    onClick={() => {
+                                                      const config = getRangeConfig(variable)
+                                                      const ranges = [...config.ranges]
+                                                      const cur = ranges[ri].value || ""
+                                                      ranges[ri] = { ...ranges[ri], value: cur + (cur && !cur.endsWith(" ") && !cur.endsWith("(") && op !== ")" ? " " : "") + op }
+                                                      updateRangeConfig(index, { ...config, ranges })
+                                                    }}
+                                                    disabled={isPending}
+                                                  >
+                                                    {op === "*" ? "×" : op === "/" ? "÷" : op}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-1.5">
+                                          {getRangeConfig(variable).ranges.length > 1 && (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8"
+                                              onClick={() => {
+                                                const config = getRangeConfig(variable)
+                                                const ranges = config.ranges.filter((_: RangeRow, i: number) => i !== ri)
+                                                updateRangeConfig(index, { ...config, ranges })
+                                              }}
+                                              disabled={isPending}
+                                            >
+                                              <Trash2 className="h-3 w-3 text-red-500" />
+                                            </Button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const config = getRangeConfig(variable)
+                                  const ranges = [...config.ranges]
+                                  const lastTo = ranges.length > 0 ? (ranges[ranges.length - 1].to ?? ranges[ranges.length - 1].from + 100) : 0
+                                  // Make previous last row have a "to" value
+                                  if (ranges.length > 0 && ranges[ranges.length - 1].to === null) {
+                                    ranges[ranges.length - 1] = { ...ranges[ranges.length - 1], to: lastTo }
+                                  }
+                                  ranges.push({ from: lastTo, to: null, value: "0" })
+                                  updateRangeConfig(index, { ...config, ranges })
+                                }}
+                                disabled={isPending}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Добавить диапазон
+                              </Button>
+                            </div>
+
+                            {/* Generated formula preview */}
+                            <details className="text-xs">
+                              <summary className="text-gray-400 cursor-pointer hover:text-gray-600">
+                                Сгенерированная формула
+                              </summary>
+                              <code className="block mt-1 p-2 bg-gray-100 rounded text-xs font-mono break-all">
+                                {variable.formula || "—"}
+                              </code>
+                            </details>
+                          </>
+                        ) : (
+                          /* Regular formula variable UI */
+                          <>
+                            <div className="grid grid-cols-2 gap-3 mt-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Имя переменной</Label>
+                                <Input
+                                  value={variable.name}
+                                  onChange={(e) => updateVariable(index, "name", e.target.value)}
+                                  placeholder="доставка"
+                                  className="font-mono text-sm"
+                                  disabled={isPending}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Описание</Label>
+                                <Input
+                                  value={variable.label || ""}
+                                  onChange={(e) => updateVariable(index, "label", e.target.value)}
+                                  placeholder="Стоимость доставки за кг"
+                                  className="text-sm"
+                                  disabled={isPending}
+                                />
+                              </div>
+                            </div>
+                            <FormulaBuilder
+                              value={variable.formula}
+                              onChange={(val) => updateVariable(index, "formula", val)}
+                              label={variable.name ? `${variable.name} =` : "Формула"}
+                              builtinVariables={builtinVars.map((v) => ({ name: v.name, label: v.desc }))}
+                              customVariables={variables
+                                .slice(0, index)
+                                .filter((v) => v.name.trim())
+                                .map((v) => ({ name: v.name, label: v.label || undefined }))}
+                              disabled={isPending}
+                            />
+                          </>
+                        )}
+                        <div className="flex justify-between">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeVariable(index)}
+                            disabled={isPending}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Удалить
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveSingleVariable(index)}
+                            disabled={isPending}
+                          >
+                            <Save className="h-4 w-4 mr-1" />
+                            Сохранить
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">
+              Нет пользовательских переменных. Добавьте для создания промежуточных расчётов.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Final Formula */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Итоговая формула цены</CardTitle>
+              <CardDescription>
+                Результат этой формулы = цена товара в тенге. Используйте встроенные и пользовательские переменные.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {formulaText && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteFormula}
+                  disabled={isPending}
+                  className="text-red-500"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Удалить
+                </Button>
+              )}
+              <Button size="sm" onClick={handleSaveFormula} disabled={isPending}>
+                <Save className="h-4 w-4 mr-1" />
+                Сохранить формулу
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <FormulaBuilder
+            value={formulaText}
+            onChange={setFormulaText}
+            label="Цена ="
+            builtinVariables={builtinVars.map((v) => ({ name: v.name, label: v.desc }))}
+            customVariables={variables
+              .filter((v) => v.name.trim())
+              .map((v) => ({ name: v.name, label: v.label || undefined }))}
+            disabled={isPending}
+          />
+
+          {/* Preview */}
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-medium mb-2">Предварительный расчёт</h4>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Себестоимость ({warehouse.currency?.code})</Label>
+                <Input
+                  value={previewCostPrice}
+                  onChange={(e) => setPreviewCostPrice(e.target.value)}
+                  placeholder="100000"
+                  className="w-[160px]"
+                  type="number"
+                  step="0.01"
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Вес (кг)</Label>
+                <Input
+                  value={previewWeight}
+                  onChange={(e) => setPreviewWeight(e.target.value)}
+                  placeholder="50"
+                  className="w-[100px]"
+                  type="number"
+                  step="0.01"
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Габариты (Д×Ш×В мм)</Label>
+                <Input
+                  value={previewDimensions}
+                  onChange={(e) => setPreviewDimensions(e.target.value)}
+                  placeholder="340х465х425"
+                  className="w-[160px]"
+                  disabled={isPending}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={handlePreview}
+                disabled={isPending || !previewCostPrice}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                Рассчитать
+              </Button>
+            </div>
+            {previewResult && (
+              <div className="mt-3 p-4 bg-green-50 rounded-lg space-y-3">
+                <p className="font-semibold text-green-700 text-xl">
+                  Итоговая цена: {previewResult.calculated_price.toLocaleString("ru-RU")} тг
+                </p>
+                {previewResult.steps && (
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium text-gray-600">Пошаговый расчёт:</p>
+                    {previewResult.steps.map((step, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm py-1 border-b border-green-100 last:border-0">
+                        <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
+                        <span className="font-medium text-gray-700 min-w-[150px]">{step.name}</span>
+                        {step.formula && (
+                          <code className="text-xs text-gray-500 bg-white px-1.5 py-0.5 rounded border break-all">
+                            {step.formula}
+                          </code>
+                        )}
+                        <span className="text-gray-400 ml-auto">=</span>
+                        <span className="font-mono font-semibold text-gray-800">
+                          {step.value.toLocaleString("ru-RU", { maximumFractionDigits: 4 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Product Costs */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Товары на складе</CardTitle>
+              <CardDescription>
+                Себестоимость товаров в {warehouse.currency?.code || "валюте склада"} и рассчитанная цена в тенге
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRecalculate}
+                disabled={isPending}
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Пересчитать все
+              </Button>
+              <Button size="sm" onClick={() => setIsAddingProduct(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                Добавить товар
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {productCosts.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Товар</TableHead>
+                  <TableHead>Артикул</TableHead>
+                  <TableHead className="text-right">
+                    Себестоимость ({warehouse.currency?.code})
+                  </TableHead>
+                  <TableHead className="text-right">Цена (тг)</TableHead>
+                  <TableHead className="text-right w-[100px]">Действия</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {productCosts.map((cost) => (
+                  <TableRow key={cost.id}>
+                    <TableCell className="font-medium">
+                      {cost.product_name || `ID ${cost.product_id}`}
+                    </TableCell>
+                    <TableCell className="text-gray-500">{cost.product_article}</TableCell>
+                    <TableCell className="text-right">
+                      {editingCostId === cost.id ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editCostPrice}
+                            onChange={(e) => setEditCostPrice(e.target.value)}
+                            className="w-[120px] text-right"
+                            disabled={isPending}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleUpdateCost(cost.id)}
+                            disabled={isPending}
+                          >
+                            <Check className="h-4 w-4 text-green-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditingCostId(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:underline"
+                          onClick={() => {
+                            setEditingCostId(cost.id)
+                            setEditCostPrice(String(cost.cost_price))
+                          }}
+                        >
+                          {cost.cost_price.toLocaleString("ru-RU")}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {cost.calculated_price ? (
+                        <span className="font-semibold text-green-600">
+                          {cost.calculated_price.toLocaleString("ru-RU")} тг
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingCostId(cost.id)
+                            setEditCostPrice(String(cost.cost_price))
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeletingCost(cost)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-gray-500 text-center py-4">
+              Нет товаров на этом складе. Добавьте товар и укажите себестоимость.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add Product Dialog */}
+      <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Добавить товар на склад</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>ID товара <span className="text-red-500">*</span></Label>
+              <Input
+                type="number"
+                value={newProductId}
+                onChange={(e) => setNewProductId(e.target.value)}
+                placeholder="123"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Себестоимость ({warehouse.currency?.code}) <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={newCostPrice}
+                onChange={(e) => setNewCostPrice(e.target.value)}
+                placeholder="500"
+                disabled={isPending}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingProduct(false)} disabled={isPending}>
+              Отмена
+            </Button>
+            <Button onClick={handleAddProduct} disabled={isPending}>
+              {isPending ? "Добавление..." : "Добавить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Cost Dialog */}
+      <DeleteConfirmationDialog
+        open={!!deletingCost}
+        onOpenChange={(open) => !open && setDeletingCost(null)}
+        onConfirm={handleDeleteCost}
+        title={`Удалить себестоимость для "${deletingCost?.product_name}"?`}
+        description="Рассчитанная цена для этого товара на этом складе будет удалена."
+      />
+    </div>
+  )
+}

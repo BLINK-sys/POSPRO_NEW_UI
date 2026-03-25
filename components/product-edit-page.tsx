@@ -7,6 +7,8 @@ import { type Product, updateProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
+import type { Warehouse } from "@/app/actions/warehouses"
+import type { ProductCost } from "@/app/actions/product-costs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft, BookOpen } from "lucide-react"
+import { Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft, BookOpen, Warehouse as WarehouseIcon, Plus, Trash2 } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
@@ -110,6 +112,97 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
   const [supplierId, setSupplierId] = useState(
     product.supplier_id ? String(product.supplier_id) : "no-supplier"
   )
+
+  // Warehouse costs
+  const [allCosts, setAllCosts] = useState<ProductCost[]>([])  // All costs across all warehouses
+  const [allWarehouses, setAllWarehouses] = useState<Warehouse[]>([])  // All warehouses for info card
+  const [supplierWarehouses, setSupplierWarehouses] = useState<Warehouse[]>([])  // Warehouses for selected supplier
+  const [isLoadingCosts, setIsLoadingCosts] = useState(false)
+  const [addingWarehouseId, setAddingWarehouseId] = useState("")
+  const [addingCostPrice, setAddingCostPrice] = useState("")
+
+  // Load all costs on mount
+  useEffect(() => {
+    const loadAllCosts = async () => {
+      setIsLoadingCosts(true)
+      try {
+        const [costsModule, warehousesModule] = await Promise.all([
+          import("@/app/actions/product-costs"),
+          import("@/app/actions/warehouses"),
+        ])
+        const [costs, warehouses] = await Promise.all([
+          costsModule.getProductCosts({ product_id: product.id }),
+          warehousesModule.getWarehouses(),
+        ])
+        setAllCosts(costs)
+        setAllWarehouses(warehouses)
+      } catch (e) {
+        console.error("Error loading warehouse data:", e)
+      }
+      setIsLoadingCosts(false)
+    }
+    loadAllCosts()
+  }, [product.id])
+
+  // Load supplier warehouses when supplier changes
+  useEffect(() => {
+    if (supplierId === "no-supplier") {
+      setSupplierWarehouses([])
+      return
+    }
+    setSupplierWarehouses(allWarehouses.filter((w) => w.supplier_id === Number(supplierId)))
+  }, [supplierId, allWarehouses])
+
+  const handleAddWarehouseCost = () => {
+    if (!addingWarehouseId || !addingCostPrice) return
+    startTransition(async () => {
+      const { createProductCost } = await import("@/app/actions/product-costs")
+      const result = await createProductCost({
+        product_id: product.id,
+        warehouse_id: Number(addingWarehouseId),
+        cost_price: Number(addingCostPrice),
+      })
+      if (result.success && result.data) {
+        setAllCosts([...allCosts, result.data])
+        setAddingWarehouseId("")
+        setAddingCostPrice("")
+        toast({ title: "Себестоимость добавлена" })
+        // Refresh product price (backend auto-applies min price)
+        await _refreshProductPrice()
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+    })
+  }
+
+  const handleDeleteWarehouseCost = (costId: number) => {
+    startTransition(async () => {
+      const { deleteProductCost } = await import("@/app/actions/product-costs")
+      const result = await deleteProductCost(costId)
+      if (result.success) {
+        setAllCosts(allCosts.filter((c) => c.id !== costId))
+        toast({ title: "Удалено" })
+        await _refreshProductPrice()
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+    })
+  }
+
+  const _refreshProductPrice = async () => {
+    try {
+      const { getProductBySlug } = await import("@/app/actions/products")
+      const updated = await getProductBySlug(product.slug)
+      if (updated) {
+        setPrice(updated.price)
+        if (updated.wholesale_price !== undefined) {
+          setWholesalePrice(updated.wholesale_price)
+        }
+      }
+    } catch (e) {
+      // ignore — price will update on next page load
+    }
+  }
 
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(true)
 
@@ -402,6 +495,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               </div>
             </CardContent>
           </Card>
+
         </div>
 
         {/* Right Column */}
@@ -465,6 +559,121 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
           </Card>
         </div>
       </div>
+
+      {/* Warehouse Costs - Full Width */}
+      {supplierId !== "no-supplier" && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <WarehouseIcon className="h-4 w-4" />
+              Склады и себестоимость
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: Editable costs for selected supplier */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">Себестоимость по складам</h3>
+                <p className="text-xs text-gray-500">Склады выбранного поставщика</p>
+                {isLoadingCosts ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />Загрузка...
+                  </div>
+                ) : (
+                  <>
+                    {allCosts.filter((c) => supplierWarehouses.some((w) => w.id === c.warehouse_id)).length > 0 && (
+                      <div className="space-y-2">
+                        {allCosts
+                          .filter((c) => supplierWarehouses.some((w) => w.id === c.warehouse_id))
+                          .map((cost) => {
+                            const wh = supplierWarehouses.find((w) => w.id === cost.warehouse_id)
+                            return (
+                              <div key={cost.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                                <div>
+                                  <div className="font-medium text-sm">{wh?.name || `Склад #${cost.warehouse_id}`}</div>
+                                  <div className="text-xs text-gray-500">{wh?.city && `${wh.city} · `}{wh?.currency?.code || ""}</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <div className="font-mono text-sm">{cost.cost_price.toLocaleString("ru-RU")} {wh?.currency?.code || ""}</div>
+                                    {cost.calculated_price ? (
+                                      <div className="text-xs text-green-600 font-semibold">→ {cost.calculated_price.toLocaleString("ru-RU")} тг</div>
+                                    ) : (
+                                      <div className="text-xs text-gray-400">Нет формулы</div>
+                                    )}
+                                  </div>
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteWarehouseCost(cost.id)} disabled={isPending}>
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    )}
+                    {supplierWarehouses.length > 0 ? (
+                      <div className="flex items-end gap-2 pt-2 border-t">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs">Склад</Label>
+                          <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
+                            <SelectTrigger className="text-sm"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                            <SelectContent>
+                              {supplierWarehouses.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
+                                <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[120px] space-y-1">
+                          <Label className="text-xs">Себестоимость</Label>
+                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                        </div>
+                        <Button size="sm" onClick={handleAddWarehouseCost} disabled={isPending || !addingWarehouseId || !addingCostPrice}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 text-center py-2">У этого поставщика нет складов.</div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Right: All costs info */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">Все склады товара</h3>
+                <p className="text-xs text-gray-500">Информация по всем поставщикам</p>
+                {allCosts.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {allCosts.map((cost) => {
+                      const wh = allWarehouses.find((w) => w.id === cost.warehouse_id)
+                      return (
+                        <div key={cost.id} className="flex items-center justify-between py-2 px-3 text-sm border rounded-lg bg-gray-50">
+                          <div className="flex-1">
+                            <span className="text-gray-500">{wh?.supplier_name || "—"}</span>
+                            <span className="mx-1 text-gray-300">·</span>
+                            <span className="font-medium">{wh?.name || `#${cost.warehouse_id}`}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-right">
+                            <span className="font-mono text-xs text-gray-500">{cost.cost_price.toLocaleString("ru-RU")} {wh?.currency?.code || ""}</span>
+                            {cost.calculated_price ? (
+                              <span className="font-mono text-xs font-semibold text-green-600">→ {cost.calculated_price.toLocaleString("ru-RU")} тг</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400 text-center py-4">Нет данных о складах</div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Description Card - Full Width */}
       <div className="mt-8">
