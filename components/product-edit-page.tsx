@@ -150,7 +150,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
       setSupplierWarehouses([])
       return
     }
-    setSupplierWarehouses(allWarehouses.filter((w) => w.supplier_id === Number(supplierId)))
+    setSupplierWarehouses((allWarehouses || []).filter((w) => w.supplier_id === Number(supplierId)))
   }, [supplierId, allWarehouses])
 
   const handleAddWarehouseCost = () => {
@@ -618,7 +618,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                           <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
                             <SelectTrigger className="text-sm"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
                             <SelectContent>
-                              {supplierWarehouses?.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
+                              {supplierWarehouses?.filter((w) => !allCosts?.some((c) => c.warehouse_id === w.id)).map((w) => (
                                 <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
                               ))}
                             </SelectContent>
