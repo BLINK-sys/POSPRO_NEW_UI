@@ -180,7 +180,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
       const { deleteProductCost } = await import("@/app/actions/product-costs")
       const result = await deleteProductCost(costId)
       if (result.success) {
-        setAllCosts(allCosts.filter((c) => c.id !== costId))
+        setAllCosts(allCosts?.filter((c) => c.id !== costId))
         toast({ title: "Удалено" })
         await _refreshProductPrice()
       } else {
@@ -581,12 +581,12 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                   </div>
                 ) : (
                   <>
-                    {allCosts.filter((c) => supplierWarehouses.some((w) => w.id === c.warehouse_id)).length > 0 && (
+                    {allCosts?.filter((c) => supplierWarehouses?.some((w) => w.id === c.warehouse_id)).length > 0 && (
                       <div className="space-y-2">
                         {allCosts
-                          .filter((c) => supplierWarehouses.some((w) => w.id === c.warehouse_id))
+                          .filter((c) => supplierWarehouses?.some((w) => w.id === c.warehouse_id))
                           .map((cost) => {
-                            const wh = supplierWarehouses.find((w) => w.id === cost.warehouse_id)
+                            const wh = supplierWarehouses?.find((w) => w.id === cost.warehouse_id)
                             return (
                               <div key={cost.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                                 <div>
@@ -611,14 +611,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                           })}
                       </div>
                     )}
-                    {supplierWarehouses.length > 0 ? (
+                    {(supplierWarehouses?.length ?? 0) > 0 ? (
                       <div className="flex items-end gap-2 pt-2 border-t">
                         <div className="flex-1 space-y-1">
                           <Label className="text-xs">Склад</Label>
                           <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
                             <SelectTrigger className="text-sm"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
                             <SelectContent>
-                              {supplierWarehouses.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
+                              {supplierWarehouses?.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
                                 <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
                               ))}
                             </SelectContent>
@@ -646,7 +646,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                 {allCosts.length > 0 ? (
                   <div className="space-y-1.5">
                     {allCosts.map((cost) => {
-                      const wh = allWarehouses.find((w) => w.id === cost.warehouse_id)
+                      const wh = allWarehouses?.find((w) => w.id === cost.warehouse_id)
                       return (
                         <div key={cost.id} className="flex items-center justify-between py-2 px-3 text-sm border rounded-lg bg-gray-50">
                           <div className="flex-1">
