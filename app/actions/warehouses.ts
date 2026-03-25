@@ -84,8 +84,8 @@ export async function getWarehouses(supplierId?: number): Promise<Warehouse[]> {
   try {
     const token = await getToken()
     const url = supplierId
-      ? `${API_BASE_URL}/meta/warehouses?supplier_id=${supplierId}`
-      : `${API_BASE_URL}/meta/warehouses`
+      ? `${API_BASE_URL}/meta/warehouses/?supplier_id=${supplierId}`
+      : `${API_BASE_URL}/meta/warehouses/`
     const res = await fetch(url, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
