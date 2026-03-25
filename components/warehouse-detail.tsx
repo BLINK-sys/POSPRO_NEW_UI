@@ -977,128 +977,22 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Товары на складе</CardTitle>
+              <CardTitle className="text-lg">Товары на складе «{warehouse.name}»</CardTitle>
               <CardDescription>
-                Себестоимость товаров в {warehouse.currency?.code || "валюте склада"} и рассчитанная цена в тенге
+                Привязано товаров: <span className="font-semibold text-gray-900">{productCosts.length.toLocaleString("ru-RU")}</span>
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRecalculate}
-                disabled={isPending}
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Пересчитать все
-              </Button>
-              <Button size="sm" onClick={() => setIsAddingProduct(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                Добавить товар
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalculate}
+              disabled={isPending}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Пересчитать все
+            </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {productCosts.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Товар</TableHead>
-                  <TableHead>Артикул</TableHead>
-                  <TableHead className="text-right">
-                    Себестоимость ({warehouse.currency?.code})
-                  </TableHead>
-                  <TableHead className="text-right">Цена (тг)</TableHead>
-                  <TableHead className="text-right w-[100px]">Действия</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {productCosts.map((cost) => (
-                  <TableRow key={cost.id}>
-                    <TableCell className="font-medium">
-                      {cost.product_name || `ID ${cost.product_id}`}
-                    </TableCell>
-                    <TableCell className="text-gray-500">{cost.product_article}</TableCell>
-                    <TableCell className="text-right">
-                      {editingCostId === cost.id ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editCostPrice}
-                            onChange={(e) => setEditCostPrice(e.target.value)}
-                            className="w-[120px] text-right"
-                            disabled={isPending}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleUpdateCost(cost.id)}
-                            disabled={isPending}
-                          >
-                            <Check className="h-4 w-4 text-green-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditingCostId(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <span
-                          className="cursor-pointer hover:underline"
-                          onClick={() => {
-                            setEditingCostId(cost.id)
-                            setEditCostPrice(String(cost.cost_price))
-                          }}
-                        >
-                          {cost.cost_price.toLocaleString("ru-RU")}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {cost.calculated_price ? (
-                        <span className="font-semibold text-green-600">
-                          {cost.calculated_price.toLocaleString("ru-RU")} тг
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingCostId(cost.id)
-                            setEditCostPrice(String(cost.cost_price))
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingCost(cost)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-gray-500 text-center py-4">
-              Нет товаров на этом складе. Добавьте товар и укажите себестоимость.
-            </p>
-          )}
-        </CardContent>
       </Card>
 
       {/* Add Product Dialog */}
