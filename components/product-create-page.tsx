@@ -11,8 +11,8 @@ import {
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
-import type { Warehouse } from "@/app/actions/warehouses"
-import type { ProductCost } from "@/app/actions/product-costs"
+import { type Warehouse, getWarehouses } from "@/app/actions/warehouses"
+import { type ProductCost, createProductCost, deleteProductCost } from "@/app/actions/product-costs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -177,11 +177,9 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
       return
     }
     setIsLoadingWarehouses(true)
-    import("@/app/actions/warehouses").then((mod) => {
-      mod.getWarehouses(Number(supplierId)).then((warehouses) => {
-        setSupplierWarehouses(warehouses)
-        setIsLoadingWarehouses(false)
-      })
+    getWarehouses(Number(supplierId)).then((warehouses) => {
+      setSupplierWarehouses(warehouses || [])
+      setIsLoadingWarehouses(false)
     })
   }, [supplierId])
 
@@ -224,7 +222,6 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
   const handleAddWarehouseCost = () => {
     if (!addingWarehouseId || !addingCostPrice || !draftId) return
     startTransition(async () => {
-      const { createProductCost } = await import("@/app/actions/product-costs")
       const result = await createProductCost({
         product_id: draftId,
         warehouse_id: Number(addingWarehouseId),
@@ -243,7 +240,6 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
 
   const handleDeleteWarehouseCost = (costId: number) => {
     startTransition(async () => {
-      const { deleteProductCost } = await import("@/app/actions/product-costs")
       const result = await deleteProductCost(costId)
       if (result.success) {
         setAllCosts(allCosts.filter((c) => c.id !== costId))
