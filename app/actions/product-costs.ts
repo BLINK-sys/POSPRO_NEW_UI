@@ -43,7 +43,7 @@ export async function getProductCosts(params: {
     if (params.warehouse_id) searchParams.set("warehouse_id", String(params.warehouse_id))
     if (params.product_id) searchParams.set("product_id", String(params.product_id))
 
-    const res = await fetch(`${API_BASE_URL}/meta/product-costs?${searchParams}`, {
+    const res = await fetch(`${API_BASE_URL}/meta/product-costs/?${searchParams}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
@@ -64,7 +64,7 @@ export async function createProductCost(data: {
 }): Promise<ProductCostActionResponse> {
   try {
     const token = await getToken()
-    const res = await fetch(`${API_BASE_URL}/meta/product-costs`, {
+    const res = await fetch(`${API_BASE_URL}/meta/product-costs/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

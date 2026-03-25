@@ -122,7 +122,7 @@ export async function createWarehouse(
 ): Promise<WarehouseActionResponse> {
   try {
     const token = await getToken()
-    const res = await fetch(`${API_BASE_URL}/meta/warehouses`, {
+    const res = await fetch(`${API_BASE_URL}/meta/warehouses/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
