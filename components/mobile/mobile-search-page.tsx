@@ -179,7 +179,7 @@ export default function MobileSearchPage() {
         description: product.description,
         category_id: product.category_id ? Number(product.category_id) : undefined,
         category: product.category,
-        image_url: product.image,
+        image_url: product.image_url || product.image,
         availability_status: product.availability_status ?? undefined,
       }))
 

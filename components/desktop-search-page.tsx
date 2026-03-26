@@ -158,7 +158,7 @@ export default function DesktopSearchPage() {
         supplier_name: product.supplier_name || product.supplier?.name || null,
         description: product.description,
         category_id: product.category_id ? Number(product.category_id) : undefined,
-        category: product.category, image_url: product.image,
+        category: product.category, image_url: product.image_url || product.image,
         availability_status: product.availability_status ?? undefined,
       }))
       setAllResults(data)
