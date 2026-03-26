@@ -428,7 +428,7 @@ export async function searchProducts(query: string): Promise<ProductData[]> {
       return []
     }
 
-    const response = await fetch(getApiUrl(`/products/search?q=${encodeURIComponent(query)}&limit=5000`), {
+    const response = await fetch(getApiUrl(`/products/search/?q=${encodeURIComponent(query)}&limit=5000`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
