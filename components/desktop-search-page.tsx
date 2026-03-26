@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass } from "@/lib/utils"
-import type { ProductData } from "@/app/actions/public"
+import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
@@ -146,12 +146,7 @@ export default function DesktopSearchPage() {
     searchingRef.current = true
     setLoading(true)
     try {
-      const response = await fetch(
-        getApiUrl(`/products/search?q=${encodeURIComponent(searchQuery.trim())}&limit=5000`),
-        { cache: "no-store" }
-      )
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const products = await response.json()
+      const products = await searchProductsAction(searchQuery.trim())
       const data: ProductData[] = products.map((product: any) => ({
         id: product.id, name: product.name, slug: product.slug,
         price: product.price, wholesale_price: product.wholesale_price,

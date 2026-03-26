@@ -12,7 +12,7 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer"
 import { isWholesaleUser } from "@/lib/utils"
-import type { ProductData } from "@/app/actions/public"
+import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
 import MobileProductCard from "./mobile-product-card"
@@ -162,12 +162,7 @@ export default function MobileSearchPage() {
     searchingRef.current = true
     setLoading(true)
     try {
-      const response = await fetch(
-        getApiUrl(`/products/search?q=${encodeURIComponent(searchQuery.trim())}&limit=5000`),
-        { cache: "no-store" }
-      )
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const products = await response.json()
+      const products = await searchProductsAction(searchQuery.trim())
 
       const data: ProductData[] = products.map((product: any) => ({
         id: product.id,
