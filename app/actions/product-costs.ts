@@ -57,6 +57,30 @@ export async function getProductCosts(params: {
   }
 }
 
+export async function getProductCostsCount(params: {
+  warehouse_id?: number
+  product_id?: number
+}): Promise<number> {
+  try {
+    const token = await getToken()
+    const searchParams = new URLSearchParams()
+    if (params.warehouse_id) searchParams.set("warehouse_id", String(params.warehouse_id))
+    if (params.product_id) searchParams.set("product_id", String(params.product_id))
+
+    const res = await fetch(`${API_BASE_URL}/meta/product-costs/count?${searchParams}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!res.ok) return 0
+    const response = await res.json()
+    return response.count || 0
+  } catch (e) {
+    console.error("Error fetching product costs count:", e)
+    return 0
+  }
+}
+
 export async function createProductCost(data: {
   product_id: number
   warehouse_id: number

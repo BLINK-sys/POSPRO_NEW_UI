@@ -100,10 +100,10 @@ function generateRangeFormula(config: RangeConfig): string {
 
 interface WarehouseDetailProps {
   initialWarehouse: Warehouse
-  initialProductCosts: ProductCost[]
+  initialProductsCount: number
 }
 
-export function WarehouseDetail({ initialWarehouse, initialProductCosts }: WarehouseDetailProps) {
+export function WarehouseDetail({ initialWarehouse, initialProductsCount }: WarehouseDetailProps) {
   const [warehouse] = useState(initialWarehouse)
   const [variables, setVariables] = useState<WarehouseVariable[]>(
     initialWarehouse.variables || []
@@ -111,7 +111,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
   const [formulaText, setFormulaText] = useState(
     initialWarehouse.formula?.formula || ""
   )
-  const [productCosts, setProductCosts] = useState<ProductCost[]>(initialProductCosts)
+  const [productsCount, setProductsCount] = useState(initialProductsCount)
   const [isPending, startTransition] = useTransition()
   const [isAddingProduct, setIsAddingProduct] = useState(false)
   const [newProductId, setNewProductId] = useState("")
@@ -370,10 +370,6 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
       const result = await recalculateWarehouse(warehouse.id)
       if (result.success) {
         toast({ title: "Пересчёт завершён", description: result.message })
-        // Refresh costs
-        const { getProductCosts } = await import("@/app/actions/product-costs")
-        const costs = await getProductCosts({ warehouse_id: warehouse.id })
-        setProductCosts(costs)
       } else {
         toast({ variant: "destructive", title: "Ошибка", description: result.message })
       }
@@ -395,7 +391,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
       })
       if (result.success && result.data) {
         toast({ title: "Успех!", description: result.message })
-        setProductCosts([...productCosts, result.data])
+        setProductsCount(productsCount + 1)
         setNewProductId("")
         setNewCostPrice("")
         setIsAddingProduct(false)
@@ -411,7 +407,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
       const result = await updateProductCost(costId, { cost_price: Number(editCostPrice) })
       if (result.success && result.data) {
         toast({ title: "Успех!", description: result.message })
-        setProductCosts(productCosts.map((c) => (c.id === costId ? result.data! : c)))
+        // Cost updated, count stays the same
         setEditingCostId(null)
       } else {
         toast({ variant: "destructive", title: "Ошибка", description: result.error })
@@ -425,7 +421,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
       const result = await deleteProductCost(deletingCost.id)
       if (result.success) {
         toast({ title: "Успех!", description: result.message })
-        setProductCosts(productCosts.filter((c) => c.id !== deletingCost.id))
+        setProductsCount(Math.max(0, productsCount - 1))
       } else {
         toast({ variant: "destructive", title: "Ошибка", description: result.error })
       }
@@ -979,7 +975,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductCosts }: Wareh
             <div>
               <CardTitle className="text-lg">Товары на складе «{warehouse.name}»</CardTitle>
               <CardDescription>
-                Привязано товаров: <span className="font-semibold text-gray-900">{productCosts.length.toLocaleString("ru-RU")}</span>
+                Привязано товаров: <span className="font-semibold text-gray-900">{productsCount.toLocaleString("ru-RU")}</span>
               </CardDescription>
             </div>
             <Button
