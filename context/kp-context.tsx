@@ -5,8 +5,19 @@ import { useAuth } from '@/context/auth-context'
 import { useToast } from '@/hooks/use-toast'
 
 // --- Item types ---
+export interface WarehousePriceOption {
+  warehouse_id: number
+  warehouse_name: string
+  supplier_name: string | null
+  cost_price: number
+  calculated_price: number | null
+  calculated_delivery: number | null
+  currency_code: string // e.g. 'RUB', 'KZT', 'USD'
+}
+
 export interface KPItem {
   id: number
+  kpId: string // unique key per item instance (allows same product multiple times)
   name: string
   slug: string
   article?: string
@@ -18,6 +29,8 @@ export interface KPItem {
   brand_name?: string
   supplier_name?: string | null
   characteristics?: Array<{ key: string; value: string }>
+  warehousePrices?: WarehousePriceOption[]
+  selectedWarehouseId?: number | null
   addedAt: number
 }
 
@@ -37,7 +50,9 @@ export interface KPLogoSettings {
   enabled: boolean
   width: number
   height: number
-  customUrl?: string
+  customUrl?: string      // legacy: Base64 DataURL (kept for backward compat)
+  serverUrl?: string      // server path: /uploads/kp-logos/{userId}/{filename}
+  logoFilename?: string   // filename on server for identification
 }
 
 export interface KPColumnSettings {
@@ -153,10 +168,10 @@ export interface KPHistoryEntry {
 interface KPContextType {
   kpItems: KPItem[]
   kpCount: number
-  addItem: (item: Omit<KPItem, 'quantity' | 'addedAt'>) => void
-  removeItem: (productId: number) => void
-  updateItemQuantity: (productId: number, quantity: number) => void
-  updateItem: (productId: number, updates: Partial<KPItem>) => void
+  addItem: (item: Omit<KPItem, 'kpId' | 'quantity' | 'addedAt'>) => string
+  removeItem: (kpId: string) => void
+  updateItemQuantity: (kpId: string, quantity: number) => void
+  updateItem: (kpId: string, updates: Partial<KPItem>) => void
   clearAll: () => void
   isInKP: (productId: number) => boolean
   // Settings
@@ -172,13 +187,16 @@ interface KPContextType {
   addTextElement: (text?: string, page?: number) => void
   updateTextElement: (id: string, updates: Partial<KPTextElement>) => void
   removeTextElement: (id: string) => void
+  // Calculator data
+  calculatorData: any | null
+  setCalculatorData: (data: any | null) => void
   // History
   kpHistory: KPHistoryEntry[]
   historyLoading: boolean
   activeHistoryId: number | null
   fetchHistory: () => Promise<void>
-  saveToHistory: (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }) => Promise<boolean>
-  loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } } }>
+  saveToHistory: (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }, calculatorData?: any) => Promise<boolean>
+  loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any }>
   deleteFromHistory: (id: number) => Promise<boolean>
 }
 
@@ -195,6 +213,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [kpHistory, setKpHistory] = useState<KPHistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
+  const [calculatorData, setCalculatorData] = useState<any | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -213,7 +232,14 @@ export function KPProvider({ children }: { children: ReactNode }) {
       const storedItems = localStorage.getItem(KP_STORAGE_KEY)
       if (storedItems) {
         const parsed = JSON.parse(storedItems)
-        if (Array.isArray(parsed)) setKpItems(parsed)
+        if (Array.isArray(parsed)) {
+          // Migrate old items without kpId
+          const migrated = parsed.map((item: any, idx: number) => ({
+            ...item,
+            kpId: item.kpId || `kp-migrated-${item.addedAt || Date.now()}-${idx}`,
+          }))
+          setKpItems(migrated)
+        }
       }
 
       const storedSettings = localStorage.getItem(KP_SETTINGS_KEY)
@@ -305,33 +331,30 @@ export function KPProvider({ children }: { children: ReactNode }) {
   }, [kpSettings, isLoaded, isSystemUser])
 
   // --- Item functions ---
-  const addItem = useCallback((item: Omit<KPItem, 'quantity' | 'addedAt'>) => {
-    if (!isSystemUser) return
+  const addItem = useCallback((item: Omit<KPItem, 'kpId' | 'quantity' | 'addedAt'>): string => {
+    if (!isSystemUser) return ''
+    const kpId = `kp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     setKpItems(prev => {
-      const exists = prev.find(i => i.id === item.id)
-      if (exists) {
-        toast({ title: 'Уже в КП', description: `${item.name} уже добавлен в КП` })
-        return prev
-      }
       toast({ title: 'Добавлено в КП', description: `${item.name} добавлен в КП` })
-      return [...prev, { ...item, quantity: 1, addedAt: Date.now() }]
+      return [...prev, { ...item, kpId, quantity: 1, addedAt: Date.now() }]
     })
+    return kpId
   }, [isSystemUser, toast])
 
-  const removeItem = useCallback((productId: number) => {
-    setKpItems(prev => prev.filter(item => item.id !== productId))
+  const removeItem = useCallback((kpId: string) => {
+    setKpItems(prev => prev.filter(item => item.kpId !== kpId))
   }, [])
 
-  const updateItemQuantity = useCallback((productId: number, quantity: number) => {
+  const updateItemQuantity = useCallback((kpId: string, quantity: number) => {
     if (quantity < 1) return
-    setKpItems(prev => prev.map(item => item.id === productId ? { ...item, quantity } : item))
+    setKpItems(prev => prev.map(item => item.kpId === kpId ? { ...item, quantity } : item))
   }, [])
 
-  const updateItem = useCallback((productId: number, updates: Partial<KPItem>) => {
-    setKpItems(prev => prev.map(item => item.id === productId ? { ...item, ...updates } : item))
+  const updateItem = useCallback((kpId: string, updates: Partial<KPItem>) => {
+    setKpItems(prev => prev.map(item => item.kpId === kpId ? { ...item, ...updates } : item))
   }, [])
 
-  const clearAll = useCallback(() => { setKpItems([]); setActiveHistoryId(null) }, [])
+  const clearAll = useCallback(() => { setKpItems([]); setActiveHistoryId(null); setCalculatorData(null) }, [])
 
   const isInKP = useCallback((productId: number) => {
     return kpItems.some(item => item.id === productId)
@@ -433,21 +456,26 @@ export function KPProvider({ children }: { children: ReactNode }) {
     }
   }, [isSystemUser])
 
-  const saveToHistory = useCallback(async (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }): Promise<boolean> => {
+  const saveToHistory = useCallback(async (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }, calcData?: any): Promise<boolean> => {
     if (!isSystemUser || kpItems.length === 0) return false
     try {
       const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      // Сохраняем позиции вместе с настройками
       const settingsWithPositions = {
         ...kpSettings,
         _logoPos: positions?.logoPos,
         _managerPos: positions?.managerPos,
       }
-      const payload = {
+      const payload: any = {
         name: kpSettings.kpName || 'КП без названия',
         items: kpItems,
         settings: settingsWithPositions,
         total_amount: totalAmount,
+      }
+      // Include calculator data if provided
+      if (calcData !== undefined) {
+        payload.calculator_data = calcData
+      } else if (calculatorData !== null) {
+        payload.calculator_data = calculatorData
       }
 
       let resp: Response
@@ -479,19 +507,22 @@ export function KPProvider({ children }: { children: ReactNode }) {
       console.error('Ошибка сохранения КП в историю:', e)
     }
     return false
-  }, [isSystemUser, kpItems, kpSettings, activeHistoryId, fetchHistory])
+  }, [isSystemUser, kpItems, kpSettings, calculatorData, activeHistoryId, fetchHistory])
 
-  const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } } }> => {
+  const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any }> => {
     if (!isSystemUser) return { success: false }
     try {
       const resp = await fetch(`/api/kp-history/${id}`)
       const data = await resp.json()
       if (data.success && data.data) {
-        const { items, settings } = data.data
+        const { items, settings, calculator_data } = data.data
         if (Array.isArray(items)) {
-          setKpItems(items)
+          const migrated = items.map((item: any, idx: number) => ({
+            ...item,
+            kpId: item.kpId || `kp-migrated-${item.addedAt || Date.now()}-${idx}`,
+          }))
+          setKpItems(migrated)
         }
-        // Извлекаем позиции из settings
         const positions = {
           logoPos: settings?._logoPos,
           managerPos: settings?._managerPos,
@@ -500,8 +531,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
           skipApiSaveRef.current = true
           setKpSettings(mergeWithDefaults(settings))
         }
+        setCalculatorData(calculator_data || null)
         setActiveHistoryId(id)
-        return { success: true, positions }
+        return { success: true, positions, calculatorData: calculator_data }
       }
     } catch (e) {
       console.error('Ошибка загрузки КП из истории:', e)
@@ -536,6 +568,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     addItem, removeItem, updateItemQuantity, updateItem, clearAll, isInKP,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
+    calculatorData, setCalculatorData,
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
   }
 

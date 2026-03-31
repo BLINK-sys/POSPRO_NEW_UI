@@ -6,6 +6,7 @@ import {
   createCurrency,
   updateCurrency,
   deleteCurrency,
+  refreshRates,
 } from "@/app/actions/currencies"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-import { Pencil, Trash2, Plus } from "lucide-react"
+import { Pencil, Trash2, Plus, RefreshCw } from "lucide-react"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 
 interface CurrenciesManagementProps {
@@ -107,11 +108,38 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
     })
   }
 
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefreshRate = () => {
+    setRefreshing(true)
+    startTransition(async () => {
+      const result = await refreshRates()
+      if (result.success) {
+        toast({ title: "Курсы обновлены", description: result.message })
+        // Update all changed currencies in local state
+        const updated = (result as any).updated || []
+        if (updated.length > 0) {
+          setCurrencies(prev => prev.map(c => {
+            const u = updated.find((x: any) => x.code === c.code)
+            return u ? { ...c, rate_to_tenge: u.new_rate } : c
+          }))
+        }
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+      setRefreshing(false)
+    })
+  }
+
   const dialogOpen = isCreating || !!editingCurrency
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={handleRefreshRate} disabled={refreshing || isPending} className="flex items-center gap-2">
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Обновить курсы
+        </Button>
         <Button onClick={openCreate} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           Добавить валюту

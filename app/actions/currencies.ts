@@ -110,3 +110,26 @@ export async function deleteCurrency(id: number): Promise<CurrencyActionResponse
     return { success: false, error: "Ошибка сети" }
   }
 }
+
+export async function refreshRates(): Promise<{
+  success: boolean
+  message?: string
+  updated?: Array<{ code: string; old_rate: number; new_rate: number }>
+  available?: Record<string, number>
+  error?: string
+}> {
+  try {
+    const token = await getToken()
+    const res = await fetch(`${API_BASE_URL}/meta/currencies/refresh-rate`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const result = await res.json()
+    if (!res.ok) {
+      return { success: false, error: result.message || "Ошибка обновления курсов" }
+    }
+    return { success: true, message: result.message, updated: result.data?.updated, available: result.data?.available }
+  } catch (e) {
+    return { success: false, error: "Ошибка сети" }
+  }
+}

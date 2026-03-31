@@ -18,6 +18,7 @@ export interface WarehouseFormula {
   id: number
   warehouse_id: number
   formula: string
+  delivery_formula: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -61,14 +62,25 @@ export interface CalculatePreviewResponse {
   }
 }
 
+export interface RecalculateData {
+  status: 'running' | 'done' | 'error'
+  started_at?: string
+  finished_at?: string | null
+  total: number
+  processed: number
+  price_calculated: number
+  delivery_calculated: number
+  zero_price: number
+  zero_price_reasons: Array<{ name: string; reason: string }>
+  error_count: number
+  errors: string[]
+  has_delivery_formula: boolean
+}
+
 export interface RecalculateResponse {
   success: boolean
   message?: string
-  data?: {
-    success_count: number
-    error_count: number
-    errors: string[]
-  }
+  data?: RecalculateData
 }
 
 const getToken = async () => {
@@ -238,7 +250,8 @@ export async function saveSingleVariable(
 
 export async function saveFormula(
   warehouseId: number,
-  formula: string
+  formula: string,
+  delivery_formula?: string
 ): Promise<FormulaValidationResponse> {
   try {
     const token = await getToken()
@@ -248,7 +261,7 @@ export async function saveFormula(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ formula }),
+      body: JSON.stringify({ formula, delivery_formula: delivery_formula || null }),
     })
     const result = await res.json()
     if (!res.ok) {
@@ -344,6 +357,21 @@ export async function recalculateWarehouse(warehouseId: number): Promise<Recalcu
     if (!res.ok) {
       return { success: false, message: result.message || "Ошибка пересчёта" }
     }
+    return { success: true, message: result.message, data: result.data }
+  } catch (e) {
+    return { success: false, message: "Ошибка сети" }
+  }
+}
+
+export async function getRecalculateStatus(warehouseId: number): Promise<RecalculateResponse> {
+  try {
+    const token = await getToken()
+    const res = await fetch(`${API_BASE_URL}/meta/warehouses/${warehouseId}/recalculate-status`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    const result = await res.json()
     return { success: true, message: result.message, data: result.data }
   } catch (e) {
     return { success: false, message: "Ошибка сети" }

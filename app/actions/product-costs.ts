@@ -12,8 +12,12 @@ export interface ProductCost {
   product_slug: string | null
   product_image?: string | null
   warehouse_id: number
+  warehouse_name?: string | null
+  supplier_name?: string | null
+  currency_code?: string | null
   cost_price: number
   calculated_price: number | null
+  calculated_delivery: number | null
   calculated_at: string | null
   created_at: string | null
   updated_at: string | null

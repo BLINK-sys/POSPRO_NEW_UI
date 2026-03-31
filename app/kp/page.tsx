@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -194,21 +194,21 @@ function KPProductCard({
   removeItem,
 }: {
   item: KPItem
-  updateItem: (id: number, updates: Partial<KPItem>) => void
-  updateItemQuantity: (id: number, qty: number) => void
-  removeItem: (id: number) => void
+  updateItem: (kpId: string, updates: Partial<KPItem>) => void
+  updateItemQuantity: (kpId: string, qty: number) => void
+  removeItem: (kpId: string) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   const visibleChars = visibleCharacteristics(item.characteristics)
+  const warehousePrices = item.warehousePrices || []
 
   const handleAddCharacteristic = () => {
     const chars = [...(item.characteristics || []), { key: '', value: '' }]
-    updateItem(item.id, { characteristics: chars })
+    updateItem(item.kpId, { characteristics: chars })
   }
 
   const handleUpdateCharacteristic = (index: number, field: 'key' | 'value', val: string) => {
-    // Work on the FULL array (including hidden "code" entries)
     const allChars = [...(item.characteristics || [])]
-    // Map visible index to real index
     let visibleIdx = -1
     for (let i = 0; i < allChars.length; i++) {
       if (allChars[i].key.toLowerCase() !== 'code') visibleIdx++
@@ -217,7 +217,7 @@ function KPProductCard({
         break
       }
     }
-    updateItem(item.id, { characteristics: allChars })
+    updateItem(item.kpId, { characteristics: allChars })
   }
 
   const handleRemoveCharacteristic = (index: number) => {
@@ -230,115 +230,145 @@ function KPProductCard({
         break
       }
     }
-    updateItem(item.id, { characteristics: allChars })
+    updateItem(item.kpId, { characteristics: allChars })
+  }
+
+  const handleWarehouseChange = (warehouseId: string) => {
+    const wp = warehousePrices.find(w => String(w.warehouse_id) === warehouseId)
+    if (wp && wp.calculated_price) {
+      updateItem(item.kpId, {
+        price: wp.calculated_price,
+        selectedWarehouseId: wp.warehouse_id,
+        supplier_name: wp.supplier_name,
+      })
+    }
   }
 
   return (
     <Card className="shadow-sm">
       <CardContent className="p-2">
-        <div className="flex gap-2 items-start">
-          {/* Column 1: Image */}
-          <Link href={`/product/${item.slug}`} className="relative w-14 h-14 bg-white rounded overflow-hidden flex-shrink-0 border">
+        {/* Header row — always visible (image, name, delete, expand toggle) */}
+        <div className="flex gap-2 items-center">
+          <Link href={`/product/${item.slug}`} className="relative w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0">
             {item.image_url ? (
               <Image src={getImageUrl(item.image_url)} alt={item.name} fill className="object-contain p-0.5" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400"><FileText className="h-4 w-4" /></div>
+              <div className="w-full h-full flex items-center justify-center text-gray-400"><FileText className="h-3 w-3" /></div>
             )}
           </Link>
-          {/* Column 2: Name line 1, Price + Qty line 2 */}
-          <div className="flex-1 min-w-0">
-            {/* Line 1: Name + delete */}
-            <div className="flex items-center justify-between gap-1">
-              <input
-                type="text"
-                value={item.name}
-                onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                className="text-xs font-medium text-gray-900 w-full bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-400 focus:ring-0 rounded p-0.5 outline-none truncate"
-              />
-              <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="h-5 w-5 p-0 text-gray-400 hover:text-red-600 flex-shrink-0">
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-            {/* Line 2: Price + Qty together */}
-            <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs font-medium text-gray-900 flex-1 min-w-0 truncate">{item.name}</span>
+          <button onClick={() => removeItem(item.kpId)} className="h-5 w-5 flex items-center justify-center text-red-500 hover:text-red-700 flex-shrink-0 border border-red-400 rounded bg-white [box-shadow:1px_2px_4px_rgba(0,0,0,0.12)]">
+            <Trash2 className="h-3 w-3" />
+          </button>
+          <button onClick={() => setExpanded(!expanded)} className="h-5 w-5 flex items-center justify-center text-gray-600 hover:text-gray-900 flex-shrink-0 border border-yellow-400 rounded bg-white [box-shadow:1px_2px_4px_rgba(0,0,0,0.12)]">
+            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+        </div>
+
+        {/* Expanded content */}
+        {expanded && (
+          <div className="mt-2 pt-2 border-t space-y-2">
+            {/* Name edit */}
+            <AutoTextarea
+              value={item.name}
+              onChange={(val) => updateItem(item.kpId, { name: val })}
+              className="text-xs font-medium text-gray-900 w-full bg-transparent border border-gray-200 hover:border-gray-300 focus:border-blue-400 rounded p-1 outline-none resize-none leading-tight"
+            />
+
+            {/* Warehouse selector */}
+            {warehousePrices.length > 0 && (
+              <select
+                value={item.selectedWarehouseId ? String(item.selectedWarehouseId) : ''}
+                onChange={(e) => handleWarehouseChange(e.target.value)}
+                className="text-xs w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-6 outline-none text-gray-700"
+              >
+                <option value="">Выбрать поставщика/склад...</option>
+                {warehousePrices.map((wp) => (
+                  <option key={wp.warehouse_id} value={String(wp.warehouse_id)}>
+                    {wp.supplier_name ? `${wp.supplier_name} — ` : ''}{wp.warehouse_name}: {formatProductPrice(wp.calculated_price || 0)} ₸
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Price + Qty */}
+            <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5">
                 <input
                   type="number"
                   value={item.price}
-                  onChange={(e) => updateItem(item.id, { price: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => updateItem(item.kpId, { price: parseFloat(e.target.value) || 0 })}
                   className="text-base font-bold text-gray-800 w-24 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-400 rounded px-0.5 h-7 outline-none"
                 />
                 <span className="text-xs text-gray-400">₸</span>
               </div>
               <div className="flex items-center gap-0.5 ml-auto">
-                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1} className="w-6 h-6 rounded-full p-0 text-xs">
+                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.kpId, item.quantity - 1)} disabled={item.quantity <= 1} className="w-6 h-6 rounded-full p-0 text-xs">
                   <Minus className="h-3 w-3" />
                 </Button>
                 <input
                   type="text" value={item.quantity}
-                  onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) updateItemQuantity(item.id, v) }}
+                  onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) updateItemQuantity(item.kpId, v) }}
                   className="w-8 text-center text-xs border rounded h-6"
                 />
-                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.id, item.quantity + 1)} className="w-6 h-6 rounded-full p-0 text-xs bg-yellow-400 hover:bg-yellow-500">
+                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.kpId, item.quantity + 1)} className="w-6 h-6 rounded-full p-0 text-xs bg-yellow-400 hover:bg-yellow-500">
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Description — always visible */}
-        <div className="mt-2 pt-2 border-t space-y-2">
-          <div>
-            <label className="text-[10px] font-medium text-gray-500 uppercase">Описание</label>
-            <AutoTextarea
-              value={item.description || ''}
-              onChange={(val) => updateItem(item.id, { description: val })}
-              placeholder="Описание товара..."
-              className="text-[11px] text-gray-700 w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded p-1.5 resize-none leading-tight outline-none mt-0.5"
-            />
-          </div>
-
-          {/* Characteristics — always visible */}
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-medium text-gray-500 uppercase">Характеристики</label>
-              <button
-                onClick={handleAddCharacteristic}
-                className="text-[10px] text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-              >
-                <Plus className="h-2.5 w-2.5" /> Добавить
-              </button>
+            {/* Description */}
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase">Описание</label>
+              <AutoTextarea
+                value={item.description || ''}
+                onChange={(val) => updateItem(item.kpId, { description: val })}
+                placeholder="Описание товара..."
+                className="text-[11px] text-gray-700 w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded p-1.5 resize-none leading-tight outline-none mt-0.5"
+              />
             </div>
-            {visibleChars.map((ch, idx) => (
-              <div key={idx} className="flex items-center gap-1 mt-1">
-                <input
-                  type="text"
-                  value={ch.key}
-                  onChange={(e) => handleUpdateCharacteristic(idx, 'key', e.target.value)}
-                  placeholder="Ключ"
-                  className="text-[10px] w-1/3 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
-                />
-                <input
-                  type="text"
-                  value={ch.value}
-                  onChange={(e) => handleUpdateCharacteristic(idx, 'value', e.target.value)}
-                  placeholder="Значение"
-                  className="text-[10px] flex-1 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
-                />
+
+            {/* Characteristics */}
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-medium text-gray-500 uppercase">Характеристики</label>
                 <button
-                  onClick={() => handleRemoveCharacteristic(idx)}
-                  className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                  onClick={handleAddCharacteristic}
+                  className="text-[10px] text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
                 >
-                  <X className="h-3 w-3" />
+                  <Plus className="h-2.5 w-2.5" /> Добавить
                 </button>
               </div>
-            ))}
-            {visibleChars.length === 0 && (
-              <p className="text-[10px] text-gray-400 mt-1">Нет характеристик</p>
-            )}
+              {visibleChars.map((ch, idx) => (
+                <div key={idx} className="flex items-center gap-1 mt-1">
+                  <input
+                    type="text"
+                    value={ch.key}
+                    onChange={(e) => handleUpdateCharacteristic(idx, 'key', e.target.value)}
+                    placeholder="Ключ"
+                    className="text-[10px] w-1/3 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={ch.value}
+                    onChange={(e) => handleUpdateCharacteristic(idx, 'value', e.target.value)}
+                    placeholder="Значение"
+                    className="text-[10px] flex-1 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
+                  />
+                  <button
+                    onClick={() => handleRemoveCharacteristic(idx)}
+                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {visibleChars.length === 0 && (
+                <p className="text-[10px] text-gray-400 mt-1">Нет характеристик</p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -366,8 +396,16 @@ export default function KPPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
   const [newTextPage, setNewTextPage] = useState(0)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const logoUploadRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
+
+  // Logo gallery state
+  const [showLogoModal, setShowLogoModal] = useState(false)
+  const [userLogos, setUserLogos] = useState<Array<{ filename: string; url: string; size: number; uploaded_at: string }>>([])
+  const [logosLoading, setLogosLoading] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
 
   const isSystemUser = user?.role === "admin" || user?.role === "system"
 
@@ -566,16 +604,70 @@ export default function KPPage() {
     setEditingElement(null)
   }, [updateTextElement])
 
-  // ── Logo upload ───────────────────────────────
-  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Logo gallery ─────────────────────────────
+  const fetchUserLogos = useCallback(async () => {
+    setLogosLoading(true)
+    try {
+      const resp = await fetch('/api/kp-logos')
+      const data = await resp.json()
+      if (data.success && Array.isArray(data.logos)) {
+        setUserLogos(data.logos)
+      }
+    } catch (err) {
+      console.error('Failed to fetch logos:', err)
+    } finally {
+      setLogosLoading(false)
+    }
+  }, [])
+
+  const handleLogoUploadToServer = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      updateLogo({ customUrl: ev.target?.result as string })
+    e.target.value = '' // reset input
+
+    setLogoUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const resp = await fetch('/api/kp-logos', { method: 'POST', body: formData })
+      const data = await resp.json()
+      if (data.success && data.logo) {
+        setUserLogos(prev => [...prev, data.logo])
+        // Auto-select the uploaded logo
+        updateLogo({ serverUrl: data.logo.url, logoFilename: data.logo.filename, customUrl: undefined })
+      }
+    } catch (err) {
+      console.error('Failed to upload logo:', err)
+    } finally {
+      setLogoUploading(false)
     }
-    reader.readAsDataURL(file)
   }, [updateLogo])
+
+  const handleDeleteLogo = useCallback(async (filename: string) => {
+    try {
+      const resp = await fetch(`/api/kp-logos/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+      const data = await resp.json()
+      if (data.success) {
+        setUserLogos(prev => prev.filter(l => l.filename !== filename))
+        // If deleted logo was selected, reset
+        if (kpSettings.logo.logoFilename === filename) {
+          updateLogo({ serverUrl: undefined, logoFilename: undefined })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete logo:', err)
+    }
+  }, [kpSettings.logo.logoFilename, updateLogo])
+
+  const handleSelectLogo = useCallback((logoItem: { filename: string; url: string }) => {
+    updateLogo({ serverUrl: logoItem.url, logoFilename: logoItem.filename, customUrl: undefined })
+    setShowLogoModal(false)
+  }, [updateLogo])
+
+  const handleOpenLogoModal = useCallback(() => {
+    setShowLogoModal(true)
+    fetchUserLogos()
+  }, [fetchUserLogos])
 
   // ── Deselect ──────────────────────────────────
   const handlePreviewClick = useCallback(() => {
@@ -691,6 +783,7 @@ export default function KPPage() {
   // ── Derived data ──────────────────────────────
   const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const { columns, columnWidths, columnFontSizes, columnHeaderFontSizes, columnAligns, columnHeaderAligns, mergeImageName, managerAlign, logo, textElements, kpName, title, footerNote } = kpSettings
+  const logoSrc = logo.serverUrl ? getImageUrl(logo.serverUrl) : (logo.customUrl || "/ui/big_logo.png")
 
   // Visible columns
   const visibleCols = ALL_COLUMNS.filter(col => {
@@ -925,19 +1018,19 @@ export default function KPPage() {
           )}
         </div>
 
-        {/* История КП — по центру */}
+        {/* История КП — слева после badges */}
         {kpHistory.length > 0 && (
-          <div className="relative">
+          <div className="relative ml-4">
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-black bg-white border border-yellow-400 hover:bg-yellow-50 rounded-full transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
             >
               <History className="h-4 w-4" />
               История КП ({kpHistory.length})
               {showHistory ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
             {showHistory && (
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-2 space-y-1 max-h-64 overflow-y-auto">
+              <div className="absolute top-full mt-1 left-0 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-2 space-y-1 max-h-64 overflow-y-auto">
                 {kpHistory.map((entry) => (
                   <div
                     key={entry.id}
@@ -982,14 +1075,52 @@ export default function KPPage() {
           </div>
         )}
 
-        <Button
-          variant="outline" onClick={clearAll}
-          className="bg-gray-200 hover:bg-white hover:text-red-600 hover:border-red-600 text-black shadow-sm rounded-full text-sm"
-          size="sm"
-        >
-          Очистить КП
-        </Button>
+        <div className="flex-1" />
+
+        {/* Правая часть: Корп. расчётник + Очистить */}
+        <div className="flex items-center gap-2">
+          {kpCount > 0 && (
+            <button
+              onClick={() => router.push('/calculator')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-black bg-white border border-yellow-400 hover:bg-yellow-50 rounded-full transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+            >
+              <Calculator className="h-4 w-4" />
+              Корп. расчётник
+            </button>
+          )}
+
+          <Button
+            variant="outline"
+            onClick={() => setShowClearConfirm(true)}
+            className="bg-white border-red-400 text-red-600 hover:bg-red-50 rounded-full text-sm [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+            size="sm"
+          >
+            Очистить КП
+          </Button>
+        </div>
       </div>
+
+      {/* Clear confirmation modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowClearConfirm(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-80 p-6 text-center" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-2">Очистить КП?</h3>
+            <p className="text-sm text-gray-500 mb-5">Все товары и настройки будут удалены из текущего КП.</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(false)} className="rounded-full px-5">
+                Отмена
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => { clearAll(); setShowClearConfirm(false) }}
+                className="rounded-full px-5 bg-red-500 hover:bg-red-600 text-white"
+              >
+                Очистить
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3-panel resizable layout */}
       <PanelGroup direction="horizontal" className="flex-1">
@@ -1001,7 +1132,7 @@ export default function KPPage() {
               <h2 className="text-sm font-semibold text-gray-600 px-1">Товары в КП</h2>
               {kpItems.map((item) => (
                 <KPProductCard
-                  key={item.id}
+                  key={item.kpId}
                   item={item}
                   updateItem={updateItem}
                   updateItemQuantity={updateItemQuantity}
@@ -1178,7 +1309,7 @@ export default function KPPage() {
                           onClick={(e) => { e.stopPropagation(); setSelectedElement('logo') }}
                         >
                           <img
-                            src={logo.customUrl || "/ui/big_logo.png"}
+                            src={logoSrc}
                             alt="Logo"
                             style={{ width: logo.width, height: logo.height > 0 ? logo.height : 'auto' }}
                             draggable={false}
@@ -1322,6 +1453,24 @@ export default function KPPage() {
                 </div>
                 {logo.enabled && (
                   <>
+                    {/* Current logo preview */}
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+                      <img
+                        src={logoSrc}
+                        alt="Logo"
+                        className="h-8 max-w-[80px] object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/ui/big_logo.png' }}
+                      />
+                      <span className="text-[10px] text-gray-500 truncate flex-1">
+                        {logo.logoFilename || (logo.customUrl ? 'Загруженный' : 'По умолчанию')}
+                      </span>
+                    </div>
+
+                    <Button variant="outline" size="sm" onClick={handleOpenLogoModal} className="w-full text-xs">
+                      <ImageIcon className="h-3 w-3 mr-1" />
+                      Выбрать логотип
+                    </Button>
+
                     <div className="flex items-center gap-2">
                       <Label className="text-xs w-16 flex-shrink-0">Ширина</Label>
                       <Slider
@@ -1346,18 +1495,16 @@ export default function KPPage() {
                       />
                       <span className="text-[10px] text-gray-500 w-8 text-right">{logo.height || 'авто'}</span>
                     </div>
-                    <div>
-                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="w-full text-xs">
-                        <Upload className="h-3 w-3 mr-1" />
-                        Загрузить логотип
+
+                    {(logo.serverUrl || logo.customUrl) && (
+                      <Button
+                        variant="ghost" size="sm"
+                        onClick={() => updateLogo({ serverUrl: undefined, logoFilename: undefined, customUrl: undefined })}
+                        className="w-full text-xs text-red-500"
+                      >
+                        Сбросить на лого по умолчанию
                       </Button>
-                      {logo.customUrl && (
-                        <Button variant="ghost" size="sm" onClick={() => updateLogo({ customUrl: undefined })} className="w-full text-xs text-red-500 mt-1">
-                          Сбросить логотип
-                        </Button>
-                      )}
-                    </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1615,6 +1762,87 @@ export default function KPPage() {
         </Panel>
 
       </PanelGroup>
+
+      {/* Logo selection modal */}
+      {showLogoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowLogoModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="text-sm font-semibold">Выбор логотипа</h3>
+              <button onClick={() => setShowLogoModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {/* Default logo option */}
+              <div
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer mb-3 transition-colors ${
+                  !logo.serverUrl && !logo.customUrl ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => { updateLogo({ serverUrl: undefined, logoFilename: undefined, customUrl: undefined }); setShowLogoModal(false) }}
+              >
+                <img src="/ui/big_logo.png" alt="Default" className="h-10 max-w-[100px] object-contain" />
+                <span className="text-sm flex-1">По умолчанию</span>
+                {!logo.serverUrl && !logo.customUrl && <Check className="h-4 w-4 text-blue-500" />}
+              </div>
+
+              {/* User logos */}
+              {logosLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : userLogos.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4">Нет загруженных логотипов</p>
+              ) : (
+                <div className="space-y-2">
+                  {userLogos.map((item) => (
+                    <div
+                      key={item.filename}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        logo.logoFilename === item.filename ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleSelectLogo(item)}
+                    >
+                      <img
+                        src={getImageUrl(item.url)}
+                        alt={item.filename}
+                        className="h-10 max-w-[100px] object-contain bg-white"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                      <span className="text-xs text-gray-700 truncate flex-1">{item.filename}</span>
+                      {logo.logoFilename === item.filename && <Check className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteLogo(item.filename) }}
+                        className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                        title="Удалить"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t flex gap-2">
+              <input ref={logoUploadRef} type="file" accept="image/*" onChange={handleLogoUploadToServer} className="hidden" />
+              <Button
+                variant="outline" size="sm"
+                onClick={() => logoUploadRef.current?.click()}
+                disabled={logoUploading}
+                className="flex-1 text-xs"
+              >
+                {logoUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+                Загрузить новый
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowLogoModal(false)} className="text-xs">
+                Закрыть
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

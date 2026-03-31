@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import React, { useState, useTransition, useRef, useCallback, useEffect } from "react"
 import {
   type Warehouse,
   type WarehouseVariable,
@@ -9,6 +9,7 @@ import {
   saveFormula,
   deleteFormula,
   recalculateWarehouse,
+  getRecalculateStatus,
   calculatePreview,
 } from "@/app/actions/warehouses"
 import {
@@ -98,6 +99,41 @@ function generateRangeFormula(config: RangeConfig): string {
   return formula
 }
 
+// ── Zero price list with search ──
+function ZeroPriceList({ reasons, total }: { reasons: Array<{ name: string; reason: string }>; total: number }) {
+  const [search, setSearch] = useState('')
+  const filtered = search
+    ? reasons.filter(r => r.name.toLowerCase().includes(search.toLowerCase()))
+    : reasons
+
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-orange-600 font-medium">
+        Товары с нулевой ценой ({total})
+      </summary>
+      <div className="mt-2">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Поиск по названию..."
+          className="w-full border border-gray-200 rounded px-2 py-1 text-xs outline-none focus:border-orange-400 mb-2"
+        />
+        <div className="max-h-60 overflow-y-auto space-y-0.5 pl-2">
+          {filtered.map((r, i) => (
+            <div key={i} className="text-gray-600">
+              <span className="text-gray-400">{i + 1}.</span> {r.name} — <span className="text-orange-500">{r.reason}</span>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="text-gray-400 italic">Ничего не найдено</div>
+          )}
+        </div>
+      </div>
+    </details>
+  )
+}
+
 interface WarehouseDetailProps {
   initialWarehouse: Warehouse
   initialProductsCount: number
@@ -110,6 +146,9 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
   )
   const [formulaText, setFormulaText] = useState(
     initialWarehouse.formula?.formula || ""
+  )
+  const [deliveryFormulaText, setDeliveryFormulaText] = useState(
+    initialWarehouse.formula?.delivery_formula || ""
   )
   const [productsCount, setProductsCount] = useState(initialProductsCount)
   const [isPending, startTransition] = useTransition()
@@ -321,7 +360,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       return
     }
     startTransition(async () => {
-      const result = await saveFormula(warehouse.id, formulaText.trim())
+      const result = await saveFormula(warehouse.id, formulaText.trim(), deliveryFormulaText.trim() || undefined)
       if (result.success) {
         toast({ title: "Успех!", description: result.message })
       } else {
@@ -365,12 +404,80 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
 
   // ===== Recalculate =====
 
+  const [recalcResult, setRecalcResult] = useState<{
+    status: string
+    started_at?: string
+    finished_at?: string | null
+    total: number
+    processed: number
+    price_calculated: number
+    delivery_calculated: number
+    zero_price: number
+    zero_price_reasons: Array<{ name: string; reason: string }>
+    error_count: number
+    errors: string[]
+    has_delivery_formula: boolean
+  } | null>(null)
+  const [isRecalculating, setIsRecalculating] = useState(false)
+  const recalcTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopPolling = useCallback(() => {
+    if (recalcTimerRef.current) {
+      clearInterval(recalcTimerRef.current)
+      recalcTimerRef.current = null
+    }
+    setIsRecalculating(false)
+  }, [])
+
+  const startPolling = useCallback(() => {
+    if (recalcTimerRef.current) clearInterval(recalcTimerRef.current)
+    recalcTimerRef.current = setInterval(async () => {
+      const res = await getRecalculateStatus(warehouse.id)
+      if (res.success && res.data) {
+        setRecalcResult(res.data)
+        if (res.data.status === 'done' || res.data.status === 'error') {
+          stopPolling()
+          toast({
+            title: res.data.status === 'done' ? "Пересчёт завершён" : "Ошибка пересчёта",
+            description: res.message,
+            variant: res.data.status === 'error' ? 'destructive' : undefined,
+          })
+        }
+      }
+    }, 2000)
+  }, [warehouse.id, stopPolling, toast])
+
+  // On mount: check if recalculation is running or has results
+  useEffect(() => {
+    const checkStatus = async () => {
+      const res = await getRecalculateStatus(warehouse.id)
+      if (res.success && res.data) {
+        setRecalcResult(res.data)
+        if (res.data.status === 'running') {
+          setIsRecalculating(true)
+          startPolling()
+        }
+      }
+    }
+    checkStatus()
+    return () => { if (recalcTimerRef.current) clearInterval(recalcTimerRef.current) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRecalculate = () => {
+    setRecalcResult(null)
+    setIsRecalculating(true)
     startTransition(async () => {
       const result = await recalculateWarehouse(warehouse.id)
       if (result.success) {
-        toast({ title: "Пересчёт завершён", description: result.message })
+        setRecalcResult(result.data || null)
+        if (result.data?.status === 'running') {
+          startPolling()
+        } else {
+          setIsRecalculating(false)
+          toast({ title: "Пересчёт завершён", description: result.message })
+        }
       } else {
+        setIsRecalculating(false)
         toast({ variant: "destructive", title: "Ошибка", description: result.message })
       }
     })
@@ -890,6 +997,20 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
             disabled={isPending}
           />
 
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-medium mb-2">Формула доставки за единицу (необязательно)</h4>
+            <FormulaBuilder
+              value={deliveryFormulaText}
+              onChange={setDeliveryFormulaText}
+              label="Доставка ="
+              builtinVariables={builtinVars.map((v) => ({ name: v.name, label: v.desc }))}
+              customVariables={variables
+                .filter((v) => v.name.trim())
+                .map((v) => ({ name: v.name, label: v.label || undefined }))}
+              disabled={isPending}
+            />
+          </div>
+
           {/* Preview */}
           <div className="border-t pt-4">
             <h4 className="text-sm font-medium mb-2">Предварительный расчёт</h4>
@@ -982,12 +1103,82 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
               variant="outline"
               size="sm"
               onClick={handleRecalculate}
-              disabled={isPending}
+              disabled={isPending || isRecalculating}
             >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Пересчитать все
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRecalculating ? 'animate-spin' : ''}`} />
+              {isRecalculating && recalcResult
+                ? `${recalcResult.processed}/${recalcResult.total}`
+                : 'Пересчитать все'}
             </Button>
           </div>
+
+          {/* Recalculation results */}
+          {recalcResult && (
+            <div className="px-6 pb-4 space-y-2 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-3 bg-gray-50 rounded-lg">
+                {/* Status header */}
+                <span className="text-gray-500">Статус:</span>
+                <span className={`font-medium ${recalcResult.status === 'running' ? 'text-blue-600' : recalcResult.status === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                  {recalcResult.status === 'running' ? `Выполняется ${recalcResult.processed}/${recalcResult.total}...` : recalcResult.status === 'error' ? 'Ошибка' : 'Завершено'}
+                </span>
+                {recalcResult.finished_at && (
+                  <>
+                    <span className="text-gray-500">Дата:</span>
+                    <span className="text-gray-700">{new Date(recalcResult.finished_at).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}</span>
+                  </>
+                )}
+                {Array.isArray((recalcResult as any).rate_refreshed) && (recalcResult as any).rate_refreshed
+                  .filter((r: any) => r.code === warehouse.currency?.code)
+                  .map((r: any) => (
+                  <React.Fragment key={r.code}>
+                    <span className="text-gray-500">Курс {r.code}:</span>
+                    <span className="font-medium">{r.old === r.new ? r.new : `${r.old} → ${r.new}`}</span>
+                  </React.Fragment>
+                ))}
+                <span className="text-gray-500">Всего товаров:</span>
+                <span className="font-medium">{recalcResult.total}</span>
+                <span className="text-gray-500">Цена рассчитана:</span>
+                <span className="font-medium text-green-600">{recalcResult.price_calculated}</span>
+                {recalcResult.has_delivery_formula && (
+                  <>
+                    <span className="text-gray-500">Доставка рассчитана:</span>
+                    <span className="font-medium text-blue-600">{recalcResult.delivery_calculated}</span>
+                  </>
+                )}
+                {recalcResult.zero_price > 0 && (
+                  <>
+                    <span className="text-gray-500">Нулевая цена:</span>
+                    <span className="font-medium text-orange-500">{recalcResult.zero_price}</span>
+                  </>
+                )}
+                {recalcResult.error_count > 0 && (
+                  <>
+                    <span className="text-gray-500">Ошибки:</span>
+                    <span className="font-medium text-red-500">{recalcResult.error_count}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Zero price details */}
+              {recalcResult.zero_price_reasons.length > 0 && (
+                <ZeroPriceList reasons={recalcResult.zero_price_reasons} total={recalcResult.zero_price} />
+              )}
+
+              {/* Error details */}
+              {recalcResult.errors.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-red-600 font-medium">
+                    Ошибки расчёта ({recalcResult.error_count})
+                  </summary>
+                  <div className="mt-1 max-h-40 overflow-y-auto space-y-0.5 pl-2">
+                    {recalcResult.errors.map((err, i) => (
+                      <div key={i} className="text-red-500">{i + 1}. {err}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
         </CardHeader>
       </Card>
 
