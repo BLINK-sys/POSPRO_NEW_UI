@@ -375,6 +375,31 @@ export async function isAuthenticated(): Promise<boolean> {
   return !!token
 }
 
+// Lightweight token validity check — pings /auth/profile to verify token is still accepted
+export async function checkTokenValid(): Promise<boolean> {
+  try {
+    const token = cookies().get("jwt-token")?.value
+    if (!token) return false
+
+    const response = await fetch(getApiUrl(API_ENDPOINTS.AUTH.PROFILE), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      // Token is invalid — clean up cookies
+      cookies().delete("jwt-token")
+      cookies().delete("user-data")
+      return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function requireAuth() {
   const authenticated = await isAuthenticated()
   if (!authenticated) {

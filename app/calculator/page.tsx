@@ -217,8 +217,16 @@ export default function CalculatorPage() {
           return item
         })
 
-      const currentKpIds = new Set(kpItems.map(i => i.kpId))
-      const filtered = savedItems.filter(i => currentKpIds.has(i.kpId))
+      const currentKpIds = new Map(kpItems.map(i => [i.kpId, i]))
+      const filtered = savedItems
+        .filter(i => currentKpIds.has(i.kpId))
+        .map(i => {
+          const kpItem = currentKpIds.get(i.kpId)!
+          const updates: Partial<CalcItem> = {}
+          if (kpItem.quantity !== i.quantity) updates.quantity = kpItem.quantity
+          if (kpItem.name !== i.name) updates.name = kpItem.name
+          return Object.keys(updates).length > 0 ? { ...i, ...updates } : i
+        })
 
       setItems([...filtered, ...newItems])
     } else if (kpItems.length > 0) {

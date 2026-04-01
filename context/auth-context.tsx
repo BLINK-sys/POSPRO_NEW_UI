@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { logoutAction, refreshProfile } from "@/app/actions/auth"
+import { logoutAction, refreshProfile, checkTokenValid } from "@/app/actions/auth"
 
 interface User {
   id: number
@@ -47,6 +47,20 @@ export function AuthProvider({
   useEffect(() => {
     setUser(initialUser)
     setIsLoading(false)
+  }, [initialUser])
+
+  // Periodic auth check — every 2 minutes, verify token is still valid
+  useEffect(() => {
+    if (!initialUser) return // no user to check
+
+    const interval = setInterval(async () => {
+      const valid = await checkTokenValid()
+      if (!valid) {
+        setUser(null)
+      }
+    }, 2 * 60 * 1000) // 2 minutes
+
+    return () => clearInterval(interval)
   }, [initialUser])
 
   const handleLogout = useCallback(async () => {
