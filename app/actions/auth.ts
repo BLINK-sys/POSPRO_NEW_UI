@@ -387,16 +387,18 @@ export async function checkTokenValid(): Promise<boolean> {
       cache: "no-store",
     })
 
-    if (!response.ok) {
-      // Token is invalid — clean up cookies
+    // Only treat 401/403 as invalid token — server errors (500, 502) or timeouts are transient
+    if (response.status === 401 || response.status === 403) {
       cookies().delete("jwt-token")
       cookies().delete("user-data")
       return false
     }
 
+    // Any other error (500, network issue) — assume token is still valid
     return true
   } catch {
-    return false
+    // Network error, server down — don't invalidate, it's transient
+    return true
   }
 }
 
