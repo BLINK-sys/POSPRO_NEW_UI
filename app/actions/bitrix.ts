@@ -4,43 +4,9 @@ const BITRIX_WEBHOOK = "https://pospro24.bitrix24.kz/rest/4243/xpp4z3mhx0q52h6i/
 const SITE_URL = "https://pospro-new-ui.onrender.com"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new-server.onrender.com"
 
-// Ответственные (чередуются):
-//   ID=1  - Амирхан
-//   ID=11 - Алексей
-const ASSIGNEES = [1, 11]
-const ASSIGNEE_NAMES: Record<number, string> = {
-  1: "Амирхан",
-  11: "Алексей",
-}
-
-// Определяет следующего ответственного для воронки (round-robin)
-// Запрашивает последнюю сделку в воронке и возвращает другого
-async function getNextAssignee(categoryId: number): Promise<number> {
-  try {
-    const response = await fetch(`${BITRIX_WEBHOOK}crm.deal.list.json`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filter: { CATEGORY_ID: categoryId },
-        select: ['ID', 'ASSIGNED_BY_ID'],
-        order: { ID: 'DESC' },
-        start: 0,
-      }),
-    })
-    const result = await response.json()
-    const deals = result.result
-    if (deals && deals.length > 0) {
-      const lastAssigned = Number(deals[0].ASSIGNED_BY_ID)
-      // Возвращаем другого из списка
-      const nextIndex = (ASSIGNEES.indexOf(lastAssigned) + 1) % ASSIGNEES.length
-      return ASSIGNEES[nextIndex]
-    }
-  } catch (error) {
-    console.error('Bitrix24: ошибка получения последней сделки:', error)
-  }
-  // Если не удалось определить — первый из списка
-  return ASSIGNEES[0]
-}
+// Ответственный — Амирхан (ID=1)
+const ASSIGNED_ID = 1
+const ASSIGNED_NAME = "Амирхан"
 
 // Воронка: Заказ с магазина (CATEGORY_ID=15)
 const CATEGORY_ZAKAZ = 15
@@ -144,9 +110,6 @@ export async function createBitrixDeal(data: BitrixDealData) {
       title = `Заказ с сайта: ${data.customer_phone || 'Без имени'}`
     }
 
-    // Определяем ответственного (чередование)
-    const assignedId = await getNextAssignee(CATEGORY_ZAKAZ)
-
     // 1. Создание сделки
     const fields: Record<string, any> = {
       TITLE: title,
@@ -154,7 +117,7 @@ export async function createBitrixDeal(data: BitrixDealData) {
       STAGE_ID: STAGE_ZAKAZ_NEW,
       OPPORTUNITY: data.total_amount,
       CURRENCY_ID: "KZT",
-      ASSIGNED_BY_ID: assignedId,
+      ASSIGNED_BY_ID: ASSIGNED_ID,
       SOURCE_ID: "WEB",
       COMMENTS: comments,
       // Кастомные поля
@@ -212,7 +175,7 @@ export async function createBitrixDeal(data: BitrixDealData) {
         customer_phone: data.customer_phone,
         customer_email: data.customer_email,
         total_amount: data.total_amount,
-        assigned_to: ASSIGNEE_NAMES[assignedId] || `ID ${assignedId}`,
+        assigned_to: ASSIGNED_NAME,
       }),
     }).catch(() => {})
 
@@ -247,9 +210,6 @@ export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
       ? `Уточнение цены: ${data.customer_name} — ${data.product_name}`
       : `Уточнение цены: ${data.customer_phone} — ${data.product_name}`
 
-    // Определяем ответственного (чередование)
-    const assignedId = await getNextAssignee(CATEGORY_PRICE)
-
     const dealResponse = await fetch(`${BITRIX_WEBHOOK}crm.deal.add.json`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -260,7 +220,7 @@ export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
           STAGE_ID: STAGE_PRICE_NEW,
           OPPORTUNITY: 0,
           CURRENCY_ID: "KZT",
-          ASSIGNED_BY_ID: assignedId,
+          ASSIGNED_BY_ID: ASSIGNED_ID,
           SOURCE_ID: "WEB",
           COMMENTS: comments,
           [FIELD_PRODUCT_NAME]: data.product_name,
@@ -287,7 +247,7 @@ export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
         customer_phone: data.customer_phone,
         product_name: data.product_name,
         product_slug: data.product_slug,
-        assigned_to: ASSIGNEE_NAMES[assignedId] || `ID ${assignedId}`,
+        assigned_to: ASSIGNED_NAME,
       }),
     }).catch(() => {})
 
