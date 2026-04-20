@@ -104,6 +104,14 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7, // 7 дней
       })
+      // Дубликат для клиентского JS — нужен для прямой загрузки файлов
+      // в Flask, минуя Next.js (иначе Next.js падает по OOM на больших файлах).
+      cookies().set("jwt-token-client", data.token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      })
 
       // Получаем полный профиль из /api/profile (login и /auth/profile возвращают урезанные данные)
       let userData: User | null = null
@@ -210,11 +218,13 @@ export async function logoutAction() {
 
     // Удаляем cookies
     cookies().delete("jwt-token")
+    cookies().delete("jwt-token-client")
     cookies().delete("user-data")
   } catch (error) {
     console.error("Logout Action Error:", error)
     // Принудительно удаляем cookies
     cookies().delete("jwt-token")
+    cookies().delete("jwt-token-client")
     cookies().delete("user-data")
   }
 
@@ -374,6 +384,25 @@ export async function isAuthenticated(): Promise<boolean> {
   const token = cookies().get("jwt-token")?.value
   return !!token
 }
+
+// Дублирует httpOnly токен в обычную cookie, чтобы клиентский JS мог
+// делать прямые fetch к Flask (нужно для загрузки больших файлов
+// в обход Next.js, который падает по OOM).
+export async function ensureClientToken(): Promise<boolean> {
+  const cookieStore = cookies()
+  const httpOnlyToken = cookieStore.get("jwt-token")?.value
+  if (!httpOnlyToken) return false
+  const clientToken = cookieStore.get("jwt-token-client")?.value
+  if (clientToken === httpOnlyToken) return true
+  cookieStore.set("jwt-token-client", httpOnlyToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7,
+  })
+  return true
+}
+
 
 // Lightweight token validity check — pings /auth/profile to verify token is still accepted
 export async function checkTokenValid(): Promise<boolean> {

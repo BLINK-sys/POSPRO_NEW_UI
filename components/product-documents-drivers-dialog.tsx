@@ -23,6 +23,7 @@ import {
 import { mediaApi } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
 import { attachDriversToProduct, listDrivers, type Driver as MasterDriver } from "@/app/actions/drivers"
+import { uploadFileDirect } from "@/lib/upload-direct"
 
 type Document = {
   id: number
@@ -166,13 +167,14 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         const formData = new FormData()
         formData.append("file", driverFile)
         formData.append("product_id", String(productId))
-        
-               const result = await mediaApi.uploadDriver(formData)
+
+        // Прямая загрузка в Flask, минуя Next.js (иначе OOM на больших файлах)
+        await uploadFileDirect("/upload/drivers/upload", formData)
 
         // Обновляем только список драйверов
         const updatedDrivers = await mediaApi.getDrivers(productId)
         setDrivers(updatedDrivers)
-        
+
         toast({
           title: "Успех",
           description: "Драйвер загружен",

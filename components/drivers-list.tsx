@@ -40,17 +40,16 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 import {
-  createDriver,
   deleteDriver,
   getDriverProducts,
   listDrivers,
-  replaceDriverFile,
   reorderDrivers,
   updateDriver,
   type Driver,
   type DriverProduct,
 } from "@/app/actions/drivers"
 import { API_BASE_URL } from "@/lib/api-address"
+import { uploadFileDirect } from "@/lib/upload-direct"
 
 function formatSize(bytes: number | null) {
   if (!bytes) return ""
@@ -407,16 +406,17 @@ function DriverFormDialog({
         if (file) {
           const fd = new FormData()
           fd.append("file", file)
-          await replaceDriverFile(driver.id, fd)
+          await uploadFileDirect(`/api/drivers/${driver.id}/file`, fd)
         }
       } else {
         const fd = new FormData()
         fd.append("name", name)
         fd.append("is_active", String(isActive))
         fd.append("file", file as File)
-        const res = await createDriver(fd)
-        if ("error" in res) {
-          toast({ variant: "destructive", title: res.error })
+        try {
+          await uploadFileDirect("/api/drivers/", fd)
+        } catch (e: any) {
+          toast({ variant: "destructive", title: e?.message || "Не удалось создать" })
           setSaving(false)
           return
         }
@@ -424,6 +424,8 @@ function DriverFormDialog({
       await onSaved()
       toast({ title: isEdit ? "Драйвер обновлён" : "Драйвер добавлен" })
       onOpenChange(false)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: e?.message || "Не удалось сохранить" })
     } finally {
       setSaving(false)
     }

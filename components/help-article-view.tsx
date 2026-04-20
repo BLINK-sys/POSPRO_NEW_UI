@@ -23,10 +23,10 @@ import { HelpArticleEditor } from "@/components/help-article-editor"
 import { API_BASE_URL } from "@/lib/api-address"
 import {
   deleteHelpVideo,
-  uploadHelpVideo,
   type HelpArticle,
   type HelpArticleMedia,
 } from "@/app/actions/help-articles"
+import { uploadFileDirect } from "@/lib/upload-direct"
 
 const ALLOWED = ["video/mp4", "video/webm", "video/quicktime"]
 const MAX_MB = 500
@@ -63,13 +63,14 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
     try {
       const fd = new FormData()
       fd.append("file", file)
-      const result = await uploadHelpVideo(article.id, fd)
-      if (result) {
-        setArticle((a) => ({ ...a, media: [...a.media, result] }))
-        toast({ title: "Видео загружено" })
-      } else {
-        toast({ variant: "destructive", title: "Не удалось загрузить видео" })
-      }
+      const result = await uploadFileDirect<HelpArticleMedia>(
+        `/api/help-articles/${article.id}/videos`,
+        fd,
+      )
+      setArticle((a) => ({ ...a, media: [...a.media, result] }))
+      toast({ title: "Видео загружено" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: e?.message || "Не удалось загрузить видео" })
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
