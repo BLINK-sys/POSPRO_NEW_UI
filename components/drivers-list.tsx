@@ -34,7 +34,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -52,6 +52,7 @@ import {
 } from "@/app/actions/drivers"
 import { API_BASE_URL } from "@/lib/api-address"
 import { uploadFileDirect } from "@/lib/upload-direct"
+import { cn } from "@/lib/utils"
 import { Image as ImageIcon, X as XIcon } from "lucide-react"
 
 function formatSize(bytes: number | null) {
@@ -84,68 +85,105 @@ function SortableDriverCard({
   }
 
   return (
-    <Card ref={setNodeRef} style={style} className={!driver.is_active ? "bg-gray-50 opacity-70" : ""}>
-      <CardContent className="p-4 flex gap-4 items-center">
-        {isAdmin && (
-          <button
-            className="cursor-grab active:cursor-grabbing touch-none text-gray-400 hover:text-gray-700"
-            {...attributes}
-            {...listeners}
-            aria-label="Перетащить"
-            title="Перетащить"
-          >
-            <GripVertical className="h-5 w-5" />
-          </button>
-        )}
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative overflow-hidden flex flex-col",
+        !driver.is_active && "bg-gray-50 opacity-70",
+      )}
+    >
+      {/* Drag handle */}
+      {isAdmin && (
+        <button
+          className="absolute top-2 left-2 z-10 cursor-grab active:cursor-grabbing touch-none rounded-md bg-white/80 backdrop-blur p-1 text-gray-400 hover:text-gray-700 shadow-sm"
+          {...attributes}
+          {...listeners}
+          aria-label="Перетащить"
+          title="Перетащить"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      )}
+
+      {/* Картинка */}
+      <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
         {driver.image_url ? (
           <img
             src={`${API_BASE_URL}${driver.image_url}`}
             alt=""
-            className="h-10 w-10 rounded object-cover shrink-0 border"
+            className="w-full h-full object-cover"
           />
         ) : (
-          <FileIcon className="h-5 w-5 text-brand-yellow shrink-0" />
+          <FileIcon className="h-12 w-12 text-brand-yellow" />
         )}
+      </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold truncate">{driver.name}</span>
-            {!driver.is_active && <Badge variant="secondary">Неактивен</Badge>}
-            {driver.usage_count != null && driver.usage_count > 0 && (
-              <Badge variant="outline">используют: {driver.usage_count}</Badge>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 truncate">
-            {driver.filename} {driver.file_size && `• ${formatSize(driver.file_size)}`}
+      {/* Название */}
+      <CardContent className="p-3 flex-1 flex flex-col gap-1.5">
+        <p className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem]">{driver.name}</p>
+
+        <div className="flex flex-wrap items-center gap-1">
+          {driver.usage_count != null && driver.usage_count > 0 && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              {driver.usage_count}
+            </Badge>
+          )}
+          <p className="text-[11px] text-gray-400 truncate flex-1 min-w-0">
+            {driver.file_size ? formatSize(driver.file_size) : driver.filename || ""}
           </p>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => window.open(`${API_BASE_URL}${driver.url}`, "_blank")}
-            title="Скачать"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-          {isAdmin && (
-            <>
-              <Switch checked={driver.is_active} onCheckedChange={() => onToggleActive(driver)} />
-              <Button size="sm" variant="ghost" onClick={() => onEdit(driver)} title="Редактировать">
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                onClick={() => onDelete(driver)}
-                title="Удалить"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+        {/* Действия */}
+        <div className="flex items-center justify-between gap-1 mt-auto pt-2 border-t">
+          <div className="flex items-center gap-1.5">
+            {isAdmin ? (
+              <>
+                <Switch
+                  checked={driver.is_active}
+                  onCheckedChange={() => onToggleActive(driver)}
+                />
+                <span className="text-[10px] text-gray-500">
+                  {driver.is_active ? "Активен" : "Скрыт"}
+                </span>
+              </>
+            ) : !driver.is_active ? (
+              <Badge variant="secondary" className="text-[10px]">Неактивен</Badge>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={() => window.open(`${API_BASE_URL}${driver.url}`, "_blank")}
+              title="Скачать"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+            {isAdmin && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={() => onEdit(driver)}
+                  title="Редактировать"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => onDelete(driver)}
+                  title="Удалить"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -257,7 +295,7 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -284,8 +322,8 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
         </Card>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={drivers.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
+          <SortableContext items={drivers.map((d) => d.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {drivers.map((d) => (
                 <SortableDriverCard
                   key={d.id}
@@ -488,46 +526,106 @@ function DriverFormDialog({
     }
   }
 
+  // Превью картинки: приоритет imageFile → URL → currentImage
+  const previewSrc = imageFile
+    ? URL.createObjectURL(imageFile)
+    : imageUrl.trim()
+      ? imageUrl.trim()
+      : currentImage
+        ? `${API_BASE_URL}${currentImage}`
+        : null
+
+  const hasAnyImage = !!previewSrc
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Редактировать драйвер" : "Новый драйвер"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Название</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Например: Драйвер для сканера Zebra DS2208"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Файл</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-            />
-            <div className="flex items-center gap-2">
-              <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" />
-                {file ? "Заменить файл" : "Выбрать файл"}
-              </Button>
-              <span className="text-sm text-gray-500 truncate">
-                {file?.name || (isEdit ? driver?.filename : "Файл не выбран")}
-              </span>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Левая колонка — основные поля */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Название</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Например: Драйвер для сканера Zebra DS2208"
+              />
             </div>
-            {isEdit && !file && (
-              <p className="text-xs text-gray-400">
-                Если нужно заменить файл — выберите новый, иначе текущий останется.
-              </p>
-            )}
+            <div className="space-y-2">
+              <Label>Файл</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {file ? "Заменить файл" : "Выбрать файл"}
+                </Button>
+                <span className="text-sm text-gray-500 truncate">
+                  {file?.name || (isEdit ? driver?.filename : "Файл не выбран")}
+                </span>
+              </div>
+              {isEdit && !file && (
+                <p className="text-xs text-gray-400">
+                  Если нужно заменить файл — выберите новый, иначе текущий останется.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
+              <Label htmlFor="active">Активен</Label>
+            </div>
           </div>
-          <div className="space-y-2">
+
+          {/* Правая колонка — картинка + превью */}
+          <div className="space-y-3">
             <Label>Картинка для карточки</Label>
+            <div
+              className={cn(
+                "relative aspect-square rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center",
+                hasAnyImage && "border-solid border-gray-200",
+              )}
+            >
+              {previewSrc ? (
+                <>
+                  <img
+                    src={previewSrc}
+                    alt="Превью"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none"
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute top-2 right-2 h-8 w-8 shadow-md"
+                    onClick={() => {
+                      if (imageFile) setImageFile(null)
+                      else if (imageUrl) setImageUrl("")
+                      else removeImage()
+                    }}
+                    title="Убрать картинку"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <div className="text-center text-gray-400 px-4">
+                  <ImageIcon className="h-10 w-10 mx-auto mb-2" />
+                  <p className="text-sm">Превью появится здесь</p>
+                </div>
+              )}
+            </div>
+
             <input
               ref={imageFileInputRef}
               type="file"
@@ -538,38 +636,16 @@ function DriverFormDialog({
                 setImageUrl("")
               }}
             />
-            {(imageFile || currentImage) && (
-              <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50">
-                <img
-                  src={imageFile ? URL.createObjectURL(imageFile) : `${API_BASE_URL}${currentImage}`}
-                  alt=""
-                  className="h-16 w-16 object-cover rounded border"
-                />
-                <div className="flex-1 min-w-0 text-sm text-gray-600 truncate">
-                  {imageFile ? imageFile.name : "Текущая картинка"}
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (imageFile) setImageFile(null)
-                    else removeImage()
-                  }}
-                >
-                  <XIcon className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => imageFileInputRef.current?.click()}
-              >
-                <ImageIcon className="h-4 w-4 mr-2" />
-                Загрузить с ПК
-              </Button>
+            <Button
+              variant="outline"
+              type="button"
+              className="w-full"
+              onClick={() => imageFileInputRef.current?.click()}
+            >
+              <ImageIcon className="h-4 w-4 mr-2" />
+              Загрузить с ПК
+            </Button>
+            <div className="space-y-1">
               <Input
                 placeholder="или вставь URL картинки"
                 value={imageUrl}
@@ -577,19 +653,14 @@ function DriverFormDialog({
                   setImageUrl(e.target.value)
                   if (e.target.value) setImageFile(null)
                 }}
-                className="flex-1"
               />
+              <p className="text-xs text-gray-400">
+                При вставке URL картинка скачается на сервер и сохранится локально.
+              </p>
             </div>
-            <p className="text-xs text-gray-400">
-              При вставке URL картинка скачается на сервер и сохранится локально.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
-            <Label htmlFor="active">Активен</Label>
           </div>
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Отмена
