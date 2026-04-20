@@ -203,17 +203,16 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
     })
   }
 
-  const handleDeleteDriver = (driverId: number) => {
+  const handleDeleteDriver = (driverId: number, isLinked: boolean) => {
     startTransition(async () => {
       try {
         await mediaApi.deleteDriver(driverId)
-        
+
         toast({
           title: "Успех",
-          description: "Драйвер удален",
+          description: isLinked ? "Драйвер отвязан от товара" : "Драйвер удалён",
         })
 
-        // Обновляем только список драйверов
         const updatedDrivers = await mediaApi.getDrivers(productId)
         setDrivers(updatedDrivers)
       } catch (error) {
@@ -221,7 +220,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: error instanceof Error ? error.message : "Не удалось удалить драйвер",
+          description: error instanceof Error ? error.message : "Не удалось выполнить действие",
         })
       }
     })
@@ -531,8 +530,9 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteDriver(driver.id)}
+                            onClick={() => handleDeleteDriver(driver.id, driver.driver_id != null)}
                             disabled={isPending}
+                            title={driver.driver_id != null ? "Отвязать от товара (файл останется в мастер-списке)" : "Удалить драйвер"}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
