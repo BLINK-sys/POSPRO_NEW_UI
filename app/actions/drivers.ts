@@ -147,18 +147,21 @@ export async function reorderDrivers(ids: number[]): Promise<boolean> {
   return r.ok
 }
 
-export async function uploadDriverImageByUrl(driverId: number, url: string): Promise<string | null> {
+export async function uploadDriverImageByUrl(
+  driverId: number,
+  url: string,
+): Promise<{ image_url: string } | { error: string }> {
   const token = await getToken()
-  if (!token) return null
+  if (!token) return { error: "Не авторизован" }
   const r = await fetch(`${API_BASE_URL}/api/drivers/${driverId}/image-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ url }),
   })
-  if (!r.ok) return null
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) return { error: data.error || `HTTP ${r.status}` }
   revalidatePath("/admin/drivers")
-  const data = await r.json()
-  return data.image_url as string
+  return { image_url: data.image_url as string }
 }
 
 export async function deleteDriverImage(driverId: number): Promise<boolean> {

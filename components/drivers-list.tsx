@@ -482,6 +482,7 @@ function DriverFormDialog({
       }
 
       // Картинка
+      let imageError: string | null = null
       if (savedId) {
         if (imageFile) {
           const fd = new FormData()
@@ -489,19 +490,29 @@ function DriverFormDialog({
           try {
             await uploadFileDirect(`/api/drivers/${savedId}/image`, fd)
           } catch (e: any) {
-            toast({ variant: "destructive", title: e?.message || "Не удалось загрузить картинку" })
+            imageError = e?.message || "Не удалось загрузить картинку"
           }
         } else if (imageUrl.trim()) {
           const result = await uploadDriverImageByUrl(savedId, imageUrl.trim())
-          if (!result) {
-            toast({ variant: "destructive", title: "Не удалось скачать картинку по URL" })
+          if ("error" in result) {
+            imageError = result.error
           }
         }
       }
 
       await onSaved()
-      toast({ title: isEdit ? "Драйвер обновлён" : "Драйвер добавлен" })
-      onOpenChange(false)
+
+      if (imageError) {
+        toast({
+          variant: "destructive",
+          title: "Картинка не загружена",
+          description: imageError,
+        })
+        // Не закрываем диалог — пользователь может поправить URL/файл и сохранить ещё раз
+      } else {
+        toast({ title: isEdit ? "Драйвер обновлён" : "Драйвер добавлен" })
+        onOpenChange(false)
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: e?.message || "Не удалось сохранить" })
     } finally {
