@@ -41,15 +41,18 @@ import { CSS } from "@dnd-kit/utilities"
 
 import {
   deleteDriver,
+  deleteDriverImage,
   getDriverProducts,
   listDrivers,
   reorderDrivers,
   updateDriver,
+  uploadDriverImageByUrl,
   type Driver,
   type DriverProduct,
 } from "@/app/actions/drivers"
 import { API_BASE_URL } from "@/lib/api-address"
 import { uploadFileDirect } from "@/lib/upload-direct"
+import { Image as ImageIcon, X as XIcon } from "lucide-react"
 
 function formatSize(bytes: number | null) {
   if (!bytes) return ""
@@ -94,7 +97,15 @@ function SortableDriverCard({
             <GripVertical className="h-5 w-5" />
           </button>
         )}
-        <FileIcon className="h-5 w-5 text-brand-yellow shrink-0" />
+        {driver.image_url ? (
+          <img
+            src={`${API_BASE_URL}${driver.image_url}`}
+            alt=""
+            className="h-10 w-10 rounded object-cover shrink-0 border"
+          />
+        ) : (
+          <FileIcon className="h-5 w-5 text-brand-yellow shrink-0" />
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -375,8 +386,12 @@ function DriverFormDialog({
   const [name, setName] = useState("")
   const [isActive, setIsActive] = useState(true)
   const [file, setFile] = useState<File | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState("")
+  const [currentImage, setCurrentImage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageFileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
   React.useEffect(() => {
@@ -384,6 +399,9 @@ function DriverFormDialog({
       setName(driver?.name || "")
       setIsActive(driver?.is_active ?? true)
       setFile(null)
+      setImageFile(null)
+      setImageUrl("")
+      setCurrentImage(driver?.image_url || null)
     }
   }, [open, driver])
 
@@ -401,6 +419,8 @@ function DriverFormDialog({
 
     setSaving(true)
     try {
+      let savedId: number | null = driver?.id ?? null
+
       if (isEdit) {
         await updateDriver(driver.id, { name, is_active: isActive })
         if (file) {
@@ -414,13 +434,33 @@ function DriverFormDialog({
         fd.append("is_active", String(isActive))
         fd.append("file", file as File)
         try {
-          await uploadFileDirect("/api/drivers/", fd)
+          const created = await uploadFileDirect<{ id: number }>("/api/drivers/", fd)
+          savedId = created?.id ?? null
         } catch (e: any) {
           toast({ variant: "destructive", title: e?.message || "Не удалось создать" })
           setSaving(false)
           return
         }
       }
+
+      // Картинка
+      if (savedId) {
+        if (imageFile) {
+          const fd = new FormData()
+          fd.append("file", imageFile)
+          try {
+            await uploadFileDirect(`/api/drivers/${savedId}/image`, fd)
+          } catch (e: any) {
+            toast({ variant: "destructive", title: e?.message || "Не удалось загрузить картинку" })
+          }
+        } else if (imageUrl.trim()) {
+          const result = await uploadDriverImageByUrl(savedId, imageUrl.trim())
+          if (!result) {
+            toast({ variant: "destructive", title: "Не удалось скачать картинку по URL" })
+          }
+        }
+      }
+
       await onSaved()
       toast({ title: isEdit ? "Драйвер обновлён" : "Драйвер добавлен" })
       onOpenChange(false)
@@ -428,6 +468,23 @@ function DriverFormDialog({
       toast({ variant: "destructive", title: e?.message || "Не удалось сохранить" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const removeImage = async () => {
+    if (!driver) {
+      setCurrentImage(null)
+      setImageFile(null)
+      setImageUrl("")
+      return
+    }
+    const ok = await deleteDriverImage(driver.id)
+    if (ok) {
+      setCurrentImage(null)
+      toast({ title: "Картинка удалена" })
+      await onSaved()
+    } else {
+      toast({ variant: "destructive", title: "Не удалось удалить картинку" })
     }
   }
 
@@ -469,6 +526,65 @@ function DriverFormDialog({
               </p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label>Картинка для карточки</Label>
+            <input
+              ref={imageFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                setImageFile(e.target.files?.[0] || null)
+                setImageUrl("")
+              }}
+            />
+            {(imageFile || currentImage) && (
+              <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50">
+                <img
+                  src={imageFile ? URL.createObjectURL(imageFile) : `${API_BASE_URL}${currentImage}`}
+                  alt=""
+                  className="h-16 w-16 object-cover rounded border"
+                />
+                <div className="flex-1 min-w-0 text-sm text-gray-600 truncate">
+                  {imageFile ? imageFile.name : "Текущая картинка"}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (imageFile) setImageFile(null)
+                    else removeImage()
+                  }}
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => imageFileInputRef.current?.click()}
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Загрузить с ПК
+              </Button>
+              <Input
+                placeholder="или вставь URL картинки"
+                value={imageUrl}
+                onChange={(e) => {
+                  setImageUrl(e.target.value)
+                  if (e.target.value) setImageFile(null)
+                }}
+                className="flex-1"
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              При вставке URL картинка скачается на сервер и сохранится локально.
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
             <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
             <Label htmlFor="active">Активен</Label>

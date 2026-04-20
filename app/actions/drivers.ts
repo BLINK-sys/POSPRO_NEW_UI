@@ -11,6 +11,7 @@ export interface Driver {
   filename: string | null
   mime_type: string | null
   file_size: number | null
+  image_url: string | null
   is_active: boolean
   order: number
   created_at: string | null
@@ -37,6 +38,7 @@ export interface PublicDriver {
   filename: string | null
   mime_type: string | null
   file_size: number | null
+  image_url: string | null
 }
 
 export async function listPublicDrivers(): Promise<PublicDriver[]> {
@@ -143,6 +145,32 @@ export async function reorderDrivers(ids: number[]): Promise<boolean> {
     body: JSON.stringify({ ids }),
   })
   return r.ok
+}
+
+export async function uploadDriverImageByUrl(driverId: number, url: string): Promise<string | null> {
+  const token = await getToken()
+  if (!token) return null
+  const r = await fetch(`${API_BASE_URL}/api/drivers/${driverId}/image-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ url }),
+  })
+  if (!r.ok) return null
+  revalidatePath("/admin/drivers")
+  const data = await r.json()
+  return data.image_url as string
+}
+
+export async function deleteDriverImage(driverId: number): Promise<boolean> {
+  const token = await getToken()
+  if (!token) return false
+  const r = await fetch(`${API_BASE_URL}/api/drivers/${driverId}/image`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!r.ok) return false
+  revalidatePath("/admin/drivers")
+  return true
 }
 
 export async function attachDriversToProduct(productId: number, driverIds: number[]): Promise<boolean> {

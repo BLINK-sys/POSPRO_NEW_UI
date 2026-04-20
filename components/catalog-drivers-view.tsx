@@ -95,11 +95,22 @@ function DriverCard({ driver, onItemClick }: { driver: PublicDriver; onItemClick
       rel="noopener noreferrer"
       onClick={() => onItemClick?.()}
       className={cn(
-        "group flex flex-col bg-white border border-gray-200 rounded-xl p-3 hover:border-brand-yellow hover:shadow-md transition-all",
+        "group flex flex-col bg-white border border-gray-100 rounded-xl p-3",
+        "shadow-[0_2px_6px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.14)]",
+        "hover:border-brand-yellow hover:-translate-y-0.5 transition-all duration-200",
       )}
     >
-      <div className="w-full aspect-square rounded-lg bg-gray-50 flex items-center justify-center mb-2 group-hover:bg-yellow-50 transition-colors">
-        <FileText className="h-10 w-10 text-brand-yellow" />
+      <div className="w-full aspect-square rounded-lg bg-gray-50 flex items-center justify-center mb-2 overflow-hidden group-hover:bg-yellow-50 transition-colors">
+        {driver.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`${API_BASE_URL}${driver.image_url}`}
+            alt={driver.name}
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <FileText className="h-10 w-10 text-brand-yellow" />
+        )}
       </div>
       <div className="flex-1 min-h-0">
         <p className="text-sm font-medium line-clamp-2 leading-tight">{driver.name}</p>
@@ -122,9 +133,18 @@ function DriverListItem({ driver, onItemClick }: { driver: PublicDriver; onItemC
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => onItemClick?.()}
-      className="flex items-center gap-3 px-3 py-2 border border-gray-200 rounded-lg hover:border-brand-yellow hover:bg-yellow-50/50 transition-colors"
+      className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-100 rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.12)] hover:border-brand-yellow transition-all"
     >
-      <FileText className="h-5 w-5 text-brand-yellow shrink-0" />
+      {driver.image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`${API_BASE_URL}${driver.image_url}`}
+          alt=""
+          className="h-8 w-8 rounded object-cover shrink-0"
+        />
+      ) : (
+        <FileText className="h-5 w-5 text-brand-yellow shrink-0" />
+      )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{driver.name}</p>
         {driver.file_size != null && (

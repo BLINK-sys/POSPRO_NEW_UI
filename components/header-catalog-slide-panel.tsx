@@ -148,7 +148,6 @@ export default function HeaderCatalogSlidePanel() {
                   <div
                     className="w-64 flex-shrink-0 bg-white rounded-lg shadow-[0_0_8px_rgba(0,0,0,0.15)] flex flex-col self-stretch"
                   >
-                    <h2 className="font-bold text-xl py-4 text-gray-900 text-center flex-shrink-0">Категории</h2>
                     <ul
                       className="space-y-2 px-4 pb-4 pt-2 overflow-y-auto [&::-webkit-scrollbar]:hidden flex-1 min-h-0"
                       style={{ scrollbarWidth: 'none' }}

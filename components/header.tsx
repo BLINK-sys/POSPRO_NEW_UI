@@ -646,7 +646,6 @@ export default function Header() {
                       className="w-[360px] flex-shrink-0 bg-gray-50 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
                       style={{ scrollbarWidth: "none" }}
                     >
-                      <h3 className="font-semibold text-gray-800 text-lg mb-4">Категории</h3>
                           <ul className="space-y-2">
                         {categories.map((category) => {
                           const isActive = hoveredCategory?.id === category.id
