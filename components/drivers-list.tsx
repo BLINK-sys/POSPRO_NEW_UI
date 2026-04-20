@@ -107,15 +107,17 @@ function SortableDriverCard({
       )}
 
       {/* Картинка */}
-      <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="relative w-full aspect-square bg-gray-50 overflow-hidden">
         {driver.image_url ? (
           <img
             src={`${API_BASE_URL}${driver.image_url}`}
             alt=""
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover block"
           />
         ) : (
-          <FileIcon className="h-12 w-12 text-brand-yellow" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <FileIcon className="h-12 w-12 text-brand-yellow" />
+          </div>
         )}
       </div>
 

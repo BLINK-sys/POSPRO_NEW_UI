@@ -87,13 +87,11 @@ export function CatalogDriversView({
   )
 }
 
-function DriverCard({ driver, onItemClick }: { driver: PublicDriver; onItemClick?: () => void }) {
+function DriverCard({ driver }: { driver: PublicDriver; onItemClick?: () => void }) {
   return (
     <a
       href={`${API_BASE_URL}${driver.url}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => onItemClick?.()}
+      download={driver.filename || true}
       className={cn(
         "group flex flex-col bg-white border border-gray-100 rounded-xl p-3",
         "shadow-[0_2px_6px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.14)]",
@@ -126,13 +124,11 @@ function DriverCard({ driver, onItemClick }: { driver: PublicDriver; onItemClick
   )
 }
 
-function DriverListItem({ driver, onItemClick }: { driver: PublicDriver; onItemClick?: () => void }) {
+function DriverListItem({ driver }: { driver: PublicDriver; onItemClick?: () => void }) {
   return (
     <a
       href={`${API_BASE_URL}${driver.url}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => onItemClick?.()}
+      download={driver.filename || true}
       className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-100 rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.12)] hover:border-brand-yellow transition-all"
     >
       {driver.image_url ? (
