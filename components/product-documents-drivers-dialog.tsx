@@ -9,7 +9,17 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus, List as ListIcon, Link2 } from "lucide-react"
+import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus, List as ListIcon, Link2, Unlink } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { mediaApi } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
 import { attachDriversToProduct, listDrivers, type Driver as MasterDriver } from "@/app/actions/drivers"
@@ -52,6 +62,9 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
   const [masterDrivers, setMasterDrivers] = useState<MasterDriver[]>([])
   const [masterLoading, setMasterLoading] = useState(false)
   const [selectedMasterIds, setSelectedMasterIds] = useState<Set<number>>(new Set())
+
+  // Подтверждение удаления/отвязки драйвера
+  const [driverActionTarget, setDriverActionTarget] = useState<Driver | null>(null)
 
   // Загружаем данные при открытии диалога
   useEffect(() => {
@@ -527,15 +540,29 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           <Button variant="outline" size="sm" onClick={() => downloadFile(driver.url, driver.filename)}>
                             <Download className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteDriver(driver.id, driver.driver_id != null)}
-                            disabled={isPending}
-                            title={driver.driver_id != null ? "Отвязать от товара (файл останется в мастер-списке)" : "Удалить драйвер"}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {driver.driver_id != null ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDriverActionTarget(driver)}
+                              disabled={isPending}
+                              title="Отвязать от товара"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Unlink className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDriverActionTarget(driver)}
+                              disabled={isPending}
+                              title="Удалить драйвер"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -617,6 +644,58 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={driverActionTarget != null} onOpenChange={(o) => !o && setDriverActionTarget(null)}>
+        <AlertDialogContent>
+          {driverActionTarget?.driver_id != null ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Отвязать драйвер от товара?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Драйвер <b>{driverActionTarget.filename}</b> будет отвязан только от этого товара.
+                  Файл останется в общем мастер-списке и доступен для других товаров.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => {
+                    const t = driverActionTarget
+                    setDriverActionTarget(null)
+                    if (t) handleDeleteDriver(t.id, true)
+                  }}
+                >
+                  Отвязать
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Удалить драйвер?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Драйвер <b>{driverActionTarget?.filename}</b> будет удалён полностью — файл
+                  будет стёрт с сервера. Это действие нельзя отменить.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-500 hover:bg-red-600"
+                  onClick={() => {
+                    const t = driverActionTarget
+                    setDriverActionTarget(null)
+                    if (t) handleDeleteDriver(t.id, false)
+                  }}
+                >
+                  Удалить
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }
