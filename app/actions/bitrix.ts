@@ -197,6 +197,12 @@ export interface BitrixPriceInquiryData {
 
 export async function createBitrixPriceInquiry(data: BitrixPriceInquiryData) {
   try {
+    // Проверка: в номере должно быть минимум 10 цифр, иначе это мусор вроде '+7 ('
+    const digits = (data.customer_phone || "").replace(/\D/g, "")
+    if (digits.length < 10) {
+      return { success: false, message: "Не указан номер телефона" }
+    }
+
     const productLink = `${SITE_URL}/product/${data.product_slug}`
 
     const comments = [

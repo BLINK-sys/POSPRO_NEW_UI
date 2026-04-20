@@ -402,8 +402,13 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
                 />
                 <Button
                   className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium"
-                  disabled={submittingInquiry || !inquiryPhone.trim()}
+                  disabled={submittingInquiry || (inquiryPhone.replace(/\D/g, "").length < 11)}
                   onClick={async () => {
+                    const digits = inquiryPhone.replace(/\D/g, "")
+                    if (digits.length < 11) {
+                      toast({ title: "Укажите номер телефона", description: "Без номера мы не сможем связаться", variant: "destructive" })
+                      return
+                    }
                     setSubmittingInquiry(true)
                     try {
                       const result = await createBitrixPriceInquiry({
@@ -418,7 +423,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
                         setInquiryPhone("")
                         setShowPriceInquiry(false)
                       } else {
-                        toast({ title: "Ошибка", description: "Не удалось отправить запрос", variant: "destructive" })
+                        toast({ title: "Ошибка", description: result.message || "Не удалось отправить запрос", variant: "destructive" })
                       }
                     } catch {
                       toast({ title: "Ошибка", description: "Не удалось отправить запрос", variant: "destructive" })
