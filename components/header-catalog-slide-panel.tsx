@@ -125,7 +125,7 @@ export default function HeaderCatalogSlidePanel() {
         >
           {/* Белая панель каталога — на всю высоту viewport */}
           <div
-            className="bg-white shadow-none relative"
+            className="bg-white shadow-none relative overflow-hidden"
             style={{
               height: `calc(100vh - ${HEADER_HEIGHT}px)`,
               pointerEvents: isCatalogPanelOpen ? 'auto' : 'none'
