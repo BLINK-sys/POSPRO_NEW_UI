@@ -31,6 +31,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, usePathname } from "next/navigation"
 import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
+import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
+import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
@@ -49,6 +51,8 @@ export default function Header() {
   const [sidebarExpandedMore, setSidebarExpandedMore] = useState<Set<number>>(new Set())
   const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('cards')
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
+  const [sidebarTab, setSidebarTab] = useState<CatalogTab>("categories")
+  const [menuTab, setMenuTab] = useState<CatalogTab>("categories")
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
   const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("cards")
   const [catalogVisibility, setCatalogVisibility] = useState<{ sidebar: boolean; main: boolean; slide: boolean } | null>(null)
@@ -318,8 +322,13 @@ export default function Header() {
                     </div>
                   )}
                 </SheetHeader>
+                <CatalogTabs active={sidebarTab} onChange={setSidebarTab} className="px-6" />
                 <div className="p-6">
-                  {categoriesLoading ? (
+                  {sidebarTab === "drivers" ? (
+                    <div className="h-[calc(100vh-260px)]">
+                      <CatalogDriversView layout="grid" onItemClick={() => setSidebarOpen(false)} />
+                    </div>
+                  ) : categoriesLoading ? (
                     <div className="flex items-center justify-center w-full py-8">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <span>Загрузка категорий...</span>
@@ -622,10 +631,17 @@ export default function Header() {
                 onClick={toggleMenu}
               >
                 <div
-                  className="relative flex w-[90vw] max-w-[1400px] h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden"
+                  className="relative flex flex-col w-[90vw] max-w-[1400px] h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden"
                   onWheel={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                 >
+                  <CatalogTabs active={menuTab} onChange={setMenuTab} className="border-b bg-white shrink-0" />
+                  {menuTab === "drivers" ? (
+                    <div className="flex-1 min-h-0">
+                      <CatalogDriversView layout="grid" onItemClick={toggleMenu} />
+                    </div>
+                  ) : (
+                  <div className="flex flex-1 min-h-0 overflow-hidden">
                     <div
                       className="w-[360px] flex-shrink-0 bg-gray-50 p-6 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden"
                       style={{ scrollbarWidth: "none" }}
@@ -855,6 +871,8 @@ export default function Header() {
                             </div>
                           )}
                   </div>
+                  </div>
+                  )}
                 </div>
               </div>
             )}

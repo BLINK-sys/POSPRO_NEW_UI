@@ -30,6 +30,27 @@ const getToken = async () => {
   return cs.get("jwt-token")?.value || null
 }
 
+export interface PublicDriver {
+  id: number
+  name: string
+  url: string
+  filename: string | null
+  mime_type: string | null
+  file_size: number | null
+}
+
+export async function listPublicDrivers(): Promise<PublicDriver[]> {
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/drivers/public`, {
+      cache: "no-store",
+    })
+    if (!r.ok) return []
+    return await r.json()
+  } catch {
+    return []
+  }
+}
+
 export async function listDrivers(): Promise<Driver[]> {
   const token = await getToken()
   if (!token) return []

@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getImageUrl } from "@/lib/image-utils"
+import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
+import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
 const HEADER_HEIGHT = 96 // h-24
 const BUTTON_HEIGHT = 40 // h-10
@@ -23,6 +25,7 @@ export default function HeaderCatalogSlidePanel() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
   const [subcategoryViewMode, setSubcategoryViewMode] = useState<'cards' | 'list'>('cards')
+  const [activeTab, setActiveTab] = useState<CatalogTab>("categories")
   const rightColumnRef = useRef<HTMLDivElement>(null)
 
   // Загрузка категорий
@@ -128,7 +131,12 @@ export default function HeaderCatalogSlidePanel() {
               pointerEvents: isCatalogPanelOpen ? 'auto' : 'none'
             }}
           >
-            {categoriesLoading ? (
+            <CatalogTabs active={activeTab} onChange={setActiveTab} className="border-b-0 container mx-auto" />
+            {activeTab === "drivers" ? (
+              <div className="container mx-auto h-[calc(100%-70px)]">
+                <CatalogDriversView layout="grid" onItemClick={closeCatalogPanel} />
+              </div>
+            ) : categoriesLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin mr-2" />
                 <span>Загрузка категорий...</span>
