@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus } from "lucide-react"
+import { Loader2, Upload, FileText, HardDrive, Download, Trash2, Plus, List as ListIcon, Link2 } from "lucide-react"
 import { mediaApi } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
+import { attachDriversToProduct, listDrivers, type Driver as MasterDriver } from "@/app/actions/drivers"
 
 type Document = {
   id: number
@@ -27,6 +28,7 @@ type Driver = {
   url: string
   file_type: string
   mime_type: string
+  driver_id?: number | null
 }
 
 interface ProductDocumentsDriversDialogProps {
@@ -44,6 +46,12 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
   const [documentFile, setDocumentFile] = useState<File | null>(null)
   const [driverFile, setDriverFile] = useState<File | null>(null)
+
+  // Выбор драйверов из мастер-списка
+  const [selectDriversOpen, setSelectDriversOpen] = useState(false)
+  const [masterDrivers, setMasterDrivers] = useState<MasterDriver[]>([])
+  const [masterLoading, setMasterLoading] = useState(false)
+  const [selectedMasterIds, setSelectedMasterIds] = useState<Set<number>>(new Set())
 
   // Загружаем данные при открытии диалога
   useEffect(() => {
@@ -453,6 +461,32 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                       )}
                     </Button>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 border-t" />
+                    <span className="text-xs text-gray-400">или</span>
+                    <div className="flex-1 border-t" />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      setMasterLoading(true)
+                      setSelectDriversOpen(true)
+                      try {
+                        const all = await listDrivers()
+                        const attached = new Set(
+                          drivers.map((d) => d.driver_id).filter((x): x is number => x != null),
+                        )
+                        const available = all.filter((d) => d.is_active && !attached.has(d.id))
+                        setMasterDrivers(available)
+                        setSelectedMasterIds(new Set())
+                      } finally {
+                        setMasterLoading(false)
+                      }
+                    }}
+                  >
+                    <ListIcon className="mr-2 h-4 w-4" />
+                    Выбрать из списка
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -480,6 +514,12 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                               <Badge variant="secondary" className={getFileTypeColor(driver.file_type)}>
                                 {driver.file_type.toUpperCase()}
                               </Badge>
+                              {driver.driver_id != null && (
+                                <Badge variant="outline" className="gap-1">
+                                  <Link2 className="h-3 w-3" />
+                                  Из списка
+                                </Badge>
+                              )}
                               <span className="text-xs text-gray-500">{driver.mime_type}</span>
                             </div>
                           </div>
@@ -506,6 +546,77 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      <Dialog open={selectDriversOpen} onOpenChange={setSelectDriversOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Выбрать драйверы из списка</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto space-y-1 py-2">
+            {masterLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : masterDrivers.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 py-8">
+                Нет доступных драйверов. Либо все уже добавлены, либо мастер-список пуст.
+              </p>
+            ) : (
+              masterDrivers.map((d) => {
+                const checked = selectedMasterIds.has(d.id)
+                return (
+                  <label
+                    key={d.id}
+                    className="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        setSelectedMasterIds((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) next.add(d.id)
+                          else next.delete(d.id)
+                          return next
+                        })
+                      }}
+                    />
+                    <HardDrive className="h-4 w-4 text-brand-yellow shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{d.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{d.filename}</p>
+                    </div>
+                  </label>
+                )
+              })
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" onClick={() => setSelectDriversOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              disabled={selectedMasterIds.size === 0 || isPending}
+              onClick={() => {
+                const ids = Array.from(selectedMasterIds)
+                startTransition(async () => {
+                  const ok = await attachDriversToProduct(productId, ids)
+                  if (ok) {
+                    const updated = await mediaApi.getDrivers(productId)
+                    setDrivers(updated)
+                    toast({ title: `Привязано: ${ids.length}` })
+                    setSelectDriversOpen(false)
+                  } else {
+                    toast({ variant: "destructive", title: "Не удалось привязать" })
+                  }
+                })
+              }}
+            >
+              Выбрать ({selectedMasterIds.size})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
