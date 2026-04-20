@@ -7,6 +7,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   trailingSlash: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
+  },
   images: {
     remotePatterns: [
       {
