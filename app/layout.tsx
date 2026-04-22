@@ -15,12 +15,23 @@ import ConditionalLayout from "./conditional-layout"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Интернет-магазин",
-  description: "Современный интернет-магазин на Next.js",
-  generator: 'v0.dev',
+  title: "PosPro — оборудование для бизнеса",
+  description: "Профессиональное оборудование для торговли, общепита и складов в Казахстане.",
   icons: {
     icon: "/ui/favicon.ico",
     apple: "/ui/favicon.ico",
+  },
+  openGraph: {
+    title: "PosPro — оборудование для бизнеса",
+    description: "Профессиональное оборудование для торговли, общепита и складов в Казахстане.",
+    type: "website",
+    locale: "ru_KZ",
+    siteName: "PosPro",
+  },
+  twitter: {
+    card: "summary",
+    title: "PosPro — оборудование для бизнеса",
+    description: "Профессиональное оборудование для торговли, общепита и складов в Казахстане.",
   },
 }
 
