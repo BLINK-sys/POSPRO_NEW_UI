@@ -360,6 +360,20 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                       />
                       <p className="text-xs text-gray-500">Поддерживаемые форматы: JPG, PNG, GIF, MP4, AVI, MOV</p>
                     </div>
+                    <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-2">
+                      <div>
+                        <p className="font-semibold">Изображения товара</p>
+                        <p>Рекомендуемый размер: <strong>1200 × 1200 px</strong> (квадрат, соотношение 1:1).</p>
+                        <p>В карточке каталога обрезается до квадрата (object-cover), на детальной странице помещается целиком (object-contain). Минимум — 800 × 800 px.</p>
+                        <p>Формат: JPG / PNG / WebP. Лучше PNG с прозрачным фоном.</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold">Видео товара</p>
+                        <p>Соотношение сторон: <strong>16:9</strong> (горизонтальное), например 1280 × 720 px или 1920 × 1080 px.</p>
+                        <p>Формат: MP4 (H.264) — наиболее совместимый. Размер файла: до 500 MB.</p>
+                      </div>
+                      <p className="text-blue-800/80">Первое медиа в списке используется как основное изображение в карточке товара. Порядок меняется перетаскиванием.</p>
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="url" className="space-y-4 mt-4">

@@ -321,6 +321,11 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
 
                 <div className="space-y-2">
                   <Label>Изображение для фона карточки</Label>
+                  <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+                    <p><strong>Рекомендуемый размер:</strong> 1600 × 500 px (соотношение ~3:1).</p>
+                    <p>Растягивается по всей карточке (на десктопе ширина ~80% экрана). Используйте абстрактный фон или градиент — текст и кнопка будут поверх.</p>
+                    <p>Формат: JPG / PNG / WebP. Размер файла: до 5 MB.</p>
+                  </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
@@ -376,6 +381,11 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
 
                 <div className="space-y-2">
                   <Label>Изображение</Label>
+                  <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+                    <p><strong>Рекомендуемый размер:</strong> 600 × 600 px (квадрат, соотношение 1:1).</p>
+                    <p>Отображается слева в карточке как квадрат 192×192 px, вмещается без обрезки (object-contain). Лучше использовать изображение на прозрачном фоне (PNG).</p>
+                    <p>Формат: PNG (с прозрачностью) / JPG / WebP. Размер файла: до 5 MB.</p>
+                  </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">

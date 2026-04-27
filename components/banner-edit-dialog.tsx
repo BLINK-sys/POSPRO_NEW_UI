@@ -280,6 +280,12 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
             {/* Image Upload */}
             <div className="space-y-4">
               <Label>Изображение баннера</Label>
+              <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+                <p><strong>Рекомендуемый размер:</strong> 1920 × 600 px (соотношение 16:5).</p>
+                <p><strong>Минимум:</strong> 1280 × 400 px. Соотношение сторон — 3.2:1.</p>
+                <p>Изображение растягивается на всю ширину (~90% экрана) — несоблюдение пропорций приведёт к искажению.</p>
+                <p>Формат: JPG / PNG / WebP. Размер файла: до 5 MB.</p>
+              </div>
 
               {imagePreview ? (
                 <Card>
