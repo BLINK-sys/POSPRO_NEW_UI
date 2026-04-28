@@ -120,9 +120,10 @@ interface CalcItem {
   name: string
   description?: string
   quantity: number
-  costPrice: number        // raw cost in original currency
+  costPrice: number        // raw cost in original currency (without VAT)
   currencyCode: string     // 'RUB', 'KZT', 'USD', etc.
-  costPriceKzt: number     // cost converted to KZT
+  costPriceKzt: number     // cost converted to KZT, INCLUDES per-item VAT
+  vatRate: number          // per-item VAT rate (%). Default 16; 0 = no VAT
   deliveryPerUnit: number  // manual input
   costPerUnitOverride: number | null    // manual override for cost per unit
   contractPerUnitOverride: number | null // manual override for contract price per unit
@@ -135,6 +136,8 @@ interface CalcItem {
   note: string
 }
 
+const DEFAULT_VAT_RATE = 16
+
 interface ExpenseItem {
   id: string
   name: string
@@ -142,7 +145,7 @@ interface ExpenseItem {
 }
 
 // ── Helpers ──────────────────────────────────────
-function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
+function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_RATE): CalcItem[] {
   return kpItems.map(item => {
     const selectedWp = item.warehousePrices?.find(
       wp => wp.warehouse_id === item.selectedWarehouseId
@@ -151,6 +154,8 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
     const costPrice = selectedWp?.cost_price || 0
     const currencyCode = selectedWp?.currency_code || 'KZT'
     const calculatedDelivery = Math.ceil(selectedWp?.calculated_delivery || 0)
+    const vatRate = defaultVatRate
+    const vatMul = 1 + vatRate / 100
 
     return {
       kpId: item.kpId,
@@ -160,7 +165,10 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       quantity: item.quantity,
       costPrice,
       currencyCode,
-      costPriceKzt: currencyCode === 'KZT' ? costPrice : 0, // will be recalculated
+      // For KZT we apply VAT immediately. For non-KZT this happens in
+      // handleApplyRates after the FX rate is set.
+      costPriceKzt: currencyCode === 'KZT' ? costPrice * vatMul : 0,
+      vatRate,
       deliveryPerUnit: calculatedDelivery,
       costPerUnitOverride: null,
       contractPerUnitOverride: null,
@@ -177,7 +185,7 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
 // ══════════════════════════════════════════════════
 export default function CalculatorPage() {
   const { user } = useAuth()
-  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, saveToHistory } = useKP()
+  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, saveToHistory, updateItem: updateKpItem } = useKP()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -196,6 +204,8 @@ export default function CalculatorPage() {
   useEffect(() => {
     const isFromHistory = !!calculatorData?.items
 
+    const globalVat = calculatorData?.vatRate ?? DEFAULT_VAT_RATE
+
     if (isFromHistory) {
       // Restore saved state — keep saved currency rates
       const savedItems: CalcItem[] = calculatorData.items
@@ -210,9 +220,10 @@ export default function CalculatorPage() {
       const newItems = kpItems
         .filter(kpItem => !savedKpIds.has(kpItem.kpId))
         .map(kpItem => {
-          const item = buildCalcItems([kpItem])[0]
+          const item = buildCalcItems([kpItem], globalVat)[0]
           if (item.currencyCode !== 'KZT' && savedRates[item.currencyCode]) {
-            item.costPriceKzt = item.costPrice * savedRates[item.currencyCode]
+            // costPriceKzt = supplier × rate × (1 + vat/100)
+            item.costPriceKzt = item.costPrice * savedRates[item.currencyCode] * (1 + (item.vatRate ?? globalVat) / 100)
           }
           return item
         })
@@ -225,13 +236,20 @@ export default function CalculatorPage() {
           const updates: Partial<CalcItem> = {}
           if (kpItem.quantity !== i.quantity) updates.quantity = kpItem.quantity
           if (kpItem.name !== i.name) updates.name = kpItem.name
+          // Migration: items saved before per-item VAT existed have no vatRate
+          // and their costPriceKzt was stored without VAT. Apply VAT now so the
+          // updated formula stays consistent with the pre-existing values.
+          if (i.vatRate === undefined) {
+            updates.vatRate = globalVat
+            updates.costPriceKzt = i.costPriceKzt * (1 + globalVat / 100)
+          }
           return Object.keys(updates).length > 0 ? { ...i, ...updates } : i
         })
 
       setItems([...filtered, ...newItems])
     } else if (kpItems.length > 0) {
       // New calculator — build items and load rates from currency catalog
-      const newItems = buildCalcItems(kpItems)
+      const newItems = buildCalcItems(kpItems, globalVat)
       setItems(newItems)
 
       // Detect foreign currencies and fetch rates from catalog
@@ -255,9 +273,10 @@ export default function CalculatorPage() {
           if (Object.keys(rates).length > 0) {
             setCurrencyRates(rates)
             setItems(prev => prev.map(item => {
-              if (item.currencyCode === 'KZT') return { ...item, costPriceKzt: item.costPrice }
+              const vatMul = 1 + (item.vatRate ?? DEFAULT_VAT_RATE) / 100
+              if (item.currencyCode === 'KZT') return { ...item, costPriceKzt: item.costPrice * vatMul }
               const rate = rates[item.currencyCode] || 0
-              return { ...item, costPriceKzt: item.costPrice * rate }
+              return { ...item, costPriceKzt: item.costPrice * rate * vatMul }
             }))
             setRatesApplied(true)
           }
@@ -314,17 +333,36 @@ export default function CalculatorPage() {
     return Array.from(codes).sort()
   }, [items])
 
-  // Apply currency rates
+  // Apply currency rates (and per-item VAT to get final costPriceKzt)
   const handleApplyRates = useCallback(() => {
     setItems(prev => prev.map(item => {
+      const vatMul = 1 + (item.vatRate ?? DEFAULT_VAT_RATE) / 100
       if (item.currencyCode === 'KZT') {
-        return { ...item, costPriceKzt: item.costPrice }
+        return { ...item, costPriceKzt: item.costPrice * vatMul }
       }
       const rate = currencyRates[item.currencyCode] || 0
-      return { ...item, costPriceKzt: item.costPrice * rate }
+      return { ...item, costPriceKzt: item.costPrice * rate * vatMul }
     }))
     setRatesApplied(true)
   }, [currencyRates])
+
+  // Toggle per-item VAT on/off. ON  → vatRate = DEFAULT_VAT_RATE (16%),
+  //                            OFF → vatRate = 0. Re-applies to costPriceKzt so
+  // Себестоимость За ед. = supplier × rate × (1 + vatRate/100).
+  const toggleItemVat = useCallback((kpId: string, enabled: boolean) => {
+    const newVat = enabled ? DEFAULT_VAT_RATE : 0
+    setItems(prev => prev.map(item => {
+      if (item.kpId !== kpId) return item
+      const oldVat = item.vatRate ?? DEFAULT_VAT_RATE
+      if (oldVat === newVat) return item
+      const baseKzt = item.costPriceKzt / (1 + oldVat / 100)
+      return {
+        ...item,
+        vatRate: newVat,
+        costPriceKzt: baseKzt * (1 + newVat / 100),
+      }
+    }))
+  }, [])
 
   // Update single item field
   const updateItem = useCallback((kpId: string, field: keyof CalcItem, value: any) => {
@@ -347,15 +385,17 @@ export default function CalculatorPage() {
   }, [])
 
   // ── Calculations ───────────────────────────────
-  const vatMultiplier = vatRate / 100
+  // The global vatRate is used only as a default for newly-added items;
+  // each row carries its own item.vatRate which drives all VAT math.
 
   const calcRow = useCallback((item: CalcItem) => {
     const delivery = item.deliveryPerUnit
+    const itemVatMul = (item.vatRate ?? DEFAULT_VAT_RATE) / 100
 
-    // Себестоимость (override or auto)
+    // Себестоимость (override or auto). costPriceKzt already includes VAT.
     const costPerUnit = item.costPerUnitOverride !== null ? item.costPerUnitOverride : item.costPriceKzt
     const costTotal = costPerUnit * item.quantity
-    const costNoVat = costPerUnit / (1 + vatMultiplier)
+    const costNoVat = costPerUnit / (1 + itemVatMul)
     const costVat = costPerUnit - costNoVat
     const costTotalNoVat = costNoVat * item.quantity
     const costTotalVat = costVat * item.quantity
@@ -366,11 +406,11 @@ export default function CalculatorPage() {
     let contractVat: number
     if (item.contractPerUnitOverride !== null) {
       contractPerUnit = item.contractPerUnitOverride
-      contractNoVat = contractPerUnit / (1 + vatMultiplier)
+      contractNoVat = contractPerUnit / (1 + itemVatMul)
       contractVat = contractPerUnit - contractNoVat
     } else {
       contractNoVat = costPerUnit + delivery
-      contractVat = contractNoVat * vatMultiplier
+      contractVat = contractNoVat * itemVatMul
       contractPerUnit = contractNoVat + contractVat
     }
     const contractTotal = contractPerUnit * item.quantity
@@ -379,16 +419,16 @@ export default function CalculatorPage() {
     const costChanged = item.costPerUnitOverride !== null
     const origCostPerUnit = item.costPriceKzt
     const origCostTotal = origCostPerUnit * item.quantity
-    const origCostNoVat = origCostPerUnit / (1 + vatMultiplier)
+    const origCostNoVat = origCostPerUnit / (1 + itemVatMul)
     const origCostVat = origCostPerUnit - origCostNoVat
 
     // Пересчёт контракта на основе оригинальной себестоимости (для сравнения)
     let origContractNoVat = origCostPerUnit + delivery
-    let origContractVat = origContractNoVat * vatMultiplier
+    let origContractVat = origContractNoVat * itemVatMul
     let origContractPerUnit = origContractNoVat + origContractVat
     if (item.contractPerUnitOverride !== null) {
       origContractPerUnit = item.contractPerUnitOverride
-      origContractNoVat = origContractPerUnit / (1 + vatMultiplier)
+      origContractNoVat = origContractPerUnit / (1 + itemVatMul)
       origContractVat = origContractPerUnit - origContractNoVat
     }
     const origContractTotal = origContractPerUnit * item.quantity
@@ -410,7 +450,7 @@ export default function CalculatorPage() {
       diffContractPerUnit, diffContractTotal, diffContractNoVat, diffContractVat,
       diffCostPerUnit, diffCostTotal, diffCostNoVat, diffCostVat,
     }
-  }, [vatMultiplier])
+  }, [])
 
   // ── Totals ─────────────────────────────────────
   const totals = useMemo(() => {
@@ -418,6 +458,7 @@ export default function CalculatorPage() {
     let contractVatSum = 0
     let costTotalSum = 0
     let costVatSum = 0
+    let deliveryTotalSum = 0
 
     items.forEach(item => {
       const r = calcRow(item)
@@ -425,13 +466,32 @@ export default function CalculatorPage() {
       contractVatSum += r.contractVat * item.quantity
       costTotalSum += r.costTotal
       costVatSum += r.costVat * item.quantity
+      deliveryTotalSum += (item.deliveryPerUnit || 0) * item.quantity
     })
 
     const expensesTotal = expenses.reduce((sum, e) => sum + (e.amount || 0), 0)
-    const taxes = (contractVatSum - costVatSum) + ((contractTotalSum - costTotalSum) / 5)
+    // Налоги = (НДС контракта − НДС себестоимости) + (((Итого контракта − Итого себестоимости) − Итого доставка) / 5)
+    const taxes = (contractVatSum - costVatSum) + ((contractTotalSum - costTotalSum - deliveryTotalSum) / 5)
 
-    return { contractTotalSum, costTotalSum, expensesTotal, taxes }
+    return { contractTotalSum, costTotalSum, expensesTotal, taxes, deliveryTotalSum }
   }, [items, expenses, calcRow])
+
+  // Push current "Сумма контракта за ед." for every row back into the KP
+  // items, so opening the KP page sees the freshly negotiated prices.
+  const syncCalcPricesToKp = useCallback(() => {
+    items.forEach(item => {
+      const r = calcRow(item)
+      const newPrice = Math.round(r.contractPerUnit)
+      if (newPrice > 0) {
+        updateKpItem(item.kpId, { price: newPrice })
+      }
+    })
+  }, [items, calcRow, updateKpItem])
+
+  const handleBackToKp = useCallback(() => {
+    syncCalcPricesToKp()
+    router.push('/kp')
+  }, [syncCalcPricesToKp, router])
 
   if (!isSystemUser) return null
 
@@ -440,7 +500,7 @@ export default function CalculatorPage() {
       {/* Header */}
       <div className="max-w-[1600px] mx-auto mb-4">
         <div className="flex items-center gap-3 mb-4">
-          <Button variant="outline" size="sm" onClick={() => router.push('/kp')} className="rounded-full border-black [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
+          <Button variant="outline" size="sm" onClick={handleBackToKp} className="rounded-full border-black [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
             <ArrowLeft className="h-4 w-4 mr-1" /> Назад к КП
           </Button>
           <h1 className="text-lg font-bold flex-1">Корпоративный расчётник</h1>
@@ -507,10 +567,10 @@ export default function CalculatorPage() {
               <th colSpan={4} className="border px-1 py-1 text-center bg-blue-50">Сумма контракта</th>
               <th colSpan={4} className="border px-1 py-1 text-center bg-green-50">Себестоимость</th>
               <th rowSpan={2} className="border px-1 py-1 text-left w-[70px]">Поставщик</th>
+              <th rowSpan={2} className="border px-1 py-1 text-left w-[80px]">Примечание</th>
               <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Дата оплаты</th>
               <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Сроки поставки</th>
               <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Условия оплаты</th>
-              <th rowSpan={2} className="border px-1 py-1 text-left w-[80px]">Примечание</th>
             </tr>
             <tr className="bg-gray-50">
               <th className="border px-1 py-1 text-center bg-blue-50 text-[10px]">Цена за ед.</th>
@@ -570,14 +630,27 @@ export default function CalculatorPage() {
                   </td>
                   <td className="border px-1 py-1 text-center bg-green-50/30 font-medium">{hasCost ? fmt(r.costTotal) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-green-50/30">{hasCost ? fmt(r.costTotalNoVat) : '—'}</td>
-                  <td className="border px-1 py-1 text-center bg-green-50/30">{hasCost ? fmt(r.costTotalVat) : '—'}</td>
+                  <td className="border px-1 py-1 bg-green-50/30">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="text-[10px] text-gray-700">{hasCost ? fmt(r.costTotalVat) : '—'}</span>
+                      <input
+                        type="checkbox"
+                        checked={(item.vatRate ?? DEFAULT_VAT_RATE) > 0}
+                        onChange={e => toggleItemVat(item.kpId, e.target.checked)}
+                        title={(item.vatRate ?? DEFAULT_VAT_RATE) > 0
+                          ? `НДС включён (${item.vatRate ?? DEFAULT_VAT_RATE}%) — снимите, чтобы выключить`
+                          : "НДС отключён — включите, чтобы добавить 16%"}
+                        className="w-3.5 h-3.5 accent-green-600 cursor-pointer"
+                      />
+                    </div>
+                  </td>
 
                   {/* Info fields */}
                   <td className="border px-1 py-1 text-gray-600 truncate max-w-[70px]" title={item.supplierName}>{item.supplierName}</td>
+                  <TextCell value={item.note} onChange={v => updateItem(item.kpId, 'note', v)} placeholder="Примечание" />
                   <DateCell value={item.paymentDate} onChange={v => updateItem(item.kpId, 'paymentDate', v)} />
                   <TextCell value={item.deliveryTerms} onChange={v => updateItem(item.kpId, 'deliveryTerms', v)} placeholder="Сроки поставки" />
                   <TextCell value={item.paymentTerms} onChange={v => updateItem(item.kpId, 'paymentTerms', v)} placeholder="Условия оплаты" />
-                  <TextCell value={item.note} onChange={v => updateItem(item.kpId, 'note', v)} placeholder="Примечание" />
                 </tr>
                 {/* Difference row — only when cost per unit was manually changed */}
                 {r.costChanged && (
@@ -606,26 +679,41 @@ export default function CalculatorPage() {
             </tr>
             <tr className="bg-yellow-50/30">
               <th className="border px-1 py-1 text-center w-7">№</th>
-              <th className="border px-1 py-1 text-left" colSpan={13}>Наименование</th>
+              <th className="border px-1 py-1 text-left" colSpan={11}>Наименование</th>
               <th className="border px-1 py-1 text-center" colSpan={2}>Доставка за ед.</th>
+              <th className="border px-1 py-1 text-center" colSpan={2}>Доставка сумма</th>
             </tr>
-            {items.map((item, idx) => (
-              <tr key={`del-${item.kpId}`} className="bg-yellow-50/20">
-                <td className="border px-1 py-1 text-center text-gray-400">{idx + 1}</td>
-                <td className="border px-1 py-1 text-gray-600 text-[10px] break-words" colSpan={13}>{item.name}</td>
-                <td className="border px-1 py-1 text-right" colSpan={2}>
-                  <input
-                    type="number"
-                    value={item.deliveryPerUnit ? Math.ceil(item.deliveryPerUnit) : ''}
-                    onChange={e => updateItem(item.kpId, 'deliveryPerUnit', Math.ceil(parseFloat(e.target.value) || 0))}
-                    className="w-24 bg-white border border-gray-200 rounded px-1 h-6 text-xs text-right outline-none focus:border-blue-400 ml-auto"
-                    placeholder="0"
-                  />
-                </td>
-              </tr>
-            ))}
+            {items.map((item, idx) => {
+              const deliverySum = (item.deliveryPerUnit || 0) * item.quantity
+              return (
+                <tr key={`del-${item.kpId}`} className="bg-yellow-50/20">
+                  <td className="border px-1 py-1 text-center text-gray-400">{idx + 1}</td>
+                  <td className="border px-1 py-1 text-gray-600 text-[10px] break-words" colSpan={11}>{item.name}</td>
+                  <td className="border px-1 py-1 text-right" colSpan={2}>
+                    <input
+                      type="number"
+                      value={item.deliveryPerUnit ? Math.ceil(item.deliveryPerUnit) : ''}
+                      onChange={e => updateItem(item.kpId, 'deliveryPerUnit', Math.ceil(parseFloat(e.target.value) || 0))}
+                      className="w-24 bg-white border border-gray-200 rounded px-1 h-6 text-xs text-right outline-none focus:border-blue-400 ml-auto"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="border px-1 py-1 text-right text-xs font-medium text-gray-700" colSpan={2}>
+                    {deliverySum > 0 ? fmt(deliverySum) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
+      </div>
+
+      {/* Итого доставка */}
+      <div className="max-w-[1600px] mx-auto mt-3 flex justify-end">
+        <div className="bg-white rounded-xl border-2 border-yellow-200 shadow-sm px-5 py-3 flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-700">Итого доставка:</span>
+          <span className="text-base font-bold text-yellow-700">{fmt(totals.deliveryTotalSum)} ₸</span>
+        </div>
       </div>
 
       {/* Bottom section: Expenses + Summary */}
@@ -720,7 +808,7 @@ export default function CalculatorPage() {
               <div>
                 <h4 className="font-semibold text-gray-900 mb-1">Настройки (сверху)</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>Ставка НДС (%)</b> — процент НДС, по умолчанию 16%</li>
+                  <li><b>Ставка НДС (%)</b> — значение по умолчанию для новых строк (16%). У каждой строки есть свой редактируемый НДС в колонке «НДС» в Себестоимости</li>
                   <li><b>Курс валюты</b> — автоматически загружается с Halyk Bank (продажа для бизнеса + 1%). При создании нового расчётника обновляется автоматически. Можно изменить вручную</li>
                 </ul>
               </div>
@@ -738,16 +826,20 @@ export default function CalculatorPage() {
               <div>
                 <h4 className="font-semibold text-green-700 mb-1">Себестоимость (наши затраты)</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>За ед. (₸)</b> = Себестоимость от поставщика × Курс валюты. Можно изменить вручную</li>
+                  <li><b>За ед. (₸)</b> = Себестоимость от поставщика × Курс валюты × (1 + 16% если НДС включён, иначе 1). У каждой строки есть галочка НДС в колонке «НДС» — по умолчанию включена. Можно изменить вручную</li>
                   <li><b>Итого</b> = За ед. × Кол-во</li>
-                  <li><b>Без НДС</b> = За ед. / (1 + Ставка НДС) × Кол-во</li>
-                  <li><b>НДС</b> = (За ед. − За ед. / (1 + Ставка НДС)) × Кол-во</li>
+                  <li><b>Без НДС</b> = За ед. / (1 + ставка НДС строки) × Кол-во. Если НДС выключен → равно «За ед. × Кол-во»</li>
+                  <li><b>НДС</b> = (За ед. − Без НДС) × Кол-во. Если галочка НДС снята — НДС = 0, и себестоимость считается «как есть» без надбавки</li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-yellow-700 mb-1">Доставка за ед.</h4>
-                <p>Загружается автоматически из формулы доставки склада (если настроена в админке). Можно изменить вручную для каждого товара.</p>
+                <h4 className="font-semibold text-yellow-700 mb-1">Доставка</h4>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><b>Доставка за ед.</b> — загружается из формулы склада (если настроена в админке). Можно изменить вручную</li>
+                  <li><b>Доставка сумма</b> = Доставка за ед. × Кол-во</li>
+                  <li><b>Итого доставка</b> = сумма «Доставка сумма» по всем товарам — используется в расчёте налогов</li>
+                </ul>
               </div>
 
               <div>
@@ -761,7 +853,7 @@ export default function CalculatorPage() {
                   <li><b>Сумма контракта</b> = Сумма всех «Итого» из колонки Сумма контракта</li>
                   <li><b>Сумма закупа</b> = Сумма всех «Итого» из колонки Себестоимость</li>
                   <li><b>Расходы по проекту</b> = Сумма всех добавленных расходов</li>
-                  <li><b>Налоги</b> = (НДС контракта − НДС себестоимости) + ((Итого контракта − Итого себестоимости) / 5)</li>
+                  <li><b>Налоги</b> = (НДС контракта − НДС себестоимости) + (((Итого контракта − Итого себестоимости) − Итого доставка) / 5)</li>
                   <li><b>Маржа</b> = Сумма контракта − Сумма закупа − Расходы − Налоги. В скобках процент от суммы контракта</li>
                 </ul>
               </div>

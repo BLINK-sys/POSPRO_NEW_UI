@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -397,6 +398,8 @@ export default function KPPage() {
   const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
   const [newTextPage, setNewTextPage] = useState(0)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [savingKP, setSavingKP] = useState(false)
+  const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logoUploadRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
@@ -1077,7 +1080,7 @@ export default function KPPage() {
 
         <div className="flex-1" />
 
-        {/* Правая часть: Корп. расчётник + Очистить */}
+        {/* Правая часть: Корп. расчётник + Сохранить + Выйти + Очистить */}
         <div className="flex items-center gap-2">
           {kpCount > 0 && (
             <button
@@ -1088,6 +1091,41 @@ export default function KPPage() {
               Корп. расчётник
             </button>
           )}
+
+          {kpCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={savingKP}
+              onClick={async () => {
+                setSavingKP(true)
+                try {
+                  const ok = await saveToHistory({ logoPos, managerPos })
+                  toast({
+                    title: ok ? "КП сохранён" : "Не удалось сохранить",
+                    description: ok ? "Запись добавлена в историю КП" : "Попробуйте ещё раз",
+                    variant: ok ? "default" : "destructive",
+                  })
+                } finally {
+                  setSavingKP(false)
+                }
+              }}
+              className="bg-white border-green-500 text-green-700 hover:bg-green-50 rounded-full text-sm [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+            >
+              {savingKP ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+              Сохранить КП
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/search')}
+            className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50 rounded-full text-sm [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+          >
+            <LogOut className="h-4 w-4 mr-1" />
+            Выйти
+          </Button>
 
           <Button
             variant="outline"
