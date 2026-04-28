@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Search, X, Loader2, ChevronUp, RotateCcw } from "lucide-react"
@@ -28,8 +28,17 @@ export default function DesktopSearchPage() {
   const wholesaleUser = isWholesaleUser(user)
   const isSystemUser = user?.role === "admin" || user?.role === "system"
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
 
-  const [query, setQuery] = useState("")
+  // Initial values from URL — preserved when user comes back from a product detail page.
+  const initialQuery = searchParams.get("q") || ""
+  const initialCats = (searchParams.get("cat") || "").split(",").map(Number).filter((n) => Number.isFinite(n))
+  const initialBrands = (searchParams.get("brand") || "").split(",").map(Number).filter((n) => Number.isFinite(n))
+  const initialPmin = searchParams.get("pmin") || ""
+  const initialPmax = searchParams.get("pmax") || ""
+
+  const [query, setQuery] = useState(initialQuery)
   const [allResults, setAllResults] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -38,12 +47,21 @@ export default function DesktopSearchPage() {
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const searchingRef = useRef(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  // Tracks the query that was actually submitted as a search. When the user
+  // edits the input away from this value, restored filters become stale and
+  // are auto-cleared so that the new query isn't crippled by leftovers.
+  const lastSearchedQuery = useRef(initialQuery)
 
-  // Filters
-  const [selectedCategories, setSelectedCategories] = useState<Set<number>>(new Set())
-  const [selectedBrands, setSelectedBrands] = useState<Set<number>>(new Set())
-  const [priceFrom, setPriceFrom] = useState("")
-  const [priceTo, setPriceTo] = useState("")
+  // Filters — initialized from URL
+  const [selectedCategories, setSelectedCategories] = useState<Set<number>>(new Set(initialCats))
+  const [selectedBrands, setSelectedBrands] = useState<Set<number>>(new Set(initialBrands))
+  const [priceFrom, setPriceFrom] = useState(initialPmin)
+  const [priceTo, setPriceTo] = useState(initialPmax)
+  // Live position of the price slider while the user is dragging. We don't
+  // commit it to priceFrom/priceTo until they release the thumb — otherwise
+  // the facet list would reshape on every micro-step and yank the slider
+  // out from under the cursor.
+  const [pricePreview, setPricePreview] = useState<[number, number] | null>(null)
   const [categorySearch, setCategorySearch] = useState("")
   const [brandSearch, setBrandSearch] = useState("")
   const [showAllCategories, setShowAllCategories] = useState(false)
@@ -65,37 +83,69 @@ export default function DesktopSearchPage() {
     })
   }
 
-  // Extract unique categories
+  // Cross-filter facets: applying brand should narrow the visible category
+  // list to only categories present for those brands, and vice-versa.
+  // Each `resultsExcept*` slice ignores its own dimension so selecting "Fimar"
+  // still shows all of Fimar's categories (not just one).
+  const resultsExceptCategory = useMemo(() => {
+    let f = allResults
+    if (selectedBrands.size > 0) f = f.filter((p) => selectedBrands.has(Number(p.brand_id)))
+    if (priceFrom) { const min = Number(priceFrom); if (!isNaN(min)) f = f.filter((p) => p.price >= min) }
+    if (priceTo) { const max = Number(priceTo); if (!isNaN(max)) f = f.filter((p) => p.price <= max) }
+    return f
+  }, [allResults, selectedBrands, priceFrom, priceTo])
+
+  const resultsExceptBrand = useMemo(() => {
+    let f = allResults
+    if (selectedCategories.size > 0) f = f.filter((p) => selectedCategories.has(Number(p.category_id)))
+    if (priceFrom) { const min = Number(priceFrom); if (!isNaN(min)) f = f.filter((p) => p.price >= min) }
+    if (priceTo) { const max = Number(priceTo); if (!isNaN(max)) f = f.filter((p) => p.price <= max) }
+    return f
+  }, [allResults, selectedCategories, priceFrom, priceTo])
+
+  const extractCategoryName = (p: ProductData): string | undefined => {
+    if (p.category && typeof p.category === "object" && "name" in p.category) return (p.category as any).name
+    if (p.category && typeof p.category === "string") return p.category as unknown as string
+    return undefined
+  }
+
+  // Available categories = categories appearing in resultsExceptCategory,
+  // PLUS any currently-selected category (so users can still see/uncheck it
+  // even if other filters made it temporarily empty).
   const availableCategories = useMemo(() => {
     const map = new Map<number, string>()
-    for (const p of allResults) {
+    for (const p of resultsExceptCategory) {
       const catId = p.category_id ? Number(p.category_id) : null
-      if (catId) {
-        let name: string | undefined
-        if (p.category && typeof p.category === "object" && "name" in p.category) {
-          name = (p.category as any).name
-        } else if (p.category && typeof p.category === "string") {
-          name = p.category as unknown as string
-        }
-        if (name) map.set(catId, name)
-      }
+      if (!catId) continue
+      const name = extractCategoryName(p)
+      if (name) map.set(catId, name)
+    }
+    for (const id of selectedCategories) {
+      if (map.has(id)) continue
+      const found = allResults.find((p) => p.category_id != null && Number(p.category_id) === id)
+      const name = found ? extractCategoryName(found) : undefined
+      if (name) map.set(id, name)
     }
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [allResults])
+  }, [resultsExceptCategory, selectedCategories, allResults])
 
-  // Extract unique brands
   const availableBrands = useMemo(() => {
     const map = new Map<number, string>()
-    for (const p of allResults) {
+    for (const p of resultsExceptBrand) {
       const brandId = p.brand_id ? Number(p.brand_id) : null
       if (brandId && p.brand_info) map.set(brandId, p.brand_info.name)
     }
+    for (const id of selectedBrands) {
+      if (map.has(id)) continue
+      const found = allResults.find((p) => p.brand_id != null && Number(p.brand_id) === id)
+      if (found?.brand_info) map.set(id, found.brand_info.name)
+    }
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [allResults])
+  }, [resultsExceptBrand, selectedBrands, allResults])
 
   // Apply filters
   const filteredResults = useMemo(() => {
@@ -107,13 +157,23 @@ export default function DesktopSearchPage() {
     return filtered
   }, [allResults, selectedCategories, selectedBrands, priceFrom, priceTo])
 
-  // Min/max prices from all results (for slider bounds)
+  // Results filtered by category+brand but NOT by price — this is what the
+  // price slider's bounds should reflect, so changing brand/category instantly
+  // narrows the available price range.
+  const resultsExceptPrice = useMemo(() => {
+    let f = allResults
+    if (selectedCategories.size > 0) f = f.filter((p) => selectedCategories.has(Number(p.category_id)))
+    if (selectedBrands.size > 0) f = f.filter((p) => selectedBrands.has(Number(p.brand_id)))
+    return f
+  }, [allResults, selectedCategories, selectedBrands])
+
+  // Min/max prices from results in scope (excluding the price filter itself)
   const priceRange = useMemo(() => {
-    if (allResults.length === 0) return { min: 0, max: 0 }
-    const prices = allResults.map((p) => p.price).filter((p) => p > 0)
+    if (resultsExceptPrice.length === 0) return { min: 0, max: 0 }
+    const prices = resultsExceptPrice.map((p) => p.price).filter((p) => p > 0)
     if (prices.length === 0) return { min: 0, max: 0 }
     return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) }
-  }, [allResults])
+  }, [resultsExceptPrice])
 
   const visibleResults = useMemo(() => filteredResults.slice(0, visibleCount), [filteredResults, visibleCount])
   const hasMore = visibleCount < filteredResults.length
@@ -126,7 +186,32 @@ export default function DesktopSearchPage() {
     setSelectedBrands(new Set())
     setPriceFrom("")
     setPriceTo("")
+    setPricePreview(null)
   }
+
+  // Drop selected category/brand IDs that don't exist anywhere in the current
+  // search results (i.e. they're stale leftovers from a previous query in URL).
+  // We compare against the *unfiltered* set of cats/brands in allResults — not
+  // against availableCategories/Brands, since those are now narrowed by the
+  // facet logic above and we don't want to nuke a selection just because
+  // another active filter temporarily hides it.
+  useEffect(() => {
+    if (allResults.length === 0) return
+    const allCatIds = new Set<number>()
+    const allBrandIds = new Set<number>()
+    for (const p of allResults) {
+      if (p.category_id) allCatIds.add(Number(p.category_id))
+      if (p.brand_id) allBrandIds.add(Number(p.brand_id))
+    }
+    setSelectedCategories((prev) => {
+      const filtered = new Set(Array.from(prev).filter((id) => allCatIds.has(id)))
+      return filtered.size === prev.size ? prev : filtered
+    })
+    setSelectedBrands((prev) => {
+      const filtered = new Set(Array.from(prev).filter((id) => allBrandIds.has(id)))
+      return filtered.size === prev.size ? prev : filtered
+    })
+  }, [allResults])
 
   // Scroll-to-top
   useEffect(() => {
@@ -164,10 +249,10 @@ export default function DesktopSearchPage() {
       setAllResults(data)
       setHasSearched(true)
       setVisibleCount(PAGE_SIZE)
-      setSelectedCategories(new Set())
-      setSelectedBrands(new Set())
-      setPriceFrom("")
-      setPriceTo("")
+      lastSearchedQuery.current = searchQuery.trim()
+      // NOTE: filter state is not reset here on purpose — that lets us restore
+      // saved filters from URL on initial mount. A fresh search via the input
+      // resets filters explicitly inside handleSearch.
     } catch (e) {
       console.error("Search error:", e)
     } finally {
@@ -176,16 +261,30 @@ export default function DesktopSearchPage() {
     }
   }, [])
 
-  // Auto-search from URL param ?q=
+  // Initial search on mount — uses query restored from URL (if any).
+  // Intentionally not depending on searchParams so we don't re-fetch when
+  // we ourselves rewrite the URL via router.replace below.
   useEffect(() => {
-    const urlQuery = searchParams.get("q")
-    if (urlQuery && urlQuery.trim().length >= 2) {
-      setQuery(urlQuery)
-      doSearch(urlQuery)
+    if (initialQuery && initialQuery.trim().length >= 2) {
+      doSearch(initialQuery)
     } else {
       setTimeout(() => inputRef.current?.focus(), 100)
     }
-  }, [searchParams, doSearch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist current query + filters to the URL so coming back from a product
+  // detail page restores everything.
+  useEffect(() => {
+    const sp = new URLSearchParams()
+    if (query.trim()) sp.set("q", query.trim())
+    if (selectedCategories.size > 0) sp.set("cat", Array.from(selectedCategories).join(","))
+    if (selectedBrands.size > 0) sp.set("brand", Array.from(selectedBrands).join(","))
+    if (priceFrom) sp.set("pmin", priceFrom)
+    if (priceTo) sp.set("pmax", priceTo)
+    const qs = sp.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, pathname, router])
 
   // Reset visible count on filter change
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [selectedCategories, selectedBrands, priceFrom, priceTo])
@@ -202,8 +301,29 @@ export default function DesktopSearchPage() {
     return () => { if (el) observer.unobserve(el) }
   }, [hasMore, filteredResults.length])
 
-  const handleSearch = () => { if (!loading) doSearch(query) }
-  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !loading) doSearch(query) }
+  const clearFiltersIfAny = () => {
+    if (selectedCategories.size > 0) setSelectedCategories(new Set())
+    if (selectedBrands.size > 0) setSelectedBrands(new Set())
+    if (priceFrom) setPriceFrom("")
+    if (priceTo) setPriceTo("")
+  }
+
+  const handleQueryChange = (val: string) => {
+    setQuery(val)
+    // If the user starts editing the query that was last searched, the
+    // restored filters are stale — drop them to avoid the "0 of N" surprise.
+    if (val.trim() !== lastSearchedQuery.current) {
+      clearFiltersIfAny()
+    }
+  }
+
+  const triggerNewSearch = () => {
+    if (loading) return
+    clearFiltersIfAny()
+    doSearch(query)
+  }
+  const handleSearch = () => triggerNewSearch()
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter") triggerNewSearch() }
 
   // Pluralize
   const pluralize = (n: number) => {
@@ -228,7 +348,7 @@ export default function DesktopSearchPage() {
               type="text"
               placeholder="Я ищу..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full pl-10 pr-10 h-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-md hover:shadow-lg transition-shadow duration-200"
             />
@@ -236,7 +356,14 @@ export default function DesktopSearchPage() {
               <Button
                 variant="ghost" size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full"
-                onClick={() => { setQuery(""); setAllResults([]); setHasSearched(false); inputRef.current?.focus() }}
+                onClick={() => {
+                  setQuery("")
+                  setAllResults([])
+                  setHasSearched(false)
+                  clearFiltersIfAny()
+                  lastSearchedQuery.current = ""
+                  inputRef.current?.focus()
+                }}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -396,40 +523,57 @@ export default function DesktopSearchPage() {
               {/* Price range */}
               <div>
                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Цена</h4>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    type="number" placeholder="от" value={priceFrom}
-                    onChange={(e) => setPriceFrom(e.target.value)}
-                    className="h-9 text-sm rounded-lg"
-                  />
-                  <span className="text-gray-400 text-sm shrink-0">—</span>
-                  <Input
-                    type="number" placeholder="до" value={priceTo}
-                    onChange={(e) => setPriceTo(e.target.value)}
-                    className="h-9 text-sm rounded-lg"
-                  />
-                </div>
-                {priceRange.max > 0 && (
-                  <div className="mt-3 px-0.5">
-                    <Slider
-                      min={priceRange.min}
-                      max={priceRange.max}
-                      step={Math.max(1, Math.floor((priceRange.max - priceRange.min) / 100))}
-                      value={[
-                        priceFrom ? Number(priceFrom) : priceRange.min,
-                        priceTo ? Number(priceTo) : priceRange.max,
-                      ]}
-                      onValueChange={([min, max]) => {
-                        setPriceFrom(min <= priceRange.min ? "" : String(min))
-                        setPriceTo(max >= priceRange.max ? "" : String(max))
-                      }}
-                    />
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-gray-400">{priceRange.min.toLocaleString()}</span>
-                      <span className="text-[10px] text-gray-400">{priceRange.max.toLocaleString()}</span>
-                    </div>
-                  </div>
-                )}
+                {(() => {
+                  const hasRange = priceRange.max > 0
+                  // Clip user-entered values to the current bounds so the
+                  // slider thumbs never sit outside the track when the bounds
+                  // shrink (e.g. picking a narrow-price brand).
+                  const clip = (v: number) => Math.max(priceRange.min, Math.min(priceRange.max, v))
+                  const committedValue: [number, number] = hasRange ? [
+                    clip(priceFrom ? Number(priceFrom) : priceRange.min),
+                    clip(priceTo ? Number(priceTo) : priceRange.max),
+                  ] : [0, 0]
+                  const sliderValue = pricePreview ?? committedValue
+                  // What the input fields show: priority is dragging preview,
+                  // then user-entered value, finally the available range.
+                  const displayFrom = pricePreview ? String(pricePreview[0])
+                    : (priceFrom || (hasRange ? String(priceRange.min) : ""))
+                  const displayTo = pricePreview ? String(pricePreview[1])
+                    : (priceTo || (hasRange ? String(priceRange.max) : ""))
+                  return (
+                    <>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="number" placeholder="от" value={displayFrom}
+                          onChange={(e) => setPriceFrom(e.target.value)}
+                          className="h-9 text-sm rounded-lg"
+                        />
+                        <span className="text-gray-400 text-sm shrink-0">—</span>
+                        <Input
+                          type="number" placeholder="до" value={displayTo}
+                          onChange={(e) => setPriceTo(e.target.value)}
+                          className="h-9 text-sm rounded-lg"
+                        />
+                      </div>
+                      {hasRange && (
+                        <div className="mt-3 px-0.5">
+                          <Slider
+                            min={priceRange.min}
+                            max={priceRange.max}
+                            step={Math.max(1, Math.floor((priceRange.max - priceRange.min) / 100))}
+                            value={sliderValue}
+                            onValueChange={([min, max]) => setPricePreview([min, max])}
+                            onValueCommit={([min, max]) => {
+                              setPriceFrom(min <= priceRange.min ? "" : String(min))
+                              setPriceTo(max >= priceRange.max ? "" : String(max))
+                              setPricePreview(null)
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* Result count */}

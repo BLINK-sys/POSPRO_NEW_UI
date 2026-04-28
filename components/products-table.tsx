@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import Image from "next/image"
 import { type Product, type PaginatedProducts, deleteProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
@@ -53,9 +53,44 @@ export function ProductsTable({
   suppliers,
   isSidebarCollapsed = false,
 }: ProductsTableProps) {
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+
+  // Restore search/filter state. URL has priority (so deep links / refresh
+  // work). When URL is empty (e.g. user came back via router.push from the
+  // edit page), fall back to sessionStorage which we keep in sync below.
+  const STORAGE_KEY = "admin-products-filters"
+  const stored = (() => {
+    if (typeof window === "undefined") return null
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      return raw ? JSON.parse(raw) as Record<string, string> : null
+    } catch {
+      return null
+    }
+  })()
+  const urlHasAnyFilter = ["q", "cat", "status", "brand", "supplier", "vis", "qty", "page", "pp"]
+    .some((k) => searchParams.get(k))
+  const pickInitial = (urlKey: string, storeKey: string, fallback: string): string => {
+    const fromUrl = searchParams.get(urlKey)
+    if (fromUrl !== null) return fromUrl
+    if (!urlHasAnyFilter && stored && stored[storeKey] !== undefined) return stored[storeKey]
+    return fallback
+  }
+
+  const initialSearchQuery = pickInitial("q", "q", "")
+  const initialCategory = pickInitial("cat", "cat", "all")
+  const initialStatus = pickInitial("status", "status", "all")
+  const initialBrand = pickInitial("brand", "brand", "all")
+  const initialSupplier = pickInitial("supplier", "supplier", "all")
+  const initialVisibility = pickInitial("vis", "vis", "all")
+  const initialQuantity = pickInitial("qty", "qty", "all")
+  const initialPageFromUrl = Number(pickInitial("page", "page", "0")) || 0
+  const initialPerPageFromUrl = Number(pickInitial("pp", "pp", "0")) || 0
+
   const [products, setProducts] = useState<Product[]>(initialData.products)
-  const [currentPage, setCurrentPage] = useState(initialData.page ?? 1)
-  const [itemsPerPage, setItemsPerPage] = useState(initialData.per_page ?? 25)
+  const [currentPage, setCurrentPage] = useState(initialPageFromUrl || initialData.page || 1)
+  const [itemsPerPage, setItemsPerPage] = useState(initialPerPageFromUrl || initialData.per_page || 25)
   const [totalPages, setTotalPages] = useState(initialData.total_pages ?? 1)
   const [totalCount, setTotalCount] = useState(initialData.total_count ?? initialData.products.length)
   const [isLoading, setIsLoading] = useState(false)
@@ -64,13 +99,13 @@ export function ProductsTable({
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
 
   // Фильтры
-  const [searchQuery, setSearchQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [brandFilter, setBrandFilter] = useState("all")
-  const [supplierFilter, setSupplierFilter] = useState("all")
-  const [visibilityFilter, setVisibilityFilter] = useState("all")
-  const [quantityFilter, setQuantityFilter] = useState("all")
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory)
+  const [statusFilter, setStatusFilter] = useState(initialStatus)
+  const [brandFilter, setBrandFilter] = useState(initialBrand)
+  const [supplierFilter, setSupplierFilter] = useState(initialSupplier)
+  const [visibilityFilter, setVisibilityFilter] = useState(initialVisibility)
+  const [quantityFilter, setQuantityFilter] = useState(initialQuantity)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
 
   // Пагинация
@@ -235,10 +270,57 @@ export function ProductsTable({
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = Math.min(startIndex + products.length, totalCount)
 
+  // Initial load: respect the page from URL/sessionStorage (don't reset to 1).
+  // After the first render, this effect watches loadProducts (which itself
+  // depends on filters) and itemsPerPage — both filter changes and per-page
+  // changes should send us back to page 1, but the very first run shouldn't.
+  const isInitialLoad = useRef(true)
   useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false
+      const startPage = currentPage > 0 ? currentPage : 1
+      loadProducts(startPage, itemsPerPage)
+      return
+    }
     setCurrentPage(1)
     loadProducts(1, itemsPerPage)
-  }, [loadProducts, itemsPerPage])
+  }, [loadProducts, itemsPerPage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist search/filters/page to BOTH the URL (for share/refresh) and
+  // sessionStorage (so a router.push back from the edit page can restore us
+  // even though that push lands on a clean URL).
+  useEffect(() => {
+    const sp = new URLSearchParams()
+    if (searchQuery.trim()) sp.set("q", searchQuery.trim())
+    if (categoryFilter !== "all") sp.set("cat", categoryFilter)
+    if (statusFilter !== "all") sp.set("status", statusFilter)
+    if (brandFilter !== "all") sp.set("brand", brandFilter)
+    if (supplierFilter !== "all") sp.set("supplier", supplierFilter)
+    if (visibilityFilter !== "all") sp.set("vis", visibilityFilter)
+    if (quantityFilter !== "all") sp.set("qty", quantityFilter)
+    if (currentPage > 1) sp.set("page", String(currentPage))
+    if (itemsPerPage !== 25) sp.set("pp", String(itemsPerPage))
+    const qs = sp.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+
+    try {
+      const snapshot: Record<string, string> = {}
+      if (searchQuery.trim()) snapshot.q = searchQuery.trim()
+      if (categoryFilter !== "all") snapshot.cat = categoryFilter
+      if (statusFilter !== "all") snapshot.status = statusFilter
+      if (brandFilter !== "all") snapshot.brand = brandFilter
+      if (supplierFilter !== "all") snapshot.supplier = supplierFilter
+      if (visibilityFilter !== "all") snapshot.vis = visibilityFilter
+      if (quantityFilter !== "all") snapshot.qty = quantityFilter
+      if (currentPage > 1) snapshot.page = String(currentPage)
+      if (itemsPerPage !== 25) snapshot.pp = String(itemsPerPage)
+      if (Object.keys(snapshot).length > 0) {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+      } else {
+        sessionStorage.removeItem(STORAGE_KEY)
+      }
+    } catch {/* ignore quota / private mode */}
+  }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, currentPage, itemsPerPage, pathname, router])
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"

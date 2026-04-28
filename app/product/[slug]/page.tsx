@@ -26,6 +26,7 @@ import { createBitrixPriceInquiry } from "@/app/actions/bitrix"
 import { toast } from "@/hooks/use-toast"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { AddToKPButton } from "@/components/add-to-kp-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/actions/public"
 import Image from "next/image"
@@ -496,6 +497,20 @@ export default function ProductPage() {
           {/* Название товара */}
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-4">{product.name}</h1>
+            <AddToKPButton
+              productId={product.id}
+              productName={product.name}
+              productSlug={product.slug}
+              productPrice={product.price}
+              productWholesalePrice={product.wholesale_price}
+              productImageUrl={product.media?.[0]?.url}
+              productDescription={product.description}
+              productArticle={product.article}
+              productBrandName={product.brand_info?.name}
+              productSupplierName={product.supplier?.name || product.supplier_name}
+              productCharacteristics={product.characteristics?.map(c => ({ key: c.key, value: c.value }))}
+              className="font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+            />
           </div>
 
           {/* Информация о товаре */}
