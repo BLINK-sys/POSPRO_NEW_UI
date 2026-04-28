@@ -26,6 +26,7 @@ import {
   Warehouse as WarehouseIcon, Plus, Trash2,
 } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
+import { BrandSelectDialog } from "./brand-select-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
@@ -84,6 +85,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false)
 
   const [showCategoryDialog, setShowCategoryDialog] = useState(false)
+  const [showBrandDialog, setShowBrandDialog] = useState(false)
   const [showCharacteristicsDialog, setShowCharacteristicsDialog] = useState(false)
   const [showMediaDialog, setShowMediaDialog] = useState(false)
   const [showDocumentsDriversDialog, setShowDocumentsDriversDialog] = useState(false)
@@ -401,13 +403,20 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                 </div>
                 <div className="space-y-2">
                   <Label>Бренд</Label>
-                  <Select value={brandId} onValueChange={handleBrandChange} disabled={isPending}>
-                    <SelectTrigger><SelectValue placeholder="Бренд" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no-brand">Без бренда</SelectItem>
-                      {brands.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowBrandDialog(true)}
+                    disabled={isPending}
+                    className="w-full justify-between font-normal bg-transparent"
+                  >
+                    <span className={brandId === "no-brand" ? "text-gray-400" : ""}>
+                      {brandId === "no-brand"
+                        ? "Без бренда"
+                        : brands.find((b) => String(b.id) === brandId)?.name || "Выберите бренд"}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                  </Button>
                 </div>
                 <div className="space-y-2">
                   <Label>Страна</Label>
@@ -614,6 +623,14 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
         selectedCategoryId={categoryId === "0" ? null : Number(categoryId)}
         onSelect={handleSelectCategory}
         title="Выберите категорию товара"
+      />
+
+      <BrandSelectDialog
+        open={showBrandDialog}
+        onOpenChange={setShowBrandDialog}
+        brands={brands}
+        selectedBrandId={brandId === "no-brand" ? null : Number(brandId)}
+        onSelect={(id) => handleBrandChange(id === null ? "no-brand" : String(id))}
       />
       {showCharacteristicsDialog && draftId && (
         <ProductCharacteristicsDialog productId={draftId} onClose={() => setShowCharacteristicsDialog(false)} />
