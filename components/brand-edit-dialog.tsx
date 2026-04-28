@@ -218,6 +218,12 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
                 <Input id="file-upload" type="file" onChange={handleFileChange} accept="image/*" disabled={isPending} />
               </div>
             )}
+
+            <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+              <p><strong>Рекомендуемый размер:</strong> 600 × 600 px (квадрат, соотношение 1:1).</p>
+              <p>Логотип бренда отображается в каталоге и на главной как квадратная карточка с обрезкой по краям (object-cover). Минимум — 300 × 300 px.</p>
+              <p>Формат: PNG (с прозрачным или белым фоном) / JPG / WebP. Размер файла: до 5 MB.</p>
+            </div>
           </div>
         </div>
         <DialogFooter>

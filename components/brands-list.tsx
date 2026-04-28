@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useMemo } from "react"
 import Image from "next/image"
 import { type Brand, deleteBrand } from "@/app/actions/meta"
 import { getImageUrl } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Edit, Trash2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { PlusCircle, Edit, Trash2, Search, X } from "lucide-react"
 import { BrandEditDialog } from "./brand-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
@@ -19,7 +20,17 @@ export function BrandsList({ brands }: BrandsListProps) {
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null)
   const [deletingBrand, setDeletingBrand] = useState<Brand | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [searchTerm, setSearchTerm] = useState("")
   const { toast } = useToast()
+
+  const filteredBrands = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return brands
+    return brands.filter((b) =>
+      b.name.toLowerCase().includes(term) ||
+      (b.country && b.country.toLowerCase().includes(term))
+    )
+  }, [brands, searchTerm])
 
   const handleDelete = () => {
     if (!deletingBrand) return
@@ -38,16 +49,45 @@ export function BrandsList({ brands }: BrandsListProps) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Бренды</h3>
+        <h3 className="text-lg font-medium">
+          Бренды
+          {searchTerm && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              · найдено {filteredBrands.length} из {brands.length}
+            </span>
+          )}
+        </h3>
         <Button onClick={() => setIsCreating(true)} disabled={isPending}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Добавить бренд
         </Button>
       </div>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <Input
+          type="text"
+          placeholder="Поиск по названию или стране..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9 pr-9 h-10"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+            aria-label="Очистить"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {brands.length > 0 ? (
+        filteredBrands.length > 0 ? (
         <div className="flex flex-wrap gap-6">
-          {brands.map((brand) => (
+          {filteredBrands.map((brand) => (
             <div
               key={brand.id}
               className="group relative w-[250px] h-[250px] min-w-[100px] min-h-[100px] rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl"
@@ -106,6 +146,11 @@ export function BrandsList({ brands }: BrandsListProps) {
             </div>
           ))}
         </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            По запросу «{searchTerm}» ничего не найдено
+          </div>
+        )
       ) : (
         <div className="text-center py-16">
           <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
