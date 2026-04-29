@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Loader2, Sparkles, RotateCcw, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -73,8 +74,36 @@ function savePersisted(state: PersistedState) {
 
 export default function AISearchPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const wholesaleUser = isWholesaleUser(user)
   const isSystemUser = user?.role === "admin" || user?.role === "system"
+
+  // Access gate — backend decides who can use the page based on
+  // /admin/ai-consultant settings. Three states: null = checking,
+  // true = allowed, false = denied (will redirect).
+  const [accessChecked, setAccessChecked] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/ai-consultant/access", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        if (d?.has_access) {
+          setAccessChecked(true)
+        } else {
+          setAccessChecked(false)
+          router.replace("/")
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setAccessChecked(false)
+        router.replace("/")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [router, user?.id, user?.email])
 
   // State starts empty so server-render and first client-render match.
   // We load from sessionStorage in a post-mount effect — reading storage
@@ -235,6 +264,19 @@ export default function AISearchPage() {
     if (mod10 === 1 && mod100 !== 11) return "товар"
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "товара"
     return "товаров"
+  }
+
+  // While access is being checked, show a centered spinner. If access is
+  // denied, redirect already fired in the useEffect above — render null
+  // to avoid flashing the page contents in between.
+  if (accessChecked !== true) {
+    return (
+      <div className="flex items-center justify-center" style={{ height: "calc(100vh - 96px)" }}>
+        {accessChecked === null ? (
+          <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+        ) : null}
+      </div>
+    )
   }
 
   // Layout: fixed-height container (viewport - global header - container py-6).

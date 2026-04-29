@@ -34,14 +34,6 @@ import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
-// Whitelist of emails that see the "AI консультант" button while the
-// feature is in beta. Lower-cased for case-insensitive comparison.
-// TODO: убрать когда выйдет в общий доступ.
-const AI_BETA_EMAILS = new Set([
-  "bocan.anton@mail.ru",
-  "daniyar.bayzakov@pospro.kz",
-])
-
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
@@ -61,6 +53,24 @@ export default function Header() {
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [sidebarTab, setSidebarTab] = useState<CatalogTab>("categories")
   const [menuTab, setMenuTab] = useState<CatalogTab>("categories")
+  const [aiAccess, setAiAccess] = useState<boolean | null>(null)
+
+  // Re-check AI consultant access whenever the user changes (login/logout/refresh).
+  // Backend endpoint is public — works for guests too.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/ai-consultant/access", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setAiAccess(Boolean(d?.has_access))
+      })
+      .catch(() => {
+        if (!cancelled) setAiAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.email])
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
   const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("cards")
   const [catalogVisibility, setCatalogVisibility] = useState<{ sidebar: boolean; main: boolean; slide: boolean } | null>(null)
@@ -634,8 +644,10 @@ export default function Header() {
             </Button>
           </div>
 
-          {/* AI consultant — beta-доступ по email до релиза */}
-          {AI_BETA_EMAILS.has((user?.email || "").toLowerCase()) && (
+          {/* AI consultant — доступ управляется из админки
+              (`/admin/ai-consultant`). Backend ручка решает, видит ли
+              кнопку конкретный пользователь. */}
+          {aiAccess && (
             <div className="hidden md:flex ml-2">
               <Button
                 onClick={() => router.push("/ai")}
