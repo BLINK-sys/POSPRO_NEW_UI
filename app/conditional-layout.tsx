@@ -15,6 +15,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const isAdminPage = pathname.startsWith("/admin")
   const isAuthPage = pathname.startsWith("/auth")
   const isKPPage = pathname.startsWith("/kp")
+  const isAIPage = pathname.startsWith("/ai")
 
   const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined)
 
@@ -50,8 +51,8 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
     return <>{children}</>
   }
 
-  // Десктоп: КП — без подвала (полноэкранный редактор)
-  if (isKPPage) {
+  // Десктоп: КП и AI-консультант — без подвала (рабочие полноэкранные страницы)
+  if (isKPPage || isAIPage) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />

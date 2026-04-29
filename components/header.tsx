@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
@@ -623,6 +623,17 @@ export default function Header() {
             >
               <Search className="h-5 w-5" />
               Найти товар
+            </Button>
+          </div>
+
+          <div className="hidden md:flex ml-2">
+            <Button
+              onClick={() => router.push("/ai")}
+              className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+              title="AI-подбор товаров"
+            >
+              <Sparkles className="h-5 w-5" />
+              AI консультант
             </Button>
           </div>
             {menuOpen && (
