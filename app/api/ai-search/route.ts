@@ -373,9 +373,12 @@ const SYSTEM_PROMPT = `Ты — PosPro AI, ассистент магазина P
 // and easy reverting if we ever re-introduce multi-turn flows.
 const MAX_TURNS = 1
 
-const apiKey = process.env.ANTHROPIC_API_KEY
-const mcpUrl = process.env.MCP_SERVER_URL || "https://pospro-new-mcp.onrender.com/"
-const mcpToken = process.env.MCP_DEV_TOKEN
+// Trim env values — secrets pasted into Vercel/.env files often end up
+// with a trailing newline or space, which Anthropic rejects with
+// `must not contain control characters` on the authorization_token field.
+const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
+const mcpUrl = (process.env.MCP_SERVER_URL || "https://pospro-new-mcp.onrender.com/").trim()
+const mcpToken = process.env.MCP_DEV_TOKEN?.trim()
 
 function sseEncode(obj: any): string {
   return `data: ${JSON.stringify(obj)}\n\n`
