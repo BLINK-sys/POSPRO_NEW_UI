@@ -93,23 +93,26 @@ export function BrandsList({ brands }: BrandsListProps) {
               className="group relative w-[250px] h-[250px] min-w-[100px] min-h-[100px] rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl"
             >
               <div className="relative w-full h-full bg-white">
-                <Image
-                  src={
-                    getImageUrl(brand.image_url) ||
-                    "/placeholder.svg?height=200&width=200&text=" + encodeURIComponent(brand.name) ||
-                    "/placeholder.svg" ||
-                    "/placeholder.svg"
-                  }
-                  alt={brand.name}
-                  fill
-                  className="object-cover transition-all duration-300 group-hover:blur-sm group-hover:scale-110"
-                  unoptimized
-                  sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.src = "/placeholder.svg?height=200&width=200&text=" + encodeURIComponent(brand.name)
-                  }}
-                />
+                {brand.image_url ? (
+                  <Image
+                    src={getImageUrl(brand.image_url) || "/placeholder.svg"}
+                    alt={brand.name}
+                    fill
+                    className="object-cover transition-all duration-300 group-hover:blur-sm group-hover:scale-110"
+                    unoptimized
+                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.src = "/placeholder.svg?height=200&width=200&text=" + encodeURIComponent(brand.name)
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full p-4 bg-gray-50 transition-all duration-300 group-hover:blur-sm group-hover:scale-105">
+                    <span className="text-gray-900 font-semibold text-center text-lg break-words leading-tight">
+                      {brand.name}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Overlay that appears on hover */}

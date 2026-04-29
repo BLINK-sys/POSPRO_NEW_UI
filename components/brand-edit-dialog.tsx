@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Trash2 } from "lucide-react"
+import { Trash2, Crop as CropIcon } from "lucide-react"
+import { ImageCropperDialog } from "./image-cropper-dialog"
 
 type ImageSource = "url" | "upload"
 
@@ -29,6 +30,9 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
   const [imageSource, setImageSource] = useState<ImageSource>("url")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(brand?.image_url ?? null)
+  // Source for the cropper modal — we read the picked file as a data URL,
+  // open the cropper, and replace selectedFile with the cropped result.
+  const [cropSource, setCropSource] = useState<{ src: string; name: string; type: string } | null>(null)
 
   useEffect(() => {
     if (selectedFile) {
@@ -46,9 +50,68 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setSelectedFile(e.target.files[0])
-      setImageUrl("")
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Open the cropper instead of accepting the raw file directly. The cropper
+    // calls back with a 600x600 1:1 crop that we then use as selectedFile.
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropSource({ src: String(reader.result), name: file.name, type: file.type || "image/png" })
+    }
+    reader.readAsDataURL(file)
+    // Reset the input so re-picking the same file still triggers onChange.
+    e.target.value = ""
+  }
+
+  const handleCropApply = (cropped: File) => {
+    setSelectedFile(cropped)
+    setImageUrl("")
+    setCropSource(null)
+  }
+
+  const reopenCropperForCurrentFile = () => {
+    if (!selectedFile) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropSource({ src: String(reader.result), name: selectedFile.name, type: selectedFile.type || "image/png" })
+    }
+    reader.readAsDataURL(selectedFile)
+  }
+
+  const [urlCropBusy, setUrlCropBusy] = useState(false)
+  const handleCropFromUrl = async () => {
+    const raw = imageUrl.trim()
+    if (!raw) {
+      toast({ variant: "destructive", title: "Укажите URL изображения" })
+      return
+    }
+    setUrlCropBusy(true)
+    try {
+      // For absolute (external) URLs we go through our same-origin proxy to
+      // sidestep CORS / tainted-canvas. For internal /uploads/... the proxy
+      // also works fine.
+      const absolute = raw.startsWith("http") ? raw : `${API_BASE_URL}${raw.startsWith("/") ? "" : "/"}${raw}`
+      const proxied = `/api/proxy-image?url=${encodeURIComponent(absolute)}`
+      const resp = await fetch(proxied)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(String(r.result))
+        r.onerror = () => reject(new Error("Не удалось прочитать файл"))
+        r.readAsDataURL(blob)
+      })
+      const fileName = raw.split("?")[0].split("/").pop() || "brand-image"
+      setCropSource({ src: dataUrl, name: fileName, type: blob.type || "image/png" })
+    } catch (err: any) {
+      console.error("URL crop fetch failed:", err)
+      toast({
+        variant: "destructive",
+        title: "Не удалось загрузить картинку",
+        description: err?.message || "Проверьте URL и доступность файла",
+      })
+    } finally {
+      setUrlCropBusy(false)
     }
   }
 
@@ -80,9 +143,15 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
         country,
         description,
       }
-      if (imageSource === "url") {
+      // Priority: a freshly cropped/picked file always wins (it might have come
+      // from either the upload picker or the "crop from URL" button). After
+      // that, we honour the radio selection. Finally, fall back to whatever
+      // image the brand already had so we don't accidentally clear it.
+      if (selectedFile) {
+        // image_url will be set after the upload below
+      } else if (imageSource === "url") {
         payload.image_url = imageUrl
-      } else if (!selectedFile && brand) {
+      } else if (brand) {
         payload.image_url = brand.image_url
       }
 
@@ -97,7 +166,7 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
         return
       }
 
-      if (imageSource === "upload" && selectedFile) {
+      if (selectedFile) {
         const formData = new FormData()
         formData.append("id", saveResult.brand.id.toString())
         formData.append("file", selectedFile)
@@ -161,27 +230,35 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
           {/* Правая колонка: Изображение */}
           <div className="space-y-4">
             <div className="flex flex-col items-center gap-4">
-              <Label>Предпросмотр</Label>
-              <div className="w-full aspect-video rounded border bg-gray-50 flex items-center justify-center">
+              <Label>Предпросмотр (как карточка на сайте)</Label>
+              <div className="w-64 aspect-square rounded-xl border bg-gray-50 flex items-center justify-center overflow-hidden">
                 {preview ? (
                   <Image
                     src={getImageUrl(preview) ?? ""}
                     alt="Предпросмотр"
-                    width={300}
-                    height={150}
-                    className="object-contain h-full w-full"
+                    width={400}
+                    height={400}
+                    className="object-cover h-full w-full"
                     unoptimized
                   />
                 ) : (
                   <span className="text-sm text-gray-400">Предпросмотр</span>
                 )}
               </div>
-              {imageUrl && (
-                <Button variant="destructive" size="sm" onClick={handleRemoveImage} disabled={isPending}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Удалить изображение
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {selectedFile && (
+                  <Button variant="outline" size="sm" onClick={reopenCropperForCurrentFile} disabled={isPending}>
+                    <CropIcon className="mr-2 h-4 w-4" />
+                    Обрезать заново
+                  </Button>
+                )}
+                {imageUrl && (
+                  <Button variant="destructive" size="sm" onClick={handleRemoveImage} disabled={isPending}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить изображение
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -205,17 +282,36 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
             {imageSource === "url" ? (
               <div className="space-y-2">
                 <Label htmlFor="image_url">URL изображения</Label>
-                <Input
-                  id="image_url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  disabled={isPending}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="image_url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    disabled={isPending || urlCropBusy}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCropFromUrl}
+                    disabled={isPending || urlCropBusy || !imageUrl.trim()}
+                    title="Загрузить картинку с URL и открыть обрезку"
+                  >
+                    <CropIcon className="h-4 w-4 mr-2" />
+                    {urlCropBusy ? "Загрузка..." : "Обрезать"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  Без обрезки картинка по URL сохранится как есть. Нажмите «Обрезать» чтобы кадрировать её под квадрат 1:1.
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="file-upload">Файл</Label>
                 <Input id="file-upload" type="file" onChange={handleFileChange} accept="image/*" disabled={isPending} />
+                <p className="text-[11px] text-gray-500">
+                  После выбора файла откроется окно обрезки 1:1. Кнопка «Обрезать заново» в превью позволит изменить кадр до сохранения.
+                </p>
               </div>
             )}
 
@@ -235,6 +331,19 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {cropSource && (
+        <ImageCropperDialog
+          src={cropSource.src}
+          fileName={cropSource.name}
+          fileType={cropSource.type}
+          aspect={1}
+          outputWidth={600}
+          title="Обрежьте логотип бренда"
+          onApply={handleCropApply}
+          onCancel={() => setCropSource(null)}
+        />
+      )}
     </Dialog>
   )
 }

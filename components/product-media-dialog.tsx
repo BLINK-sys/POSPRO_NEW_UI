@@ -25,7 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Trash2, Video, GripVertical, Upload, Link, Play, ImageIcon, Youtube } from "lucide-react"
+import { Loader2, Trash2, Video, GripVertical, Upload, Link, Play, ImageIcon, Youtube, Crop as CropIcon } from "lucide-react"
+import { ImageCropperDialog } from "./image-cropper-dialog"
 
 interface ProductMediaDialogProps {
   productId: number
@@ -56,11 +57,13 @@ function SortableMediaItem({
   media,
   onDelete,
   onSelect,
+  onCrop,
   isSelected,
 }: {
   media: Media
   onDelete: (id: number) => void
   onSelect: (media: Media) => void
+  onCrop: (media: Media) => void
   isSelected: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: media.id })
@@ -115,8 +118,22 @@ function SortableMediaItem({
         )}
       </div>
 
-      {/* Delete button below the card */}
-      <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Action buttons below the card */}
+      <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        {media.media_type === "image" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCrop(media)
+            }}
+            className="flex-1"
+            title="Обрезать изображение под квадрат каталога"
+          >
+            <CropIcon className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="destructive"
           size="sm"
@@ -124,9 +141,9 @@ function SortableMediaItem({
             e.stopPropagation()
             onDelete(media.id)
           }}
-          className="w-full"
+          className="flex-1"
         >
-          <Trash2 className="h-4 w-4 mr-2" />
+          <Trash2 className="h-4 w-4 mr-1" />
           Удалить
         </Button>
       </div>
@@ -209,6 +226,8 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
   const [media, setMedia] = useState<Media[]>([])
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
   const [url, setUrl] = useState("")
+  const [cropTarget, setCropTarget] = useState<{ media: Media; src: string; name: string; type: string } | null>(null)
+  const [cropBusy, setCropBusy] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const fetchMedia = useCallback(async () => {
@@ -298,11 +317,87 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
         fetchMedia()
       } catch (error) {
         console.error("Error deleting media:", error)
-        toast({ 
-          variant: "destructive", 
-          title: "Ошибка", 
-          description: error instanceof Error ? error.message : "Не удалось удалить медиа" 
+        toast({
+          variant: "destructive",
+          title: "Ошибка",
+          description: error instanceof Error ? error.message : "Не удалось удалить медиа"
         })
+      }
+    })
+  }
+
+  // Open the cropper for an existing image. We fetch the source through the
+  // proxy route to bypass CORS (so the canvas read isn't tainted).
+  const handleStartCrop = async (target: Media) => {
+    if (target.media_type !== "image") return
+    setCropBusy(true)
+    try {
+      const absolute = getMediaUrl(target.url)
+      const proxied = `/api/proxy-image?url=${encodeURIComponent(absolute)}`
+      const resp = await fetch(proxied)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(String(r.result))
+        r.onerror = () => reject(new Error("Не удалось прочитать файл"))
+        r.readAsDataURL(blob)
+      })
+      const fileName = target.url.split("?")[0].split("/").pop() || "product-image"
+      setCropTarget({ media: target, src: dataUrl, name: fileName, type: blob.type || "image/png" })
+    } catch (err) {
+      console.error("Failed to load image for crop:", err)
+      toast({
+        variant: "destructive",
+        title: "Не удалось открыть обрезку",
+        description: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      setCropBusy(false)
+    }
+  }
+
+  // Replace an existing image with its cropped version while preserving its
+  // position in the gallery. Three steps + reorder:
+  //   1. upload the cropped file (lands at end of list)
+  //   2. delete the original
+  //   3. push the new id back into the original slot via reorderMedia
+  const handleCropApply = async (cropped: File) => {
+    if (!cropTarget) return
+    const targetId = cropTarget.media.id
+    const targetOrder = cropTarget.media.order
+    setCropTarget(null)
+
+    startTransition(async () => {
+      try {
+        const fd = new FormData()
+        fd.append("file", cropped)
+        fd.append("product_id", String(productId))
+        const uploadRes: any = await mediaApi.uploadProductFile(fd)
+        const newId: number | undefined = uploadRes?.media?.id ?? uploadRes?.id
+        if (!newId) throw new Error("Upload не вернул id нового медиа")
+
+        await mediaApi.deleteMedia(targetId)
+
+        // Refresh, then build a reorder payload that inserts newId at targetOrder
+        const fresh = await mediaApi.getMedia(productId)
+        const others = fresh.filter((m) => m.id !== newId).sort((a, b) => a.order - b.order)
+        const idsInOrder = others.map((m) => m.id)
+        const insertAt = Math.max(0, Math.min(idsInOrder.length, targetOrder - 1))
+        idsInOrder.splice(insertAt, 0, newId)
+        const orderPayload = idsInOrder.map((id, idx) => ({ id, order: idx + 1 }))
+        await mediaApi.reorderMedia(productId, orderPayload)
+
+        toast({ title: "Обрезано", description: "Изображение заменено в той же позиции" })
+        fetchMedia()
+      } catch (err) {
+        console.error("Crop replace failed:", err)
+        toast({
+          variant: "destructive",
+          title: "Ошибка обрезки",
+          description: err instanceof Error ? err.message : "Не удалось заменить изображение",
+        })
+        fetchMedia()
       }
     })
   }
@@ -445,6 +540,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                             media={m}
                             onDelete={handleDelete}
                             onSelect={setSelectedMedia}
+                            onCrop={handleStartCrop}
                             isSelected={selectedMedia?.id === m.id}
                           />
                         ))}
@@ -475,6 +571,29 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
           </div>
         </div>
       </DialogContent>
+
+      {cropTarget && (
+        <ImageCropperDialog
+          src={cropTarget.src}
+          fileName={cropTarget.name}
+          fileType={cropTarget.type}
+          aspect={1}
+          outputWidth={1200}
+          title="Обрежьте изображение товара"
+          description="Карточка товара в каталоге — квадрат с обрезкой по краям. Соотношение фиксировано 1:1."
+          onApply={handleCropApply}
+          onCancel={() => setCropTarget(null)}
+        />
+      )}
+
+      {cropBusy && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="bg-white rounded-md px-4 py-3 shadow-lg flex items-center gap-2 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Загружаю изображение для обрезки...
+          </div>
+        </div>
+      )}
     </Dialog>
   )
 }

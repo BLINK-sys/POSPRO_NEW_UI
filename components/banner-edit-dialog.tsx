@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Banner } from "@/app/actions/banners"
+import { ImageCropperDialog } from "./image-cropper-dialog"
 
 interface BannerEditDialogProps {
   banner: Banner | null
@@ -50,6 +51,8 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
   const [imagePreview, setImagePreview] = useState<string>("")
   // File stored locally when creating a new banner (uploaded after banner creation)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // Source for the cropper modal (raw file picked from disk, before crop)
+  const [cropSource, setCropSource] = useState<{ src: string; name: string; type: string } | null>(null)
 
   useEffect(() => {
     if (banner) {
@@ -105,7 +108,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     }))
   }
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -114,17 +117,32 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Размер файла не должен превышать 5MB")
+    // Open the cropper instead of accepting the raw file. Size limit is checked
+    // after crop — by then the file is normalized to ~1920×600 jpg/png and
+    // virtually always under 5MB anyway.
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropSource({ src: String(reader.result), name: file.name, type: file.type || "image/png" })
+    }
+    reader.readAsDataURL(file)
+    event.target.value = ""
+  }
+
+  const handleCropApply = async (cropped: File) => {
+    setCropSource(null)
+
+    if (cropped.size > 5 * 1024 * 1024) {
+      toast.error("Размер файла после обрезки превышает 5MB")
       return
     }
 
     if (!banner) {
-      // New banner — show local preview immediately, upload after save
-      const blobUrl = URL.createObjectURL(file)
+      // New banner — show local preview, upload after save
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview)
+      const blobUrl = URL.createObjectURL(cropped)
       setImagePreview(blobUrl)
       setFormData((prev) => ({ ...prev, image: "__pending__" }))
-      setPendingFile(file)
+      setPendingFile(cropped)
       return
     }
 
@@ -132,7 +150,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
     setIsUploading(true)
     try {
       const uploadData = new FormData()
-      uploadData.append("file", file)
+      uploadData.append("file", cropped)
       uploadData.append("banner_id", String(banner.id))
 
       const response = await fetch(`${API_BASE_URL}/api/admin/upload-image`, {
@@ -142,10 +160,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
       })
 
       const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.message || "Failed to upload image")
-      }
+      if (!response.ok) throw new Error(result.message || "Failed to upload image")
 
       const imageUrl = result.url
       setFormData((prev) => ({ ...prev, image: imageUrl }))
@@ -509,6 +524,20 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
           </Button>
         </div>
       </DialogContent>
+
+      {cropSource && (
+        <ImageCropperDialog
+          src={cropSource.src}
+          fileName={cropSource.name}
+          fileType={cropSource.type}
+          aspect={16 / 5}
+          outputWidth={1920}
+          title="Обрежьте баннер главной"
+          description="Картинка растягивается на всю ширину главной (~90% экрана). Соотношение фиксировано 16:5 (3.2:1)."
+          onApply={handleCropApply}
+          onCancel={() => setCropSource(null)}
+        />
+      )}
     </Dialog>
   )
 }

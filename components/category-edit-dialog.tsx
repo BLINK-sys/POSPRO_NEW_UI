@@ -23,7 +23,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { ParentCategoryDialog } from "./parent-category-dialog"
-import { ChevronDown } from "lucide-react"
+import { ImageCropperDialog } from "./image-cropper-dialog"
+import { ChevronDown, Crop as CropIcon } from "lucide-react"
 
 interface CategoryEditDialogProps {
   category?: Category | null
@@ -130,6 +131,8 @@ export function CategoryEditDialog({
   const [previewKey, setPreviewKey] = useState(0) // Ключ для обновления превью
   const [showParentDialog, setShowParentDialog] = useState(false)
   const [showInMenu, setShowInMenu] = useState(category?.show_in_menu ?? true)
+  const [cropSource, setCropSource] = useState<{ src: string; name: string; type: string } | null>(null)
+  const [urlCropBusy, setUrlCropBusy] = useState(false)
 
   const isEditMode = !!category && !!category.id
 
@@ -154,11 +157,63 @@ export function CategoryEditDialog({
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setSelectedFile(e.target.files[0])
-      const objectUrl = URL.createObjectURL(e.target.files[0])
-      setPreview(objectUrl)
-      setPreviewKey((prev) => prev + 1)
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropSource({ src: String(reader.result), name: file.name, type: file.type || "image/png" })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ""
+  }
+
+  const handleCropApply = (cropped: File) => {
+    setSelectedFile(cropped)
+    const objectUrl = URL.createObjectURL(cropped)
+    setPreview(objectUrl)
+    setPreviewKey((prev) => prev + 1)
+    setCropSource(null)
+  }
+
+  const reopenCropperForCurrentFile = () => {
+    if (!selectedFile) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropSource({ src: String(reader.result), name: selectedFile.name, type: selectedFile.type || "image/png" })
+    }
+    reader.readAsDataURL(selectedFile)
+  }
+
+  const handleCropFromUrl = async () => {
+    const raw = imageUrl.trim()
+    if (!raw) {
+      toast({ variant: "destructive", title: "Укажите URL изображения" })
+      return
+    }
+    setUrlCropBusy(true)
+    try {
+      const absolute = raw.startsWith("http") ? raw : `${API_BASE_URL}${raw.startsWith("/") ? "" : "/"}${raw}`
+      const proxied = `/api/proxy-image?url=${encodeURIComponent(absolute)}`
+      const resp = await fetch(proxied)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(String(r.result))
+        r.onerror = () => reject(new Error("Не удалось прочитать файл"))
+        r.readAsDataURL(blob)
+      })
+      const fileName = raw.split("?")[0].split("/").pop() || "category-image"
+      setCropSource({ src: dataUrl, name: fileName, type: blob.type || "image/png" })
+    } catch (err: any) {
+      console.error("URL crop fetch failed:", err)
+      toast({
+        variant: "destructive",
+        title: "Не удалось загрузить картинку",
+        description: err?.message || "Проверьте URL и доступность файла",
+      })
+    } finally {
+      setUrlCropBusy(false)
     }
   }
 
@@ -227,7 +282,9 @@ export function CategoryEditDialog({
           parent_id: parentId === "0" ? null : Number(parentId),
         }
 
-        if (imageSource === "upload" && selectedFile) {
+        // Priority: a freshly cropped/picked file always wins, regardless of
+        // which radio was selected (it could have come from "Обрезать" on URL).
+        if (selectedFile) {
           const imageFormData = new FormData()
           imageFormData.append("file", selectedFile)
           imageActionPromise = uploadCategoryImage(category.id, imageFormData)
@@ -237,8 +294,13 @@ export function CategoryEditDialog({
           imageActionPromise = deleteCategoryImage(category.id)
         }
       } else {
-        // Для новых категорий, если выбран URL, устанавливаем его
-        if (imageSource === "url" && imageUrl) {
+        // For new categories: cropped file goes via uploadCategoryImage on the
+        // newly-created id; otherwise honour the URL choice.
+        if (selectedFile) {
+          const imageFormData = new FormData()
+          imageFormData.append("file", selectedFile)
+          imageActionPromise = uploadCategoryImage(categoryId, imageFormData)
+        } else if (imageSource === "url" && imageUrl) {
           const newCategory: Category = {
             id: categoryId,
             name,
@@ -386,31 +448,66 @@ export function CategoryEditDialog({
             {imageSource === "url" && (
               <div className="space-y-2">
                 <Label htmlFor="image_url">Ссылка на изображение</Label>
-                <Input id="image_url" value={imageUrl} onChange={handleImageUrlChange} onBlur={handleImageUrlBlur} />
+                <div className="flex gap-2">
+                  <Input
+                    id="image_url"
+                    value={imageUrl}
+                    onChange={handleImageUrlChange}
+                    onBlur={handleImageUrlBlur}
+                    disabled={urlCropBusy}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCropFromUrl}
+                    disabled={urlCropBusy || !imageUrl.trim()}
+                    title="Загрузить картинку с URL и открыть обрезку"
+                  >
+                    <CropIcon className="h-4 w-4 mr-2" />
+                    {urlCropBusy ? "Загрузка..." : "Обрезать"}
+                  </Button>
+                </div>
               </div>
             )}
             {imageSource === "upload" && (
               <div className="space-y-2">
                 <Label htmlFor="file">Файл</Label>
                 <Input id="file" type="file" accept="image/*" onChange={handleFileChange} />
+                <p className="text-[11px] text-gray-500">
+                  После выбора откроется окно обрезки 1:1. Карточка категории квадратная — кадр будет показан на сайте именно так.
+                </p>
               </div>
             )}
 
             {(preview || (imageSource !== "none" && category?.image_url)) && (
               <div className="flex flex-col items-center gap-2 pt-4">
-                <Label>Предпросмотр</Label>
-                <Image
-                  src={preview || "/placeholder.svg"}
-                  alt="Предпросмотр"
-                  width={200}
-                  height={200}
-                  className="rounded-md object-contain border"
-                  unoptimized
-                  key={`preview-${previewKey}`} // Принудительное обновление
-                  onError={() => setPreview("/placeholder.svg?width=200&height=200")}
-                />
+                <Label>Предпросмотр (как карточка на сайте)</Label>
+                <div className="w-48 h-48 rounded-md border overflow-hidden bg-gray-50 flex items-center justify-center">
+                  <Image
+                    src={preview || "/placeholder.svg"}
+                    alt="Предпросмотр"
+                    width={300}
+                    height={300}
+                    className="object-cover w-full h-full"
+                    unoptimized
+                    key={`preview-${previewKey}`}
+                    onError={() => setPreview("/placeholder.svg?width=200&height=200")}
+                  />
+                </div>
+                {selectedFile && (
+                  <Button type="button" variant="outline" size="sm" onClick={reopenCropperForCurrentFile}>
+                    <CropIcon className="h-4 w-4 mr-2" />
+                    Обрезать заново
+                  </Button>
+                )}
               </div>
             )}
+
+            <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+              <p><strong>Рекомендуемый размер:</strong> 600 × 600 px (квадрат, соотношение 1:1).</p>
+              <p>Карточка категории отображается в каталоге как квадрат с обрезкой по краям (object-cover). Минимум — 300 × 300 px. Формат PNG/JPG/WebP, до 5 MB.</p>
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -435,6 +532,19 @@ export function CategoryEditDialog({
         excludeCategoryId={isEditMode ? category?.id : undefined}
         title="Выберите родительскую категорию"
       />
+
+      {cropSource && (
+        <ImageCropperDialog
+          src={cropSource.src}
+          fileName={cropSource.name}
+          fileType={cropSource.type}
+          aspect={1}
+          outputWidth={600}
+          title="Обрежьте изображение категории"
+          onApply={handleCropApply}
+          onCancel={() => setCropSource(null)}
+        />
+      )}
     </Dialog>
   )
 }
