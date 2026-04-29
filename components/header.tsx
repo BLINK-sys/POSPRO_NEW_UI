@@ -34,6 +34,14 @@ import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
+// Whitelist of emails that see the "AI консультант" button while the
+// feature is in beta. Lower-cased for case-insensitive comparison.
+// TODO: убрать когда выйдет в общий доступ.
+const AI_BETA_EMAILS = new Set([
+  "bocan.anton@mail.ru",
+  "daniyar.bayzakov@pospro.kz",
+])
+
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
@@ -626,16 +634,19 @@ export default function Header() {
             </Button>
           </div>
 
-          <div className="hidden md:flex ml-2">
-            <Button
-              onClick={() => router.push("/ai")}
-              className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-              title="AI-подбор товаров"
-            >
-              <Sparkles className="h-5 w-5" />
-              AI консультант
-            </Button>
-          </div>
+          {/* AI consultant — beta-доступ по email до релиза */}
+          {AI_BETA_EMAILS.has((user?.email || "").toLowerCase()) && (
+            <div className="hidden md:flex ml-2">
+              <Button
+                onClick={() => router.push("/ai")}
+                className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+                title="AI-подбор товаров"
+              >
+                <Sparkles className="h-5 w-5" />
+                AI консультант
+              </Button>
+            </div>
+          )}
             {menuOpen && (
               <div
                 className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-6"
