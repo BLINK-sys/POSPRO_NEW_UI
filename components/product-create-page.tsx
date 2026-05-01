@@ -7,6 +7,8 @@ import {
   createProductDraft,
   deleteProductDraft,
   finalizeProduct,
+  bulkAddCharacteristicsByKey,
+  uploadProductImageFromUrl,
 } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
@@ -23,7 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft, BookOpen,
-  Warehouse as WarehouseIcon, Plus, Trash2,
+  Warehouse as WarehouseIcon, Plus, Trash2, Wand2,
 } from "lucide-react"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { BrandSelectDialog } from "./brand-select-dialog"
@@ -31,6 +33,7 @@ import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
 import { CharacteristicsListDialog } from "./characteristics-list-dialog"
+import { ProductImportFromUrlDialog, type ImportedProductData } from "./product-import-from-url-dialog"
 
 interface ProductCreatePageProps {
   categories: Category[]
@@ -90,6 +93,27 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
   const [showMediaDialog, setShowMediaDialog] = useState(false)
   const [showDocumentsDriversDialog, setShowDocumentsDriversDialog] = useState(false)
   const [showCharacteristicsListDialog, setShowCharacteristicsListDialog] = useState(false)
+
+  // AI URL-import access — checked once on mount. The button stays hidden
+  // until backend confirms the current system user is in the
+  // allowed_product_import_user_ids list (or is the owner).
+  const [importAccess, setImportAccess] = useState<boolean | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [importing, setImporting] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/product-import/access", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setImportAccess(Boolean(d?.has_access))
+      })
+      .catch(() => {
+        if (!cancelled) setImportAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Warehouse costs
   const [allCosts, setAllCosts] = useState<ProductCost[]>([])
@@ -252,6 +276,56 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
     })
   }
 
+  // Apply AI auto-fill result: fills form fields, then asynchronously
+  // creates characteristics and downloads images (both attached to the
+  // existing draft on the backend). Errors per item are reported as toasts
+  // but don't abort the rest — partial success is better than zero.
+  const handleImported = async (data: ImportedProductData) => {
+    if (!draftId) {
+      toast({ variant: "destructive", title: "Нет черновика", description: "Подождите создания черновика и повторите импорт." })
+      return
+    }
+    setImporting(true)
+
+    if (data.name) setName(data.name)
+    if (data.description) setDescription(data.description)
+
+    const tasks: Promise<void>[] = []
+    let charsAdded = 0
+    let imagesAdded = 0
+    let imagesFailed = 0
+
+    if (data.characteristics.length > 0) {
+      tasks.push(
+        bulkAddCharacteristicsByKey(draftId, data.characteristics).then((res) => {
+          if (res.success) charsAdded = res.added
+        })
+      )
+    }
+
+    data.image_urls.forEach((url, idx) => {
+      tasks.push(
+        uploadProductImageFromUrl(draftId, url, idx).then((res) => {
+          if (res.success) imagesAdded += 1
+          else imagesFailed += 1
+        })
+      )
+    })
+
+    await Promise.all(tasks)
+
+    setImporting(false)
+
+    const parts: string[] = []
+    if (charsAdded > 0) parts.push(`${charsAdded} характ.`)
+    if (imagesAdded > 0) parts.push(`${imagesAdded} фото`)
+    if (imagesFailed > 0) parts.push(`${imagesFailed} фото не загрузилось`)
+    toast({
+      title: "Импорт завершён",
+      description: parts.length > 0 ? parts.join(" · ") : "Заполнены поля name/описания",
+    })
+  }
+
   const handleSave = () => {
     draftCreationRef.current = false
     if (!draftId) {
@@ -323,6 +397,23 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
           <h1 className="text-2xl font-bold">Создать новый товар</h1>
         </div>
         <div className="flex items-center gap-2">
+          {importAccess && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowImportDialog(true)}
+              disabled={isPending || importing || !draftId}
+              className="gap-2 border-brand-yellow/50 hover:bg-brand-yellow/10"
+              title="Заполнить карточку из URL через PosPro AI"
+            >
+              {importing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              PosPro AI помощник
+            </Button>
+          )}
           <Button variant="ghost" onClick={handleCancel} disabled={isPending}>
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Отмена
@@ -342,11 +433,11 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
               <CardTitle>Основная информация</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Название *</Label>
-                  <Input value={name} onChange={handleNameChange} required disabled={isPending} />
-                </div>
+              <div className="space-y-2">
+                <Label>Название *</Label>
+                <Input value={name} onChange={handleNameChange} required disabled={isPending} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>URL (slug)</Label>
                   <Input value={serverSlug} disabled placeholder="Генерируется" className="bg-gray-50" />
@@ -616,6 +707,14 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
       )}
 
       {/* Dialogs */}
+      {importAccess && (
+        <ProductImportFromUrlDialog
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
+          onImported={handleImported}
+        />
+      )}
+
       <ParentCategoryDialog
         open={showCategoryDialog}
         onOpenChange={setShowCategoryDialog}

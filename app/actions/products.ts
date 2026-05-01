@@ -699,6 +699,69 @@ export async function addCharacteristic(productId: number, characteristicId: num
   }
 }
 
+// Bulk-добавление характеристик по строковому ключу. Используется AI-импортом
+// товаров: для каждого {key, value, unit} backend сам ищет id в
+// CharacteristicsList или создаёт новую запись, потом цепляет к товару.
+export async function bulkAddCharacteristicsByKey(
+  productId: number,
+  items: Array<{ key: string; value: string; unit?: string }>,
+): Promise<{ success: boolean; added: number; error?: string }> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get("jwt-token")?.value
+    if (!token) return { success: false, added: 0, error: "Не авторизован" }
+
+    const response = await fetch(getApiUrl(`/characteristics/${productId}/bulk-by-key`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ items }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return { success: false, added: 0, error: errorData.error || `HTTP ${response.status}` }
+    }
+    const data = await response.json()
+    return { success: true, added: (data.added || []).length }
+  } catch (e: any) {
+    console.error("bulkAddCharacteristicsByKey error:", e)
+    return { success: false, added: 0, error: e?.message || "Ошибка добавления характеристик" }
+  }
+}
+
+// Загрузить картинку товара по URL (бекенд её скачает и сохранит в ProductMedia)
+export async function uploadProductImageFromUrl(
+  productId: number,
+  url: string,
+  order?: number,
+): Promise<{ success: boolean; mediaUrl?: string; error?: string }> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get("jwt-token")?.value
+    if (!token) return { success: false, error: "Не авторизован" }
+
+    const response = await fetch(getApiUrl("/upload/upload_product_from_url"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ product_id: productId, url, order }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      return { success: false, error: data.error || `HTTP ${response.status}` }
+    }
+    return { success: true, mediaUrl: data.url }
+  } catch (e: any) {
+    console.error("uploadProductImageFromUrl error:", e)
+    return { success: false, error: e?.message || "Ошибка загрузки картинки" }
+  }
+}
+
 // Удалить характеристику
 export async function deleteCharacteristic(productId: number, characteristicId: number): Promise<{ success: boolean; error?: string }> {
   try {
