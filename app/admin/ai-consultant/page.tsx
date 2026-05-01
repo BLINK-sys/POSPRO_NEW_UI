@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, Sparkles, Wand2, MessageSquare, ShieldCheck } from "lucide-react"
+import { Loader2, Sparkles, Wand2, MessageSquare, ShieldCheck, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -31,15 +31,38 @@ interface SettingsBody {
   updated_by_email?: string | null
 }
 
+// Stable JSON of the editable fields only — used both as the auto-save
+// PUT body AND as the snapshot for change detection (see savedSnapshotRef).
+// Audit fields are deliberately excluded so the server's audit echo
+// doesn't look like a "user-initiated change".
+function serializePayload(s: SettingsBody): string {
+  return JSON.stringify({
+    allow_guest: s.allow_guest,
+    allow_registered: s.allow_registered,
+    allow_wholesale: s.allow_wholesale,
+    allowed_system_user_ids: s.allowed_system_user_ids,
+    allowed_product_import_user_ids: s.allowed_product_import_user_ids,
+    allowed_settings_admin_user_ids: s.allowed_settings_admin_user_ids,
+  })
+}
+
 export default function AdminAIConsultantPage() {
   const { user } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
 
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<SettingsBody | null>(null)
   const [systemUsers, setSystemUsers] = useState<SystemUserOption[]>([])
+  // Auto-save state machine. `idle` shows hint text, `saving` shows
+  // spinner, `saved` shows green check for ~1.5s before reverting, `error`
+  // sticks until next change so the operator can see something went wrong.
+  type SaveState = "idle" | "saving" | "saved" | "error"
+  const [saveState, setSaveState] = useState<SaveState>("idle")
+  // Snapshot of the last successfully-saved payload (JSON) — lets us skip
+  // re-saving when the server just echoed back what we already had, which
+  // would otherwise infinite-loop the auto-save effect.
+  const savedSnapshotRef = useRef<string>("")
 
   // Access check: backend returns 403 for non-admins. If we get there,
   // redirect to /admin. Owner OR opted-in system users can stay.
@@ -75,6 +98,9 @@ export default function AdminAIConsultantPage() {
           allowed_settings_admin_user_ids:
             data.settings.allowed_settings_admin_user_ids ?? [],
         }
+        // Seed the snapshot with what we just loaded so the auto-save
+        // effect doesn't fire on initial render.
+        savedSnapshotRef.current = serializePayload(s)
         setSettings(s)
         setSystemUsers(data.system_users || [])
       })
@@ -112,47 +138,59 @@ export default function AdminAIConsultantPage() {
     updateField(listKey, Array.from(current).sort((a, b) => a - b))
   }
 
-  const handleSave = async () => {
+  // Auto-save with 600ms debounce. Fires whenever the editable parts of
+  // `settings` differ from the last successfully-saved snapshot. The
+  // snapshot guard prevents the effect from looping when the server
+  // echoes back what we just sent (audit fields like updated_at change
+  // but the payload doesn't).
+  useEffect(() => {
     if (!settings) return
-    setSaving(true)
-    try {
-      // Send all four lists — backend permits any settings-admin to
-      // change any of them (granted admins are equals to the owner per
-      // product spec).
-      const body = {
-        allow_guest: settings.allow_guest,
-        allow_registered: settings.allow_registered,
-        allow_wholesale: settings.allow_wholesale,
-        allowed_system_user_ids: settings.allowed_system_user_ids,
-        allowed_product_import_user_ids: settings.allowed_product_import_user_ids,
-        allowed_settings_admin_user_ids: settings.allowed_settings_admin_user_ids,
+    const payload = serializePayload(settings)
+    if (payload === savedSnapshotRef.current) return
+
+    setSaveState("saving")
+    const timer = window.setTimeout(async () => {
+      try {
+        const resp = await fetch("/api/ai-consultant/admin-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        })
+        const data = await resp.json()
+        if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`)
+        savedSnapshotRef.current = payload
+        // Pull fresh audit info from the server (updated_at /
+        // updated_by_email) without overwriting the editable fields,
+        // which would re-trigger this effect via reference change.
+        setSettings((prev) =>
+          prev
+            ? {
+                ...prev,
+                updated_at: data.settings.updated_at,
+                updated_by_email: data.settings.updated_by_email,
+              }
+            : prev,
+        )
+        // Re-snapshot after audit-field merge so the next change can
+        // correctly compare against the new state.
+        savedSnapshotRef.current = payload
+        setSaveState("saved")
+        window.setTimeout(() => {
+          setSaveState((s) => (s === "saved" ? "idle" : s))
+        }, 1500)
+      } catch (e: any) {
+        console.error("Auto-save settings:", e)
+        setSaveState("error")
+        toast({
+          title: "Не удалось сохранить",
+          description: e?.message || "Попробуйте ещё раз",
+          variant: "destructive",
+        })
       }
-      const resp = await fetch("/api/ai-consultant/admin-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`)
-      setSettings({
-        ...data.settings,
-        allowed_product_import_user_ids:
-          data.settings.allowed_product_import_user_ids ?? [],
-        allowed_settings_admin_user_ids:
-          data.settings.allowed_settings_admin_user_ids ?? [],
-      })
-      toast({ title: "Настройки сохранены" })
-    } catch (e: any) {
-      console.error("Save AI consultant settings:", e)
-      toast({
-        title: "Не удалось сохранить",
-        description: e?.message || "Попробуйте ещё раз",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
+    }, 600)
+
+    return () => window.clearTimeout(timer)
+  }, [settings, toast])
 
   if (loading) {
     return (
@@ -185,16 +223,29 @@ export default function AdminAIConsultantPage() {
       </div>
 
       <Tabs defaultValue="consultant">
-        <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="consultant" className="gap-2 whitespace-normal text-left">
+        {/* Custom tab styling — shadcn defaults blend the inactive tabs
+            into the gray TabsList background, making it unclear they're
+            buttons. We give every trigger a white card with shadow, and
+            the active one becomes brand-yellow + stronger shadow + ring. */}
+        <TabsList className="h-auto flex-wrap gap-2 bg-transparent p-0">
+          <TabsTrigger
+            value="consultant"
+            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+          >
             <MessageSquare className="h-4 w-4 flex-shrink-0" />
             AI Консультант — на клиентской части для подбора товара
           </TabsTrigger>
-          <TabsTrigger value="import" className="gap-2 whitespace-normal text-left">
+          <TabsTrigger
+            value="import"
+            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+          >
             <Wand2 className="h-4 w-4 flex-shrink-0" />
             PosPro AI — помощник импорта товаров
           </TabsTrigger>
-          <TabsTrigger value="access" className="gap-2 whitespace-normal text-left">
+          <TabsTrigger
+            value="access"
+            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+          >
             <ShieldCheck className="h-4 w-4 flex-shrink-0" />
             Доступ к настройкам (этот раздел)
           </TabsTrigger>
@@ -202,7 +253,7 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  AI Консультант  ───────────── */}
         <TabsContent value="consultant" className="space-y-6 mt-4">
-          <Card>
+          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
             <CardHeader>
               <CardTitle>Группы пользователей</CardTitle>
               <CardDescription>
@@ -264,7 +315,7 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  Импорт товаров  ───────────── */}
         <TabsContent value="import" className="space-y-6 mt-4">
-          <Card>
+          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
             <CardHeader>
               <CardTitle>PosPro AI — импорт товаров с сайтов-доноров</CardTitle>
               <CardDescription>
@@ -286,7 +337,7 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  Доступ к настройкам  ───────────── */}
         <TabsContent value="access" className="space-y-6 mt-4">
-          <Card>
+          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
             <CardHeader>
               <CardTitle>Доступ к разделу «AI настройки»</CardTitle>
               <CardDescription>
@@ -305,6 +356,9 @@ export default function AdminAIConsultantPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Audit info + auto-save status — no manual Save button. Each
+          change in any tab triggers a debounced PUT 600ms after the last
+          edit. Status indicator on the right reflects the request state. */}
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-gray-400">
           {settings.updated_at
@@ -313,14 +367,7 @@ export default function AdminAIConsultantPage() {
               }`
             : "Ещё не сохранялось"}
         </p>
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-brand-yellow hover:bg-yellow-500 text-black gap-2"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить
-        </Button>
+        <SaveStatusIndicator state={saveState} />
       </div>
     </div>
   )
@@ -345,7 +392,7 @@ function SystemUsersCard({
     (u) => u.email.toLowerCase() !== OWNER_EMAIL,
   )
   return (
-    <Card>
+    <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -382,5 +429,45 @@ function SystemUsersCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+// Visual indicator for the auto-save state. Replaces what used to be a
+// manual "Сохранить" button. Renders a small chip on the right of the
+// audit footer.
+function SaveStatusIndicator({
+  state,
+}: {
+  state: "idle" | "saving" | "saved" | "error"
+}) {
+  if (state === "idle") {
+    return (
+      <span className="text-xs text-gray-400">
+        Изменения сохраняются автоматически
+      </span>
+    )
+  }
+  if (state === "saving") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Сохраняем…
+      </span>
+    )
+  }
+  if (state === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+        <Check className="h-3.5 w-3.5" />
+        Сохранено
+      </span>
+    )
+  }
+  // error
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2.5 py-1">
+      <AlertCircle className="h-3.5 w-3.5" />
+      Не удалось сохранить
+    </span>
   )
 }
