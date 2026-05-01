@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Store, Tags, FileText, LogOut, Truck, BookOpen, HardDrive, Sparkles } from "lucide-react"
@@ -24,10 +25,24 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
     return user.access[key] === true
   }
 
-  // AI Консультант — отдельный гейт для владельца. Проверка на email
-  // (не на access-флаг), потому что это не обычная пермишн а право на
-  // глобальную фичу. Backend дублирует проверку.
-  const isOwner = (user?.email || "").toLowerCase() === "bocan.anton@mail.ru"
+  // AI Консультант (раздел настроек) — гейт через API. Backend решает
+  // на основе owner-email + opted-in списка системных пользователей.
+  // Re-проверяется при смене user (login/logout).
+  const [aiSettingsAccess, setAiSettingsAccess] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/ai-consultant/settings-admin-access", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setAiSettingsAccess(Boolean(d?.has_access))
+      })
+      .catch(() => {
+        if (!cancelled) setAiSettingsAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.email])
 
   const navItems = [
     { href: "/", icon: Store, label: "Страница магазина" },
@@ -188,7 +203,7 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
                 Настройки
               </Link>
             )}
-            {isOwner && (
+            {aiSettingsAccess && (
               <Link
                 href="/admin/ai-consultant"
                 className={cn(
@@ -197,7 +212,7 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
                 )}
               >
                 <Sparkles className="h-4 w-4" />
-                AI Консультант
+                AI настройки
               </Link>
             )}
             <Link
