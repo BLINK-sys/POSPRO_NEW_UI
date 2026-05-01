@@ -74,29 +74,30 @@ function SortableMediaItem({
   return (
     <div ref={setNodeRef} style={style} className="group">
       <div
-        className={`relative aspect-square cursor-pointer border-2 rounded-lg overflow-hidden ${
+        className={`relative aspect-square cursor-pointer border-2 rounded-lg overflow-hidden bg-white ${
           isSelected ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300"
         }`}
         onClick={() => onSelect(media)}
       >
         <div className="absolute top-1 left-1 z-10" {...attributes} {...listeners}>
-          <Button variant="ghost" size="icon" className="cursor-grab bg-black/30 hover:bg-black/50 text-white h-8 w-8">
-            <GripVertical className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="cursor-grab bg-black/30 hover:bg-black/50 text-white h-7 w-7">
+            <GripVertical className="h-4 w-4" />
           </Button>
         </div>
 
         {media.media_type === "image" ? (
           <div className="w-full h-full relative">
-            <Image
+            {/* object-contain so the entire image fits the card without
+                cropping. Cards are square — landscape/portrait product
+                photos used to get cut off when we used object-cover. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={getMediaUrl(media.url) || "/placeholder.svg"}
               alt="Product media"
-              width={200}
-              height={200}
-              className="w-full h-full object-cover"
-              unoptimized
+              className="w-full h-full object-contain p-1"
             />
-            <div className="absolute bottom-2 right-2">
-              <ImageIcon className="h-5 w-5 text-white bg-black/50 rounded p-1" />
+            <div className="absolute bottom-1 right-1">
+              <ImageIcon className="h-4 w-4 text-white bg-black/50 rounded p-0.5" />
             </div>
           </div>
         ) : (
@@ -118,8 +119,8 @@ function SortableMediaItem({
         )}
       </div>
 
-      {/* Action buttons below the card */}
-      <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+      {/* Action buttons below the card — compact icon-only on hover */}
+      <div className="mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
         {media.media_type === "image" && (
           <Button
             variant="outline"
@@ -128,10 +129,10 @@ function SortableMediaItem({
               e.stopPropagation()
               onCrop(media)
             }}
-            className="flex-1"
+            className="flex-1 h-7 px-2"
             title="Обрезать изображение под квадрат каталога"
           >
-            <CropIcon className="h-4 w-4" />
+            <CropIcon className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button
@@ -141,10 +142,10 @@ function SortableMediaItem({
             e.stopPropagation()
             onDelete(media.id)
           }}
-          className="flex-1"
+          className="flex-1 h-7 px-2"
+          title="Удалить"
         >
-          <Trash2 className="h-4 w-4 mr-1" />
-          Удалить
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>
@@ -167,35 +168,34 @@ function MediaViewer({ media }: { media: Media | null }) {
   const youtubeEmbedUrl = isYouTube ? getYouTubeEmbedUrl(media.url) : null
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden p-4 min-h-0">
         {media.media_type === "image" ? (
-          <Image
+          // Use a plain <img> here — Next/Image with fixed width/height doesn't
+          // play well with `object-contain` inside a flex container that needs
+          // to bound the image to the available area. We want true contain.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={getMediaUrl(media.url) || "/placeholder.svg"}
             alt="Preview"
-            width={800}
-            height={600}
-            className="max-w-full max-h-full object-contain"
-            unoptimized
+            className="max-w-full max-h-full object-contain w-auto h-auto"
           />
         ) : isYouTube && youtubeEmbedUrl ? (
           <iframe
             src={youtubeEmbedUrl}
-            width="100%"
-            height="100%"
-            style={{ minHeight: "400px" }}
+            className="w-full h-full"
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             title="YouTube video"
           />
         ) : (
-          <video src={getMediaUrl(media.url)} controls className="max-w-full max-h-full" style={{ maxHeight: "70vh" }}>
+          <video src={getMediaUrl(media.url)} controls className="max-w-full max-h-full">
             Ваш браузер не поддерживает воспроизведение видео.
           </video>
         )}
       </div>
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+      <div className="mt-3 p-3 bg-gray-50 rounded-lg flex-shrink-0">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="font-medium text-gray-600">Тип:</span>
@@ -422,9 +422,9 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-[98vw] max-h-[98vh] w-[98vw] h-[98vh] p-0">
-        <div className="flex flex-1 gap-4 p-4 overflow-hidden h-full">
-          {/* Левая панель - управление медиафайлами */}
-          <div className="flex-1 flex flex-col min-w-0 h-full">
+        <div className="flex gap-4 p-4 overflow-hidden h-full">
+          {/* Левая панель — управление + список медиа (55%) */}
+          <div className="w-[55%] flex flex-col min-w-0 h-full">
             {/* Панель добавления медиафайлов */}
             <Card className="flex-shrink-0 mb-4">
               <CardHeader className="pb-3">
@@ -533,7 +533,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                 ) : media.length > 0 ? (
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={media.map((m) => m.id)} strategy={rectSortingStrategy}>
-                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                         {media.map((m) => (
                           <SortableMediaItem
                             key={m.id}
@@ -558,13 +558,13 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
             </Card>
           </div>
 
-          {/* Правая панель - просмотр (увеличенная) */}
-          <div className="w-2/3 min-w-0 h-full">
+          {/* Правая панель — просмотр выбранного медиа (45%) */}
+          <div className="w-[45%] min-w-0 h-full">
             <Card className="h-full flex flex-col">
               <CardHeader className="pb-3 flex-shrink-0">
                 <CardTitle className="text-lg">Просмотр</CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 p-4 min-h-0">
+              <CardContent className="flex-1 p-4 min-h-0 overflow-hidden">
                 <MediaViewer media={selectedMedia} />
               </CardContent>
             </Card>
