@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { type Product, updateProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
 import { type Warehouse, getWarehouses } from "@/app/actions/warehouses"
-import { type ProductCost, getProductCosts, createProductCost, deleteProductCost } from "@/app/actions/product-costs"
+import { type ProductCost, getProductCosts, createProductCost, updateProductCost, deleteProductCost } from "@/app/actions/product-costs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -121,6 +121,8 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
   const [isLoadingCosts, setIsLoadingCosts] = useState(false)
   const [addingWarehouseId, setAddingWarehouseId] = useState("")
   const [addingCostPrice, setAddingCostPrice] = useState("")
+  const [addingQuantity, setAddingQuantity] = useState("")
+  const quantityDebouncesRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
   // Load all costs on mount
   useEffect(() => {
@@ -157,11 +159,13 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
         product_id: product.id,
         warehouse_id: Number(addingWarehouseId),
         cost_price: Number(addingCostPrice),
+        quantity: Math.max(0, Number(addingQuantity) || 0),
       })
       if (result.success && result.data) {
         setAllCosts([...allCosts, result.data])
         setAddingWarehouseId("")
         setAddingCostPrice("")
+        setAddingQuantity("")
         toast({ title: "Себестоимость добавлена" })
         // Refresh product price (backend auto-applies min price)
         await _refreshProductPrice()
@@ -182,6 +186,25 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
         toast({ variant: "destructive", title: "Ошибка", description: result.error })
       }
     })
+  }
+
+  // Inline-редактирование остатка с дебаунсом 500мс. Локальный state
+  // обновляем сразу (плавный UX), а PUT отправляем после паузы ввода.
+  const handleQuantityChange = (costId: number, raw: string) => {
+    const value = Math.max(0, parseInt(raw || "0", 10) || 0)
+    setAllCosts((prev) => prev.map((c) => (c.id === costId ? { ...c, quantity: value } : c)))
+
+    if (quantityDebouncesRef.current[costId]) {
+      clearTimeout(quantityDebouncesRef.current[costId])
+    }
+    quantityDebouncesRef.current[costId] = setTimeout(async () => {
+      const result = await updateProductCost(costId, { quantity: value })
+      if (!result.success) {
+        toast({ variant: "destructive", title: "Не удалось сохранить остаток", description: result.error })
+      } else {
+        await _refreshProductPrice()
+      }
+    }, 500)
   }
 
   const _refreshProductPrice = async () => {
@@ -591,6 +614,17 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                                   <div className="text-xs text-gray-500">{wh?.city && `${wh.city} · `}{wh?.currency?.code || ""}</div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <Label className="text-[10px] text-gray-500 uppercase tracking-wide">Остаток</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      value={cost.quantity ?? 0}
+                                      onChange={(e) => handleQuantityChange(cost.id, e.target.value)}
+                                      className="h-8 w-20 text-sm text-right font-mono"
+                                    />
+                                  </div>
                                   <div className="text-right">
                                     <div className="font-mono text-sm">{cost.cost_price.toLocaleString("ru-RU")} {wh?.currency?.code || ""}</div>
                                     {cost.calculated_price ? (
@@ -625,6 +659,10 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                           <Label className="text-xs">Себестоимость</Label>
                           <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
                         </div>
+                        <div className="w-[90px] space-y-1">
+                          <Label className="text-xs">Остаток</Label>
+                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                        </div>
                         <Button size="sm" onClick={handleAddWarehouseCost} disabled={isPending || !addingWarehouseId || !addingCostPrice}>
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -652,6 +690,16 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                             <span className="font-medium">{wh?.name || `#${cost.warehouse_id}`}</span>
                           </div>
                           <div className="flex items-center gap-3 text-right">
+                            <span
+                              className={`font-mono text-xs px-1.5 py-0.5 rounded ${
+                                (cost.quantity ?? 0) > 0
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-gray-200 text-gray-500"
+                              }`}
+                              title="Остаток на складе"
+                            >
+                              {cost.quantity ?? 0}
+                            </span>
                             <span className="font-mono text-xs text-gray-500">{cost.cost_price.toLocaleString("ru-RU")} {wh?.currency?.code || ""}</span>
                             {cost.calculated_price ? (
                               <span className="font-mono text-xs font-semibold text-green-600">→ {cost.calculated_price.toLocaleString("ru-RU")} тг</span>

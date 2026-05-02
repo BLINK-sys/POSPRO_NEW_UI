@@ -16,6 +16,7 @@ export interface ProductCost {
   supplier_name?: string | null
   currency_code?: string | null
   cost_price: number
+  quantity: number
   calculated_price: number | null
   calculated_delivery: number | null
   calculated_at: string | null
@@ -89,6 +90,7 @@ export async function createProductCost(data: {
   product_id: number
   warehouse_id: number
   cost_price: number
+  quantity?: number
 }): Promise<ProductCostActionResponse> {
   try {
     const token = await getToken()
@@ -112,7 +114,7 @@ export async function createProductCost(data: {
 
 export async function updateProductCost(
   id: number,
-  data: { cost_price: number }
+  data: { cost_price?: number; quantity?: number }
 ): Promise<ProductCostActionResponse> {
   try {
     const token = await getToken()
@@ -153,7 +155,7 @@ export async function deleteProductCost(id: number): Promise<ProductCostActionRe
 
 export async function bulkCreateCosts(data: {
   warehouse_id: number
-  items: { product_id: number; cost_price: number }[]
+  items: { product_id: number; cost_price: number; quantity?: number }[]
 }): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
     const token = await getToken()

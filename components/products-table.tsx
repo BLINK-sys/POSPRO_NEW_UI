@@ -30,11 +30,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
 import { ParentCategoryDialog } from "./parent-category-dialog"
+import { ProductStocksDialog } from "./product-stocks-dialog"
+import { BrandSelectDialog } from "./brand-select-dialog"
 
 interface ProductsTableProps {
   initialData: PaginatedProducts
@@ -69,7 +71,7 @@ export function ProductsTable({
       return null
     }
   })()
-  const urlHasAnyFilter = ["q", "cat", "status", "brand", "supplier", "vis", "qty", "page", "pp"]
+  const urlHasAnyFilter = ["q", "cat", "status", "brand", "supplier", "vis", "qty", "price", "page", "pp"]
     .some((k) => searchParams.get(k))
   const pickInitial = (urlKey: string, storeKey: string, fallback: string): string => {
     const fromUrl = searchParams.get(urlKey)
@@ -85,6 +87,7 @@ export function ProductsTable({
   const initialSupplier = pickInitial("supplier", "supplier", "all")
   const initialVisibility = pickInitial("vis", "vis", "all")
   const initialQuantity = pickInitial("qty", "qty", "all")
+  const initialPrice = pickInitial("price", "price", "all")
   const initialPageFromUrl = Number(pickInitial("page", "page", "0")) || 0
   const initialPerPageFromUrl = Number(pickInitial("pp", "pp", "0")) || 0
 
@@ -106,7 +109,10 @@ export function ProductsTable({
   const [supplierFilter, setSupplierFilter] = useState(initialSupplier)
   const [visibilityFilter, setVisibilityFilter] = useState(initialVisibility)
   const [quantityFilter, setQuantityFilter] = useState(initialQuantity)
+  const [priceFilter, setPriceFilter] = useState(initialPrice)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
+  const [isBrandDialogOpen, setIsBrandDialogOpen] = useState(false)
+  const [stocksProduct, setStocksProduct] = useState<{ id: number; name: string } | null>(null)
 
   // Пагинация
   const [customItemsPerPage, setCustomItemsPerPage] = useState("")
@@ -158,6 +164,24 @@ export function ProductsTable({
     return Number.isNaN(numericId) ? -1 : numericId
   }, [categoryFilter])
 
+  const brandFilterLabel = useMemo(() => {
+    if (brandFilter === "all") return "Все бренды"
+    if (brandFilter === "no-brand") return "Без бренда"
+    const numericId = Number(brandFilter)
+    if (Number.isNaN(numericId)) return "Бренд"
+    return brands.find((b) => b.id === numericId)?.name ?? "Бренд"
+  }, [brandFilter, brands])
+
+  const selectedBrandIdForDialog = useMemo<number | null>(() => {
+    if (brandFilter === "all" || brandFilter === "no-brand") return null
+    const numericId = Number(brandFilter)
+    return Number.isNaN(numericId) ? null : numericId
+  }, [brandFilter])
+
+  const handleBrandDialogSelect = (selectedId: number | null) => {
+    setBrandFilter(selectedId === null ? "no-brand" : String(selectedId))
+  }
+
   const handleCategoryDialogSelect = (selectedId: number | null) => {
     if (selectedId === -1) {
       setCategoryFilter("all")
@@ -170,6 +194,27 @@ export function ProductsTable({
 
   const handleCategoryFilterReset = () => {
     setCategoryFilter("all")
+  }
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    categoryFilter !== "all" ||
+    statusFilter !== "all" ||
+    brandFilter !== "all" ||
+    supplierFilter !== "all" ||
+    visibilityFilter !== "all" ||
+    quantityFilter !== "all" ||
+    priceFilter !== "all"
+
+  const handleResetAllFilters = () => {
+    setSearchQuery("")
+    setCategoryFilter("all")
+    setStatusFilter("all")
+    setBrandFilter("all")
+    setSupplierFilter("all")
+    setVisibilityFilter("all")
+    setQuantityFilter("all")
+    setPriceFilter("all")
   }
 
   // Проверяем обновленный товар из sessionStorage при загрузке компонента
@@ -217,6 +262,9 @@ export function ProductsTable({
         if (quantityFilter !== "all") {
           params.set("quantity", quantityFilter)
         }
+        if (priceFilter !== "all") {
+          params.set("price", priceFilter)
+        }
 
         const response = await fetch(`/api/admin/products?${params.toString()}`, {
           method: "GET",
@@ -262,6 +310,7 @@ export function ProductsTable({
       supplierFilter,
       visibilityFilter,
       quantityFilter,
+      priceFilter,
       itemsPerPage,
       toast,
     ]
@@ -298,6 +347,7 @@ export function ProductsTable({
     if (supplierFilter !== "all") sp.set("supplier", supplierFilter)
     if (visibilityFilter !== "all") sp.set("vis", visibilityFilter)
     if (quantityFilter !== "all") sp.set("qty", quantityFilter)
+    if (priceFilter !== "all") sp.set("price", priceFilter)
     if (currentPage > 1) sp.set("page", String(currentPage))
     if (itemsPerPage !== 25) sp.set("pp", String(itemsPerPage))
     const qs = sp.toString()
@@ -312,6 +362,7 @@ export function ProductsTable({
       if (supplierFilter !== "all") snapshot.supplier = supplierFilter
       if (visibilityFilter !== "all") snapshot.vis = visibilityFilter
       if (quantityFilter !== "all") snapshot.qty = quantityFilter
+      if (priceFilter !== "all") snapshot.price = priceFilter
       if (currentPage > 1) snapshot.page = String(currentPage)
       if (itemsPerPage !== 25) snapshot.pp = String(itemsPerPage)
       if (Object.keys(snapshot).length > 0) {
@@ -320,7 +371,7 @@ export function ProductsTable({
         sessionStorage.removeItem(STORAGE_KEY)
       }
     } catch {/* ignore quota / private mode */}
-  }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, currentPage, itemsPerPage, pathname, router])
+  }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, priceFilter, currentPage, itemsPerPage, pathname, router])
 
   const getImageUrl = (url: string | null) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
@@ -424,20 +475,14 @@ export function ProductsTable({
         </SelectContent>
       </Select>
 
-      <Select value={brandFilter} onValueChange={setBrandFilter}>
-        <SelectTrigger>
-          <SelectValue placeholder="Бренд" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все бренды</SelectItem>
-          <SelectItem value="no-brand">Без бренда</SelectItem>
-          {brands.map((brand) => (
-            <SelectItem key={brand.id} value={String(brand.id)}>
-              {brand.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Button
+        variant="outline"
+        className="w-full justify-between font-normal"
+        onClick={() => setIsBrandDialogOpen(true)}
+      >
+        <span className="truncate text-left">{brandFilterLabel}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+      </Button>
 
       <Select value={supplierFilter} onValueChange={setSupplierFilter}>
         <SelectTrigger>
@@ -475,6 +520,29 @@ export function ProductsTable({
           <SelectItem value="false">Нет в наличии</SelectItem>
         </SelectContent>
       </Select>
+
+      <Select value={priceFilter} onValueChange={setPriceFilter}>
+        <SelectTrigger>
+          <SelectValue placeholder="Цена" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Все цены</SelectItem>
+          <SelectItem value="gt0">Больше 0</SelectItem>
+          <SelectItem value="eq0">Только 0</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {hasActiveFilters && (
+        <Button
+          variant="outline"
+          onClick={handleResetAllFilters}
+          className="text-muted-foreground"
+          title="Сбросить все фильтры"
+        >
+          <X className="mr-2 h-4 w-4" />
+          Сбросить фильтры
+        </Button>
+      )}
     </div>
   )
 
@@ -547,20 +615,14 @@ export function ProductsTable({
                   </SelectContent>
                 </Select>
 
-                <Select value={brandFilter} onValueChange={setBrandFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Бренд" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все бренды</SelectItem>
-                    <SelectItem value="no-brand">Без бренда</SelectItem>
-                    {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={String(brand.id)}>
-                        {brand.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                  onClick={() => setIsBrandDialogOpen(true)}
+                >
+                  <span className="truncate text-left">{brandFilterLabel}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                </Button>
 
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                   <SelectTrigger className="w-full">
@@ -598,6 +660,28 @@ export function ProductsTable({
                     <SelectItem value="false">Нет в наличии</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Select value={priceFilter} onValueChange={setPriceFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Цена" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все цены</SelectItem>
+                    <SelectItem value="gt0">Больше 0</SelectItem>
+                    <SelectItem value="eq0">Только 0</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    onClick={handleResetAllFilters}
+                    className="w-full text-muted-foreground"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Сбросить фильтры
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -682,7 +766,16 @@ export function ProductsTable({
                           </TableCell>
                           <TableCell className="font-medium">{product.name}</TableCell>
                           <TableCell>{product.price.toLocaleString("ru-RU")} ₸</TableCell>
-                          <TableCell>{product.quantity}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-3 text-xs"
+                              onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                            >
+                              Остатки на складах
+                            </Button>
+                          </TableCell>
                           <TableCell>
                             {status ? (
                               <span
@@ -954,7 +1047,16 @@ export function ProductsTable({
                         </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.price.toLocaleString("ru-RU")} ₸</TableCell>
-                        <TableCell>{product.quantity}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 text-xs"
+                            onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                          >
+                            Остатки на складах
+                          </Button>
+                        </TableCell>
                         <TableCell>
                           {status ? (
                             <span
@@ -1143,6 +1245,15 @@ export function ProductsTable({
         title="Выберите категорию"
       />
 
+      <BrandSelectDialog
+        open={isBrandDialogOpen}
+        onOpenChange={setIsBrandDialogOpen}
+        brands={brands}
+        selectedBrandId={selectedBrandIdForDialog}
+        onSelect={handleBrandDialogSelect}
+        title="Выберите бренд"
+      />
+
       {isCreating && (
         <ProductEditDialog
           categories={categories}
@@ -1159,6 +1270,13 @@ export function ProductsTable({
         onConfirm={handleDelete}
         title={`Удалить товар "${deletingProduct?.name}"?`}
         description="Это действие нельзя будет отменить."
+      />
+
+      <ProductStocksDialog
+        open={!!stocksProduct}
+        onOpenChange={(open) => !open && setStocksProduct(null)}
+        productId={stocksProduct?.id ?? null}
+        productName={stocksProduct?.name ?? ""}
       />
     </div>
   )
