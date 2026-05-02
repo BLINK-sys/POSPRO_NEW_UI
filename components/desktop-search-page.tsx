@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Search, X, Loader2, ChevronUp, RotateCcw } from "lucide-react"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -670,7 +671,7 @@ export default function DesktopSearchPage() {
                                   <span className="font-medium">Товар:</span> {product.name}
                                 </div>
                                 <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+                                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
                                 </div>
                                 {wholesaleUser && (
                                   <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
@@ -693,12 +694,15 @@ export default function DesktopSearchPage() {
                                     <span>{product.quantity} шт.</span>
                                   )}
                                 </div>
-                                {/* Поставщик (только для админов) */}
-                                {isSystemUser && product.supplier_name && (
-                                  <div className="text-xs text-gray-500 truncate">
-                                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
-                                  </div>
-                                )}
+                                {/* Поставщики (только для админов) */}
+                                {isSystemUser && (() => {
+                                  const txt = getSuppliersText(product as any)
+                                  return txt ? (
+                                    <div className="text-xs text-gray-500 truncate">
+                                      <span className="font-medium">Поставщик:</span> {txt}
+                                    </div>
+                                  ) : null
+                                })()}
                                 <div onClick={(e) => e.preventDefault()}>
                                   <AddToCartButton
                                     productId={product.id}

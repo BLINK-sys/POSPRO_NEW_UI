@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, LayoutGrid, Loader2 } from "lucide-react"
 import { getImageUrl } from "@/lib/image-utils"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { getIcon } from "@/lib/icon-mapping"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
@@ -299,7 +300,7 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
               {product.name}
             </p>
             <p className={`text-[11px] font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
             </p>
             {wholesaleUser && (
               <p className={`text-[11px] font-bold ${getWholesalePriceClass()}`}>
@@ -324,12 +325,15 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
             </div>
           </div>
 
-          {/* Поставщик (только для админов) */}
-          {isSystemUser && product.supplier_name && (
-            <p className="text-[10px] text-gray-500 truncate">
-              <span className="font-medium">Поставщик:</span> {product.supplier_name}
-            </p>
-          )}
+          {/* Поставщики (только для админов) */}
+          {isSystemUser && (() => {
+            const txt = getSuppliersText(product as any)
+            return txt ? (
+              <p className="text-[10px] text-gray-500 truncate">
+                <span className="font-medium">Поставщик:</span> {txt}
+              </p>
+            ) : null
+          })()}
 
           <div className="mt-1.5">
             <AddToCartButton

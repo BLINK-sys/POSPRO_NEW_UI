@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { X, ExternalLink } from "lucide-react"
 import { getProductBySlug, Product } from "@/app/actions/products"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/actions/public"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
@@ -171,7 +172,7 @@ export function QuickViewModal({ slug, open, onOpenChange }: QuickViewModalProps
                 {/* Цена */}
                 <div className="space-y-1 mb-3">
                   <div className={`text-xl font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                    {formatProductPrice(product.price)}
+                    {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
                   </div>
                   {wholesaleUser && (
                     <div className={`text-lg font-bold ${getWholesalePriceClass()}`}>
@@ -189,12 +190,15 @@ export function QuickViewModal({ slug, open, onOpenChange }: QuickViewModalProps
                   )}
                 </div>
 
-                {/* Поставщик (только для админов) */}
-                {isSystemUser && (product.supplier?.name || (product as any).supplier_name) && (
-                  <p className="text-sm text-gray-500 mb-3">
-                    Поставщик: {product.supplier?.name || (product as any).supplier_name}
-                  </p>
-                )}
+                {/* Поставщики (только для админов) */}
+                {isSystemUser && (() => {
+                  const txt = getSuppliersText(product as any)
+                  return txt ? (
+                    <p className="text-sm text-gray-500 mb-3">
+                      Поставщик: {txt}
+                    </p>
+                  ) : null
+                })()}
 
                 <Separator className="mb-3" />
 

@@ -29,6 +29,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/actions/public"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
@@ -61,6 +62,7 @@ interface ProductDetail {
   supplier_id?: number | null
   supplier?: { id: number; name: string } | null
   supplier_name?: string | null
+  suppliers?: { id: number; name: string }[]
   availability_status?: ProductAvailabilityStatus
   characteristics: Array<{
     id: number
@@ -538,11 +540,14 @@ export default function ProductPage() {
               </div>
             )}
             
-            {(user?.role === "admin" || user?.role === "system") && (product.supplier?.name || product.supplier_name) && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Поставщик:</span> {product.supplier?.name || product.supplier_name}
-              </div>
-            )}
+            {(user?.role === "admin" || user?.role === "system") && (() => {
+              const txt = getSuppliersText(product as any)
+              return txt ? (
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Поставщик:</span> {txt}
+                </div>
+              ) : null
+            })()}
 
             {(product.country || product.brand_info?.country) && (
               <div className="text-sm text-gray-600">
@@ -577,7 +582,7 @@ export default function ProductPage() {
             <div className="text-sm">
               <span className="font-medium">Цена:</span>{" "}
               <span className={retailPriceColor}>
-                {formatProductPrice(product.price)}
+                {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, user?.role === "admin" || user?.role === "system")}
               </span>
             </div>
 

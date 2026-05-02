@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getImageUrl } from "@/lib/image-utils"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass } from "@/lib/utils"
+import { getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { useAuth } from "@/context/auth-context"
@@ -23,6 +24,8 @@ interface MobileProductCardProps {
     availability_status?: { status_name: string; background_color: string; text_color: string } | null
     quantity?: number
     supplier_name?: string | null
+    suppliers?: { id: number; name: string }[]
+    winning_warehouse?: { id: number; name: string; city?: string | null } | null
   }
   wholesaleUser?: boolean
   showFavorite?: boolean
@@ -83,9 +86,10 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
               {product.name}
             </p>
 
-            {/* Цена */}
+            {/* Цена. Для admin/system после цены показываем склад с минимальной
+                ценой и остатком (откуда сейчас «продаётся» товар). */}
             <p className={`text-[11px] font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product, isSystemUser)}
             </p>
 
             {/* Оптовая цена */}
@@ -113,12 +117,19 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
               ) : null}
             </div>
 
-            {/* Поставщик (только для админов) */}
-            {isSystemUser && product.supplier_name && (
-              <p className="text-[10px] text-gray-500 truncate">
-                <span className="font-medium">Поставщик:</span> {product.supplier_name}
-              </p>
-            )}
+            {/* Поставщики (только для админов). Показываем все, через запятую —
+                товар может физически числиться у нескольких (BIO + Equip). */}
+            {isSystemUser && (() => {
+              const names = (product.suppliers && product.suppliers.length > 0)
+                ? product.suppliers.map((s) => s.name).filter(Boolean)
+                : (product.supplier_name ? [product.supplier_name] : [])
+              if (names.length === 0) return null
+              return (
+                <p className="text-[10px] text-gray-500 truncate">
+                  <span className="font-medium">Поставщик:</span> {names.join(", ")}
+                </p>
+              )
+            })()}
 
             {/* Кнопка В корзину */}
             <div className="pt-1" onClick={(e) => e.preventDefault()}>

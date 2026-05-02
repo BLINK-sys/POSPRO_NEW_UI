@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
 import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { getIcon } from "@/lib/icon-mapping"
 import { useAuth } from "@/context/auth-context"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
@@ -828,7 +829,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                 </div>
                 
                 <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
+                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
                 </div>
 
                 {wholesaleUser && (
@@ -856,12 +857,15 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                   )}
                 </div>
                 
-                {/* Поставщик (только для админов) */}
-                {isSystemUser && product.supplier_name && (
-                  <div className="text-xs text-gray-500 truncate">
-                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
-                  </div>
-                )}
+                {/* Поставщики (только для админов) */}
+                {isSystemUser && (() => {
+                  const txt = getSuppliersText(product as any)
+                  return txt ? (
+                    <div className="text-xs text-gray-500 truncate">
+                      <span className="font-medium">Поставщик:</span> {txt}
+                    </div>
+                  ) : null
+                })()}
 
                 {/* Кнопка "Добавить в корзину" */}
                 <AddToCartButton

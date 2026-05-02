@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getProductBySlug } from "@/app/actions/products"
 import { getImageUrl } from "@/lib/image-utils"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { formatProductPrice, formatPhone, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
@@ -340,12 +341,15 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
           </Link>
         )}
 
-        {/* Поставщик (только для admin/system) */}
-        {(user?.role === "admin" || user?.role === "system") && (product.supplier?.name || product.supplier_name) && (
-          <div className="text-sm text-gray-500">
-            <span className="font-medium text-gray-700">Поставщик:</span> {product.supplier?.name || product.supplier_name}
-          </div>
-        )}
+        {/* Поставщики (только для admin/system) */}
+        {(user?.role === "admin" || user?.role === "system") && (() => {
+          const txt = getSuppliersText(product as any)
+          return txt ? (
+            <div className="text-sm text-gray-500">
+              <span className="font-medium text-gray-700">Поставщик:</span> {txt}
+            </div>
+          ) : null
+        })()}
 
         {/* Наличие */}
         {product.availability_status && (
@@ -365,7 +369,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
         {/* Цены */}
         <div className="space-y-1">
           <div className={`text-xl font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-            {formatProductPrice(product.price)}
+            {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, user?.role === "admin" || user?.role === "system")}
           </div>
           {wholesaleUser && (
             <div className={`text-base font-bold ${getWholesalePriceClass()}`}>
@@ -572,7 +576,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
       <div className="fixed bottom-16 left-0 right-0 z-40 bg-white dark:bg-gray-950 border-t border-gray-200 px-4 py-3 flex items-center gap-3">
         <div className="flex-1">
           <div className={`text-lg font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-            {formatProductPrice(product.price)}
+            {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, user?.role === "admin" || user?.role === "system")}
           </div>
         </div>
         <AddToCartButton

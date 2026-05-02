@@ -31,6 +31,9 @@ export interface Product {
   brand_info?: BrandInfo | null
   supplier_id?: number | null
   supplier?: SupplierInfo | null
+  supplier_name?: string | null
+  suppliers?: SupplierInfo[]
+  winning_warehouse?: { id: number; name: string; city?: string | null } | null
   description?: string
   status?: string
   is_draft: boolean

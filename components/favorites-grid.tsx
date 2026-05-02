@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { getImageUrl } from "@/lib/image-utils"
+import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { useAuth } from "@/context/auth-context"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { QuickViewButton } from "@/components/quick-view-modal"
@@ -135,7 +136,7 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
 
                       <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
                         <span className="font-medium">Цена:</span>{" "}
-                        {formatProductPrice(favorite.product.price)}
+                        {formatProductPrice(favorite.product.price)}{getWinningWarehouseSuffix(favorite.product as any, isSystemUser)}
                       </div>
 
                       {wholesaleUser && (
@@ -164,12 +165,15 @@ export function FavoritesGrid({ favorites, onFavoriteRemoved }: FavoritesGridPro
                         )}
                       </div>
 
-                      {/* Поставщик (только для админов) */}
-                      {isSystemUser && (favorite.product as any).supplier_name && (
-                        <div className="text-xs text-gray-500 truncate">
-                          <span className="font-medium">Поставщик:</span> {(favorite.product as any).supplier_name}
-                        </div>
-                      )}
+                      {/* Поставщики (только для админов) */}
+                      {isSystemUser && (() => {
+                        const txt = getSuppliersText(favorite.product as any)
+                        return txt ? (
+                          <div className="text-xs text-gray-500 truncate">
+                            <span className="font-medium">Поставщик:</span> {txt}
+                          </div>
+                        ) : null
+                      })()}
 
                       <AddToCartButton
                         productId={favorite.product.id}

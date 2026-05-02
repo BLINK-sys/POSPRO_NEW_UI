@@ -8,6 +8,7 @@ import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
 import { API_BASE_URL } from "@/lib/api-address"
+import { getSupplierNames } from "@/lib/product-helpers"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import AdminLoading from "@/components/admin-loading"
@@ -739,7 +740,7 @@ export function ProductsTable({
                     <TableHead>Название</TableHead>
                     <TableHead>Цена</TableHead>
                     <TableHead>Кол-во</TableHead>
-                    <TableHead>Статус</TableHead>
+                    <TableHead>Поставщики</TableHead>
                     <TableHead>Видимость</TableHead>
                     <TableHead>Бренд</TableHead>
                     <TableHead className="w-[100px]">На сайте</TableHead>
@@ -765,7 +766,12 @@ export function ProductsTable({
                             />
                           </TableCell>
                           <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell>{product.price.toLocaleString("ru-RU")} ₸</TableCell>
+                          <TableCell>
+                            {product.price.toLocaleString("ru-RU")} ₸
+                            {product.winning_warehouse?.name && (
+                              <span className="text-xs text-gray-500 ml-1">({product.winning_warehouse.name})</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="outline"
@@ -777,21 +783,19 @@ export function ProductsTable({
                             </Button>
                           </TableCell>
                           <TableCell>
-                            {status ? (
-                              <span
-                                className="px-2 py-1 rounded-full text-xs font-semibold"
-                                style={{
-                                  backgroundColor: status.background_color,
-                                  color: status.text_color,
-                                }}
-                              >
-                                {status.name}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">
-                                Без статуса
-                              </span>
-                            )}
+                            {(() => {
+                              const names = getSupplierNames(product as any)
+                              if (names.length === 0) {
+                                return <span className="text-xs text-gray-400">—</span>
+                              }
+                              return (
+                                <div className="flex flex-col gap-0.5">
+                                  {names.map((n) => (
+                                    <span key={n} className="text-xs text-gray-700">{n}</span>
+                                  ))}
+                                </div>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
                           <TableCell>
