@@ -29,6 +29,17 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Pencil, Trash2, Plus, RefreshCw } from "lucide-react"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
+import { Card, CardContent } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface CurrenciesManagementProps {
   initialCurrencies: Currency[]
@@ -136,60 +147,76 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={handleRefreshRate} disabled={refreshing || isPending} className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={handleRefreshRate}
+          disabled={refreshing || isPending}
+          className={cn("flex items-center gap-2", SECONDARY_BTN)}
+        >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           Обновить курсы
         </Button>
-        <Button onClick={openCreate} className="flex items-center gap-2">
+        <Button onClick={openCreate} className={cn("flex items-center gap-2", PRIMARY_BTN)}>
           <Plus className="h-4 w-4" />
           Добавить валюту
         </Button>
       </div>
 
       {currencies.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Название</TableHead>
-              <TableHead>Код</TableHead>
-              <TableHead className="text-right">Курс к тенге</TableHead>
-              <TableHead className="text-right w-[100px]">Действия</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currencies.map((currency) => (
-              <TableRow key={currency.id}>
-                <TableCell className="font-medium">{currency.name}</TableCell>
-                <TableCell>{currency.code}</TableCell>
-                <TableCell className="text-right">
-                  {currency.rate_to_tenge.toLocaleString("ru-RU")}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(currency)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeletingCurrency(currency)}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </TableCell>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50 hover:bg-gray-50 border-b border-gray-200">
+                <TableHead className="text-gray-700 font-medium">Название</TableHead>
+                <TableHead className="text-gray-700 font-medium">Код</TableHead>
+                <TableHead className="text-right text-gray-700 font-medium">Курс к тенге</TableHead>
+                <TableHead className="text-right w-[100px] text-gray-700 font-medium">Действия</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className="text-center text-gray-500 py-8">
-          Нет валют. Добавьте первую валюту для работы со складами.
+            </TableHeader>
+            <TableBody>
+              {currencies.map((currency) => (
+                <TableRow
+                  key={currency.id}
+                  className="border-b border-gray-100 last:border-0 hover:bg-yellow-50/40 transition-colors"
+                >
+                  <TableCell className="font-medium text-gray-900">{currency.name}</TableCell>
+                  <TableCell className="text-gray-700">{currency.code}</TableCell>
+                  <TableCell className="text-right text-gray-700">
+                    {currency.rate_to_tenge.toLocaleString("ru-RU")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(currency)}
+                        className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
+                        title="Редактировать"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeletingCurrency(currency)}
+                        className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
+                        title="Удалить"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
+      ) : (
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
+          <CardContent className="text-center text-gray-500 py-12">
+            Нет валют. Добавьте первую валюту для работы со складами.
+          </CardContent>
+        </Card>
       )}
 
       {/* Create/Edit Dialog */}
@@ -213,6 +240,7 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Китайский юань"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -223,6 +251,7 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
                 placeholder="CNY"
                 maxLength={10}
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -234,6 +263,7 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
                 onChange={(e) => setFormData({ ...formData, rate_to_tenge: parseFloat(e.target.value) || 0 })}
                 placeholder="68.5"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
           </div>
@@ -242,10 +272,11 @@ export function CurrenciesManagement({ initialCurrencies }: CurrenciesManagement
               variant="outline"
               onClick={() => { setIsCreating(false); setEditingCurrency(null) }}
               disabled={isPending}
+              className={SECONDARY_BTN}
             >
               Отмена
             </Button>
-            <Button onClick={handleSave} disabled={isPending}>
+            <Button onClick={handleSave} disabled={isPending} className={PRIMARY_BTN}>
               {isPending ? "Сохранение..." : editingCurrency ? "Сохранить" : "Создать"}
             </Button>
           </DialogFooter>

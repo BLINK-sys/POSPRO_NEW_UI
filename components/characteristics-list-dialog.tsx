@@ -9,13 +9,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Loader2, Plus, Edit, Trash2, Save, X, Search } from "lucide-react"
-import { 
-  getCharacteristicsList, 
-  createCharacteristic, 
-  updateCharacteristic, 
+import {
+  getCharacteristicsList,
+  createCharacteristic,
+  updateCharacteristic,
   deleteCharacteristic,
-  type CharacteristicsListItem 
+  type CharacteristicsListItem
 } from "@/app/actions/characteristics-list"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface CharacteristicsListDialogProps {
   open: boolean
@@ -278,13 +290,13 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск по наименованию..."
-                className="pl-9 focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                style={{ outline: 'none', boxShadow: 'none' }}
+                className={cn("pl-9", SOFT_CONTROL)}
               />
             </div>
             <Button
               onClick={() => setIsCreating(true)}
               disabled={isCreating || editingId !== null}
+              className={PRIMARY_BTN}
             >
               <Plus className="mr-2 h-4 w-4" />
               Добавить характеристику
@@ -293,7 +305,7 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
 
           {/* Форма создания */}
           {isCreating && (
-            <div className="border rounded-lg p-4 bg-gray-50">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="characteristic_key">Ключ характеристики *</Label>
@@ -302,8 +314,7 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                     value={formData.characteristic_key}
                     onChange={(e) => setFormData(prev => ({ ...prev, characteristic_key: e.target.value }))}
                     placeholder="Например: ВЕС"
-                    className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                    style={{ outline: 'none', boxShadow: 'none' }}
+                    className={SOFT_CONTROL}
                   />
                 </div>
                 <div>
@@ -313,20 +324,20 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                     value={formData.unit_of_measurement}
                     onChange={(e) => setFormData(prev => ({ ...prev, unit_of_measurement: e.target.value }))}
                     placeholder="Например: кг"
-                    className="focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                    style={{ outline: 'none', boxShadow: 'none' }}
+                    className={SOFT_CONTROL}
                   />
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
-                <Button 
+                <Button
                   onClick={handleCreate}
                   disabled={loading}
+                  className={PRIMARY_BTN}
                 >
                   <Save className="mr-2 h-4 w-4" />
                   Создать
                 </Button>
-                <Button variant="outline" onClick={cancelEdit}>
+                <Button variant="outline" onClick={cancelEdit} className={SECONDARY_BTN}>
                   <X className="mr-2 h-4 w-4" />
                   Отмена
                 </Button>
@@ -345,9 +356,12 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                 {searchQuery ? `Ничего не найдено по запросу "${searchQuery}"` : 'Справочник характеристик пуст'}
               </div>
             ) : (
-              <div className="grid grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredCharacteristics.map((characteristic) => (
-                  <div key={characteristic.id} className="border rounded-md px-3 py-2 bg-white shadow-sm">
+                  <div
+                    key={characteristic.id}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                  >
                     <div className="space-y-1">
                       {/* Ключ характеристики */}
                       {editingId === characteristic.id ? (
@@ -356,8 +370,7 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                           onChange={(e) => setFormData(prev => ({ ...prev, characteristic_key: e.target.value }))}
                           placeholder="Например: ВЕС"
                           autoFocus
-                          className="h-7 text-xs focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                          style={{ outline: 'none', boxShadow: 'none' }}
+                          className={cn("h-7 text-xs", SOFT_CONTROL)}
                         />
                       ) : (
                         <div className="text-sm font-semibold truncate" title={characteristic.characteristic_key}>
@@ -371,8 +384,7 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                           value={formData.unit_of_measurement}
                           onChange={(e) => setFormData(prev => ({ ...prev, unit_of_measurement: e.target.value }))}
                           placeholder="Например: кг"
-                          className="h-7 text-xs focus:outline-none focus:shadow-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300"
-                          style={{ outline: 'none', boxShadow: 'none' }}
+                          className={cn("h-7 text-xs", SOFT_CONTROL)}
                         />
                       ) : (
                         <div className="text-xs text-gray-500">
@@ -384,19 +396,19 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
                       <div className="flex gap-1 justify-end">
                         {editingId === characteristic.id ? (
                           <>
-                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleUpdate(characteristic.id)} disabled={loading}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-green-600 hover:bg-green-50" onClick={() => handleUpdate(characteristic.id)} disabled={loading}>
                               <Save className="h-3 w-3" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={cancelEdit}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-gray-500 hover:bg-gray-100" onClick={cancelEdit}>
                               <X className="h-3 w-3" />
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => startEdit(characteristic)} disabled={editingId !== null || isCreating}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-blue-600 hover:bg-blue-50" onClick={() => startEdit(characteristic)} disabled={editingId !== null || isCreating}>
                               <Edit className="h-3 w-3" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-6 w-6 text-red-600 hover:text-red-700" onClick={() => openDeleteDialog(characteristic)} disabled={editingId !== null || isCreating}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-red-600 hover:bg-red-50" onClick={() => openDeleteDialog(characteristic)} disabled={editingId !== null || isCreating}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </>
@@ -411,7 +423,7 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className={SECONDARY_BTN}>
             Закрыть
           </Button>
         </DialogFooter>
@@ -428,10 +440,10 @@ export function CharacteristicsListDialog({ open, onOpenChange }: Characteristic
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
             >
               Удалить
             </AlertDialogAction>

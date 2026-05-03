@@ -387,7 +387,13 @@ export function CategoryEditDialog({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Название</Label>
-              <Input id="name" value={name} onChange={handleNameChange} required />
+              <Input
+                id="name"
+                value={name}
+                onChange={handleNameChange}
+                required
+                className="focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="slug">URL (slug)</Label>
@@ -399,6 +405,7 @@ export function CategoryEditDialog({
                   setIsSlugManuallyEdited(true)
                 }}
                 required
+                className="focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
               />
             </div>
             <div className="space-y-2">
@@ -406,7 +413,7 @@ export function CategoryEditDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full justify-between"
+                className="w-full justify-between rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
                 onClick={() => setShowParentDialog(true)}
               >
                 <span className="truncate">{getSelectedParentName()}</span>
@@ -415,7 +422,12 @@ export function CategoryEditDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Описание</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={5}
+                className="focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+              />
             </div>
             <div className="flex items-center justify-between space-x-2">
               <Label htmlFor="show_in_menu" className="flex-1">Отображать в меню</Label>
@@ -455,7 +467,7 @@ export function CategoryEditDialog({
                     onChange={handleImageUrlChange}
                     onBlur={handleImageUrlBlur}
                     disabled={urlCropBusy}
-                    className="flex-1"
+                    className="flex-1 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
                   />
                   <Button
                     type="button"
@@ -463,6 +475,7 @@ export function CategoryEditDialog({
                     onClick={handleCropFromUrl}
                     disabled={urlCropBusy || !imageUrl.trim()}
                     title="Загрузить картинку с URL и открыть обрезку"
+                    className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
                   >
                     <CropIcon className="h-4 w-4 mr-2" />
                     {urlCropBusy ? "Загрузка..." : "Обрезать"}
@@ -473,7 +486,13 @@ export function CategoryEditDialog({
             {imageSource === "upload" && (
               <div className="space-y-2">
                 <Label htmlFor="file">Файл</Label>
-                <Input id="file" type="file" accept="image/*" onChange={handleFileChange} />
+                <Input
+                  id="file"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+                />
                 <p className="text-[11px] text-gray-500">
                   После выбора откроется окно обрезки 1:1. Карточка категории квадратная — кадр будет показан на сайте именно так.
                 </p>
@@ -496,7 +515,13 @@ export function CategoryEditDialog({
                   />
                 </div>
                 {selectedFile && (
-                  <Button type="button" variant="outline" size="sm" onClick={reopenCropperForCurrentFile}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={reopenCropperForCurrentFile}
+                    className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                  >
                     <CropIcon className="h-4 w-4 mr-2" />
                     Обрезать заново
                   </Button>
@@ -514,7 +539,11 @@ export function CategoryEditDialog({
           <Button type="button" variant="ghost" onClick={onClose}>
             Отмена
           </Button>
-          <Button onClick={handleSubmit} disabled={isPending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isPending}
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             {isPending ? "Сохранение..." : "Сохранить"}
           </Button>
         </DialogFooter>

@@ -39,6 +39,17 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+
 export interface ImportedProductData {
   name: string
   description: string
@@ -468,7 +479,7 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     if (e.key === "Enter" && stage === "input") handleFetch()
                   }}
                   disabled={stage === "loading" || isPreview}
-                  className="pl-9 h-10"
+                  className={cn("pl-9 h-10", SOFT_CONTROL)}
                   autoFocus={stage === "input"}
                 />
               </div>
@@ -486,13 +497,14 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     variant="outline"
                     onClick={() => handleClose(false)}
                     disabled={stage === "loading"}
+                    className={SECONDARY_BTN}
                   >
                     Отмена
                   </Button>
                   <Button
                     onClick={handleFetch}
                     disabled={stage === "loading" || !url.trim()}
-                    className="bg-brand-yellow hover:bg-yellow-500 text-black gap-2"
+                    className={cn(PRIMARY_BTN, "gap-2")}
                   >
                     {stage === "loading" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -555,7 +567,7 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     disabled={isAnimating && animPhase === "name"}
-                    className="mt-1.5"
+                    className={cn("mt-1.5", SOFT_CONTROL)}
                   />
                 </div>
 
@@ -567,7 +579,7 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     disabled={isAnimating && (animPhase === "name" || animPhase === "description")}
-                    className="mt-1.5 resize-none overflow-hidden min-h-[80px]"
+                    className={cn("mt-1.5 resize-none overflow-hidden min-h-[80px]", SOFT_CONTROL)}
                   />
                 </div>
 
@@ -608,20 +620,20 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                           value={c.key}
                           disabled
                           placeholder="Ключ"
-                          className="h-8 text-xs flex-1 min-w-0 bg-gray-50 disabled:opacity-100 disabled:cursor-default"
+                          className={cn("h-8 text-xs flex-1 min-w-0 bg-gray-50 disabled:opacity-100 disabled:cursor-default", FOCUS_NO_RING)}
                         />
                         <Input
                           value={c.value}
                           onChange={(e) => updateChar(i, { value: e.target.value })}
                           placeholder="Значение"
-                          className="h-8 text-xs flex-1 min-w-0"
+                          className={cn("h-8 text-xs flex-1 min-w-0", SOFT_CONTROL)}
                         />
                         <Input
                           value={c.unit}
                           disabled
                           placeholder="Ед."
                           style={{ width: `calc(${maxUnitLen}ch + 1.5rem)` }}
-                          className="h-8 text-xs flex-shrink-0 bg-gray-50 disabled:opacity-100 disabled:cursor-default"
+                          className={cn("h-8 text-xs flex-shrink-0 bg-gray-50 disabled:opacity-100 disabled:cursor-default", FOCUS_NO_RING)}
                         />
                       </div>
                     ))}
@@ -683,13 +695,14 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     variant="outline"
                     onClick={() => handleClose(false)}
                     disabled={applying}
+                    className={SECONDARY_BTN}
                   >
                     Отмена
                   </Button>
                   <Button
                     onClick={handleApply}
                     disabled={applying || isAnimating || !name.trim()}
-                    className="bg-brand-yellow hover:bg-yellow-500 text-black gap-2"
+                    className={cn(PRIMARY_BTN, "gap-2")}
                   >
                     {applying ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

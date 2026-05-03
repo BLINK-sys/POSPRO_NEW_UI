@@ -223,28 +223,26 @@ export default function AdminAIConsultantPage() {
       </div>
 
       <Tabs defaultValue="consultant">
-        {/* Custom tab styling — shadcn defaults blend the inactive tabs
-            into the gray TabsList background, making it unclear they're
-            buttons. We give every trigger a white card with shadow, and
-            the active one becomes brand-yellow + stronger shadow + ring. */}
-        <TabsList className="h-auto flex-wrap gap-2 bg-transparent p-0">
+        {/* Pill-стиль табов в духе остальных разделов админки. Обтекаемые
+            названия с иконками, активный таб — brand-yellow с тенью. */}
+        <TabsList className="h-auto flex-wrap gap-1 rounded-lg bg-gray-100 p-1">
           <TabsTrigger
             value="consultant"
-            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
           >
             <MessageSquare className="h-4 w-4 flex-shrink-0" />
             AI Консультант — на клиентской части для подбора товара
           </TabsTrigger>
           <TabsTrigger
             value="import"
-            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
           >
             <Wand2 className="h-4 w-4 flex-shrink-0" />
             PosPro AI — помощник импорта товаров
           </TabsTrigger>
           <TabsTrigger
             value="access"
-            className="gap-2 whitespace-normal text-left bg-white border border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] hover:border-gray-300 data-[state=active]:bg-brand-yellow data-[state=active]:border-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_8px_24px_rgba(0,0,0,0.18)] data-[state=active]:ring-2 data-[state=active]:ring-brand-yellow/30 px-4 py-2.5 transition-shadow"
+            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
           >
             <ShieldCheck className="h-4 w-4 flex-shrink-0" />
             Доступ к настройкам (этот раздел)
@@ -253,17 +251,17 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  AI Консультант  ───────────── */}
         <TabsContent value="consultant" className="space-y-6 mt-4">
-          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
+          <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>Группы пользователей</CardTitle>
               <CardDescription>
                 Включите доступ к странице <strong>PosPro AI Chat</strong> для нужных категорий пользователей.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4 py-2 border-b">
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between gap-4 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 <div>
-                  <Label className="font-medium">Гость</Label>
+                  <Label className="font-medium cursor-pointer text-sm">Гость</Label>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Любой пользователь без авторизации
                   </p>
@@ -274,9 +272,9 @@ export default function AdminAIConsultantPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-4 py-2 border-b">
+              <div className="flex items-center justify-between gap-4 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 <div>
-                  <Label className="font-medium">Зарегистрированный пользователь</Label>
+                  <Label className="font-medium cursor-pointer text-sm">Зарегистрированный пользователь</Label>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Все клиенты с обычным аккаунтом (не оптовики)
                   </p>
@@ -287,9 +285,9 @@ export default function AdminAIConsultantPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-4 py-2">
+              <div className="flex items-center justify-between gap-4 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 <div>
-                  <Label className="font-medium">
+                  <Label className="font-medium cursor-pointer text-sm">
                     Зарегистрированный пользователь оптовик
                   </Label>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -315,7 +313,7 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  Импорт товаров  ───────────── */}
         <TabsContent value="import" className="space-y-6 mt-4">
-          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
+          <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>PosPro AI — импорт товаров с сайтов-доноров</CardTitle>
               <CardDescription>
@@ -337,7 +335,7 @@ export default function AdminAIConsultantPage() {
 
         {/* ─────────────  Доступ к настройкам  ───────────── */}
         <TabsContent value="access" className="space-y-6 mt-4">
-          <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
+          <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>Доступ к разделу «AI настройки»</CardTitle>
               <CardDescription>
@@ -392,7 +390,7 @@ function SystemUsersCard({
     (u) => u.email.toLowerCase() !== OWNER_EMAIL,
   )
   return (
-    <Card className="shadow-[0_4px_12px_rgba(0,0,0,0.10)]">
+    <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -401,19 +399,23 @@ function SystemUsersCard({
         {visibleUsers.length === 0 ? (
           <p className="text-sm text-gray-500 py-2">Нет системных пользователей</p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {visibleUsers.map((u) => {
               const checked = allowedIds.includes(u.id)
               return (
                 <label
                   key={u.id}
-                  className="flex items-center justify-between gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-all bg-white ${
+                    checked
+                      ? "border-brand-yellow shadow-[0_2px_6px_rgba(250,204,21,0.20)]"
+                      : "border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)]"
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Checkbox
                       checked={checked}
                       onCheckedChange={() => onToggle(u.id)}
-                      className="data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
+                      className="data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow data-[state=checked]:text-black"
                     />
                     <div className="min-w-0">
                       <div className="text-sm font-medium truncate">

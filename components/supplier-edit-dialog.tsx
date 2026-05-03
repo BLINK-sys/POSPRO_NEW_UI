@@ -15,6 +15,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "./ui/use-toast"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface SupplierEditDialogProps {
   supplier?: Supplier | null
@@ -100,6 +110,7 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
               placeholder="ООО Поставщик"
               required
               disabled={isPending}
+              className={SOFT_CONTROL}
             />
           </div>
 
@@ -112,6 +123,7 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
                 onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
                 placeholder="Иванов И.И."
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
 
@@ -123,6 +135,7 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+7 (999) 123-45-67"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
           </div>
@@ -136,6 +149,7 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="supplier@example.com"
               disabled={isPending}
+              className={SOFT_CONTROL}
             />
           </div>
 
@@ -148,6 +162,7 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
               placeholder="г. Москва, ул. Примерная, д. 1"
               rows={2}
               disabled={isPending}
+              className={SOFT_CONTROL}
             />
           </div>
 
@@ -160,14 +175,15 @@ export function SupplierEditDialog({ supplier, onClose, onSaved }: SupplierEditD
               placeholder="Дополнительная информация о поставщике"
               rows={3}
               disabled={isPending}
+              className={SOFT_CONTROL}
             />
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isPending} className={SECONDARY_BTN}>
               Отмена
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} className={PRIMARY_BTN}>
               {isPending ? "Сохранение..." : supplier ? "Сохранить" : "Создать"}
             </Button>
           </DialogFooter>

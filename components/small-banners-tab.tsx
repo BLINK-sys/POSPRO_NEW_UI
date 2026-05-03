@@ -103,6 +103,7 @@ export default function SmallBannersTab() {
             setEditingBanner(null)
             setIsEditDialogOpen(true)
           }}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
         >
           <Plus className="h-4 w-4 mr-2" />
           Добавить карточку
@@ -113,7 +114,7 @@ export default function SmallBannersTab() {
         {banners.map((banner) => (
           <Card
             key={banner.id}
-            className="relative group overflow-hidden hover:shadow-lg transition-shadow w-full"
+            className="relative group overflow-hidden rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all w-full"
             style={{ 
               backgroundColor: banner.background_image_url ? 'transparent' : banner.card_bg_color,
               backgroundImage: banner.background_image_url ? `url(${getImageUrl(banner.background_image_url)})` : 'none',
@@ -168,24 +169,24 @@ export default function SmallBannersTab() {
             </CardContent>
             <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
-                variant="outline"
                 size="icon"
-                className="h-8 w-8 bg-white/80"
+                className="h-8 w-8 rounded-full bg-white text-blue-600 hover:bg-blue-50 shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
                 onClick={() => {
                   setEditingBanner(banner)
                   setIsEditDialogOpen(true)
                 }}
+                title="Редактировать"
               >
                 <Edit className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
                 size="icon"
-                className="h-8 w-8 bg-white/80"
+                className="h-8 w-8 rounded-full bg-white text-red-500 hover:bg-red-50 shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
                 onClick={() => {
                   setDeletingBanner(banner)
                   setIsDeleteDialogOpen(true)
                 }}
+                title="Удалить"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -195,11 +196,11 @@ export default function SmallBannersTab() {
       </div>
 
       {banners.length === 0 && !isLoading && (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="text-center py-8">
             <p className="text-muted-foreground">Информационные карточки не найдены</p>
             <Button
-              className="mt-4"
+              className="mt-4 rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
               onClick={() => {
                 setEditingBanner(null)
                 setIsEditDialogOpen(true)

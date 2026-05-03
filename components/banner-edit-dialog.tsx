@@ -15,6 +15,16 @@ import { Upload, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Banner } from "@/app/actions/banners"
 import { ImageCropperDialog } from "./image-cropper-dialog"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface BannerEditDialogProps {
   banner: Banner | null
@@ -286,16 +296,26 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
         </DialogHeader>
 
         <Tabs defaultValue="content" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="content">Контент</TabsTrigger>
-            <TabsTrigger value="button">Кнопка</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1">
+            <TabsTrigger
+              value="content"
+              className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              Контент
+            </TabsTrigger>
+            <TabsTrigger
+              value="button"
+              className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              Кнопка
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="content" className="space-y-6 mt-6">
             {/* Image Upload */}
             <div className="space-y-4">
               <Label>Изображение баннера</Label>
-              <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1 shadow-[0_1px_3px_rgba(59,130,246,0.10)]">
                 <p><strong>Рекомендуемый размер:</strong> 1920 × 600 px (соотношение 16:5).</p>
                 <p><strong>Минимум:</strong> 1280 × 400 px. Соотношение сторон — 3.2:1.</p>
                 <p>Изображение растягивается на всю ширину (~90% экрана) — несоблюдение пропорций приведёт к искажению.</p>
@@ -303,7 +323,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
               </div>
 
               {imagePreview ? (
-                <Card>
+                <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
                   <CardContent className="p-4">
                     {/* Preview with same aspect ratio as homepage banner (~16:5) */}
                     <div className="relative w-full aspect-[16/5] rounded-lg overflow-hidden">
@@ -316,10 +336,10 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                         }}
                       />
                       <Button
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white text-red-500 hover:bg-red-50 shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
                         onClick={handleRemoveImage}
+                        title="Удалить"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -327,7 +347,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                   </CardContent>
                 </Card>
               ) : (
-                <Card className="border-dashed">
+                <Card className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50">
                   <CardContent className="p-8">
                     <div className="text-center">
                       <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -340,7 +360,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                         accept="image/*"
                         onChange={handleImageUpload}
                         disabled={isUploading}
-                        className="mt-4"
+                        className={cn("mt-4", SOFT_CONTROL)}
                       />
                       {isUploading && (
                         <div className="flex items-center justify-center mt-2">
@@ -363,6 +383,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
                   placeholder="Введите заголовок баннера"
+                  className={SOFT_CONTROL}
                 />
               </div>
 
@@ -374,6 +395,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                   onChange={(e) => handleInputChange("subtitle", e.target.value)}
                   placeholder="Введите подзаголовок баннера"
                   rows={3}
+                  className={SOFT_CONTROL}
                 />
               </div>
             </div>
@@ -406,7 +428,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                       variant="outline"
                       size="sm"
                       onClick={handleSetStandardColors}
-                      className="text-xs"
+                      className={cn("text-xs", SECONDARY_BTN)}
                     >
                       Стандартный цвет
                     </Button>
@@ -420,6 +442,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                         value={formData.button_text}
                         onChange={(e) => handleInputChange("button_text", e.target.value)}
                         placeholder="Подробнее"
+                        className={SOFT_CONTROL}
                       />
                     </div>
                     <div>
@@ -429,6 +452,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                         value={formData.button_link}
                         onChange={(e) => handleInputChange("button_link", e.target.value)}
                         placeholder="/category/electronics"
+                        className={SOFT_CONTROL}
                       />
                     </div>
                   </div>
@@ -443,13 +467,13 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                             type="color"
                             value={formData.button_color}
                             onChange={(e) => handleInputChange("button_color", e.target.value)}
-                            className="w-16 h-10 p-1 border rounded"
+                            className={cn("w-16 h-10 p-1 cursor-pointer", SOFT_CONTROL)}
                           />
                           <Input
                             value={formData.button_color}
                             onChange={(e) => handleInputChange("button_color", e.target.value)}
                             placeholder="#000000"
-                            className="flex-1"
+                            className={cn("flex-1", SOFT_CONTROL)}
                           />
                         </div>
                       </div>
@@ -461,13 +485,13 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
                             type="color"
                             value={formData.button_text_color}
                             onChange={(e) => handleInputChange("button_text_color", e.target.value)}
-                            className="w-16 h-10 p-1 border rounded"
+                            className={cn("w-16 h-10 p-1 cursor-pointer", SOFT_CONTROL)}
                           />
                           <Input
                             value={formData.button_text_color}
                             onChange={(e) => handleInputChange("button_text_color", e.target.value)}
                             placeholder="#ffffff"
-                            className="flex-1"
+                            className={cn("flex-1", SOFT_CONTROL)}
                           />
                         </div>
                       </div>
@@ -475,7 +499,7 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
 
                     <div className="space-y-2">
                       <Label>Превью кнопки</Label>
-                      <Card className="p-6 bg-gray-50 h-full flex items-center justify-center">
+                      <Card className="p-6 bg-gray-50 h-full flex items-center justify-center rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                         <Button
                           size="lg"
                           style={{
@@ -509,10 +533,10 @@ export default function BannerEditDialog({ banner, open, onOpenChange, onSave, o
 
         {/* Actions */}
         <div className="flex justify-end space-x-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} className={SECONDARY_BTN}>
             Отмена
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving} className={PRIMARY_BTN}>
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

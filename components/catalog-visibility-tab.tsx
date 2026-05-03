@@ -95,7 +95,7 @@ export default function CatalogVisibilityTab() {
       </div>
 
       {CATALOG_ITEMS.map((item) => (
-        <Card key={item.key} className="border">
+        <Card key={item.key} className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
           <CardContent className="flex items-center justify-between p-5">
             <div className="space-y-1">
               <Label className="text-base font-medium cursor-pointer" htmlFor={`catalog-${item.key}`}>

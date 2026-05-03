@@ -113,21 +113,28 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" asChild>
+        <Button
+          variant="ghost"
+          asChild
+          className="rounded-full hover:bg-gray-100"
+        >
           <Link href="/admin/help">
             <ArrowLeft className="h-4 w-4 mr-2" />
             К списку
           </Link>
         </Button>
         {isAdmin && (
-          <Button onClick={() => setEditMode(true)}>
+          <Button
+            onClick={() => setEditMode(true)}
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             <Pencil className="h-4 w-4 mr-2" />
             Редактировать
           </Button>
         )}
       </div>
 
-      <Card>
+      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
         <CardContent className="p-6 space-y-4">
           <h1 className="text-2xl font-bold">{article.title}</h1>
 
@@ -142,7 +149,7 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -161,7 +168,11 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
                     if (file) handleUpload(file)
                   }}
                 />
-                <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+                >
                   {uploading ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -197,8 +208,13 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
             <AlertDialogDescription>Файл будет удалён с сервера безвозвратно.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteVideo} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVideo}
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
+            >
               Удалить
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -218,7 +234,7 @@ function VideoCard({
   onDelete: () => void
 }) {
   return (
-    <div className="relative rounded-lg overflow-hidden bg-black group">
+    <div className="relative rounded-xl overflow-hidden bg-black group border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
       <video
         controls
         preload="metadata"
@@ -227,10 +243,10 @@ function VideoCard({
       />
       {canDelete && (
         <Button
-          size="sm"
-          variant="destructive"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          size="icon"
+          className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_2px_6px_rgba(0,0,0,0.20)]"
           onClick={onDelete}
+          title="Удалить"
         >
           <Trash2 className="h-4 w-4" />
         </Button>

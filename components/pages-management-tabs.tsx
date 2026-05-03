@@ -10,12 +10,37 @@ import CatalogVisibilityTab from "./catalog-visibility-tab"
 export default function PagesManagementTabs() {
   return (
     <Tabs defaultValue="banners" className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
-        <TabsTrigger value="catalog-types">Типы каталогов</TabsTrigger>
-        <TabsTrigger value="banners">Баннеры</TabsTrigger>
-        <TabsTrigger value="main-blocks">Блоки на главной</TabsTrigger>
-        <TabsTrigger value="cards">Карточки</TabsTrigger>
-        <TabsTrigger value="footer-info">Инфо подвала</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-5 rounded-lg bg-gray-100 p-1">
+        <TabsTrigger
+          value="catalog-types"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Типы каталогов
+        </TabsTrigger>
+        <TabsTrigger
+          value="banners"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Баннеры
+        </TabsTrigger>
+        <TabsTrigger
+          value="main-blocks"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Блоки на главной
+        </TabsTrigger>
+        <TabsTrigger
+          value="cards"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Карточки
+        </TabsTrigger>
+        <TabsTrigger
+          value="footer-info"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Инфо подвала
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="catalog-types" className="mt-6">

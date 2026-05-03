@@ -405,8 +405,10 @@ export function CategoryTreeItem({
     >
       <div
         className={cn(
-          "flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-md border border-transparent hover:border-gray-200 dark:hover:border-gray-700 shadow-md",
-          isHighlighted && "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700"
+          "flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border transition-all duration-150",
+          isHighlighted
+            ? "bg-brand-yellow/15 border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.30)]"
+            : "border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_14px_rgba(0,0,0,0.10)] hover:-translate-y-[1px] hover:border-gray-300",
         )}
       >
         <Button

@@ -165,18 +165,24 @@ export default function BannersTab() {
             Управление главными баннерами на сайте. Перетаскивайте для изменения порядка.
           </p>
         </div>
-        <Button onClick={handleAddBanner}>
+        <Button
+          onClick={handleAddBanner}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Добавить баннер
         </Button>
       </div>
 
       {banners.length === 0 ? (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="py-8">
             <div className="text-center text-gray-500">
               <p>Баннеры не найдены</p>
-              <Button onClick={handleAddBanner} className="mt-4">
+              <Button
+                onClick={handleAddBanner}
+                className="mt-4 rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Добавить первый баннер
               </Button>

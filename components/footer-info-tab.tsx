@@ -10,6 +10,18 @@ import { Label } from "@/components/ui/label"
 import { Save, Edit, Instagram, MessageCircle, Phone, Mail, MapPin, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
 
 interface FooterSettings {
   description: string
@@ -107,16 +119,16 @@ export default function FooterInfoTab() {
         <div className="flex space-x-2">
           {isEditing ? (
             <>
-              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving} className={SECONDARY_BTN}>
                 Отменить
               </Button>
-              <Button onClick={saveFooterSettings} disabled={isSaving}>
+              <Button onClick={saveFooterSettings} disabled={isSaving} className={PRIMARY_BTN}>
                 <Save className="h-4 w-4 mr-2" />
                 {isSaving ? "Сохранение..." : "Сохранить"}
               </Button>
             </>
           ) : (
-            <Button onClick={() => setIsEditing(true)}>
+            <Button onClick={() => setIsEditing(true)} className={PRIMARY_BTN}>
               <Edit className="h-4 w-4 mr-2" />
               Редактировать
             </Button>
@@ -126,7 +138,7 @@ export default function FooterInfoTab() {
 
       <div className="grid gap-6">
         {/* Описание компании */}
-        <Card>
+        <Card className={CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg mr-3">
@@ -145,6 +157,7 @@ export default function FooterInfoTab() {
                   onChange={(e) => handleInputChange("description", e.target.value)}
                   placeholder="Введите описание компании"
                   rows={3}
+                  className={SOFT_CONTROL}
                 />
               </div>
             ) : (
@@ -154,7 +167,7 @@ export default function FooterInfoTab() {
         </Card>
 
         {/* Социальные сети */}
-        <Card>
+        <Card className={CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base flex items-center">
               <div className="p-2 bg-pink-100 rounded-lg mr-3">
@@ -173,6 +186,7 @@ export default function FooterInfoTab() {
                     value={settings.instagram_url}
                     onChange={(e) => handleInputChange("instagram_url", e.target.value)}
                     placeholder="https://instagram.com/company"
+                    className={SOFT_CONTROL}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">{settings.instagram_url || "Не указано"}</p>
@@ -187,6 +201,7 @@ export default function FooterInfoTab() {
                     value={settings.whatsapp_url}
                     onChange={(e) => handleInputChange("whatsapp_url", e.target.value)}
                     placeholder="https://wa.me/77771234567"
+                    className={SOFT_CONTROL}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">{settings.whatsapp_url || "Не указано"}</p>
@@ -201,6 +216,7 @@ export default function FooterInfoTab() {
                     value={settings.telegram_url}
                     onChange={(e) => handleInputChange("telegram_url", e.target.value)}
                     placeholder="https://t.me/company"
+                    className={SOFT_CONTROL}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">{settings.telegram_url || "Не указано"}</p>
@@ -211,7 +227,7 @@ export default function FooterInfoTab() {
         </Card>
 
         {/* Контактная информация */}
-        <Card>
+        <Card className={CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base flex items-center">
               <div className="p-2 bg-green-100 rounded-lg mr-3">
@@ -235,6 +251,7 @@ export default function FooterInfoTab() {
                       value={settings.address}
                       onChange={(e) => handleInputChange("address", e.target.value)}
                       placeholder="г. Алматы, ул. Примерная, 123"
+                      className={SOFT_CONTROL}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{settings.address || "Не указано"}</p>
@@ -252,6 +269,7 @@ export default function FooterInfoTab() {
                       value={settings.working_hours}
                       onChange={(e) => handleInputChange("working_hours", e.target.value)}
                       placeholder="Пн-Пт: 9:00-18:00, Сб: 10:00-16:00"
+                      className={SOFT_CONTROL}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{settings.working_hours || "Не указано"}</p>
@@ -272,6 +290,7 @@ export default function FooterInfoTab() {
                       value={settings.phone}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
                       placeholder="+7 (777) 123-45-67"
+                      className={SOFT_CONTROL}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{settings.phone || "Не указано"}</p>
@@ -290,6 +309,7 @@ export default function FooterInfoTab() {
                       value={settings.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
                       placeholder="info@company.com"
+                      className={SOFT_CONTROL}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{settings.email || "Не указано"}</p>

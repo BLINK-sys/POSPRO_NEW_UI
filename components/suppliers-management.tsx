@@ -17,6 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
 
 interface SuppliersManagementProps {
   initialSuppliers: Supplier[]
@@ -80,82 +88,85 @@ export function SuppliersManagement({ initialSuppliers }: SuppliersManagementPro
             placeholder="Поиск по названию, контакту, телефону, email..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10 pr-10"
+            className={cn("pl-10 pr-10 h-10", SOFT_CONTROL)}
           />
           {searchQuery && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               onClick={() => handleSearch("")}
+              aria-label="Очистить"
             >
               <X className="h-4 w-4" />
-            </Button>
+            </button>
           )}
         </div>
-        <Button onClick={() => setIsCreating(true)} disabled={isPending}>
+        <Button onClick={() => setIsCreating(true)} disabled={isPending} className={PRIMARY_BTN}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Добавить поставщика
         </Button>
       </div>
 
       {suppliers.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Список поставщиков ({suppliers.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Название</TableHead>
-                  <TableHead>Контактное лицо</TableHead>
-                  <TableHead>Телефон</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Адрес</TableHead>
-                  <TableHead className="text-right">Действия</TableHead>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/60">
+            <h4 className="font-medium">Список поставщиков ({suppliers.length})</h4>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50 hover:bg-gray-50 border-b border-gray-200">
+                <TableHead className="text-gray-700 font-medium">ID</TableHead>
+                <TableHead className="text-gray-700 font-medium">Название</TableHead>
+                <TableHead className="text-gray-700 font-medium">Контактное лицо</TableHead>
+                <TableHead className="text-gray-700 font-medium">Телефон</TableHead>
+                <TableHead className="text-gray-700 font-medium">Email</TableHead>
+                <TableHead className="text-gray-700 font-medium">Адрес</TableHead>
+                <TableHead className="text-right text-gray-700 font-medium">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {suppliers.map((supplier) => (
+                <TableRow
+                  key={supplier.id}
+                  className="border-b border-gray-100 last:border-0 hover:bg-yellow-50/40 transition-colors"
+                >
+                  <TableCell className="text-muted-foreground">{supplier.id}</TableCell>
+                  <TableCell className="font-medium text-gray-900">{supplier.name}</TableCell>
+                  <TableCell className="text-gray-700">{supplier.contact_person || "-"}</TableCell>
+                  <TableCell className="text-gray-700">{supplier.phone || "-"}</TableCell>
+                  <TableCell className="text-gray-700">{supplier.email || "-"}</TableCell>
+                  <TableCell className="max-w-xs truncate text-gray-700">{supplier.address || "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setEditingSupplier(supplier)}
+                        disabled={isPending}
+                        className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
+                        title="Редактировать"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDeletingSupplier(supplier)}
+                        disabled={isPending}
+                        className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
+                        title="Удалить"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {suppliers.map((supplier) => (
-                  <TableRow key={supplier.id}>
-                    <TableCell className="text-muted-foreground">{supplier.id}</TableCell>
-                    <TableCell className="font-medium">{supplier.name}</TableCell>
-                    <TableCell>{supplier.contact_person || "-"}</TableCell>
-                    <TableCell>{supplier.phone || "-"}</TableCell>
-                    <TableCell>{supplier.email || "-"}</TableCell>
-                    <TableCell className="max-w-xs truncate">{supplier.address || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingSupplier(supplier)}
-                          disabled={isPending}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Редактировать
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setDeletingSupplier(supplier)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Удалить
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <PlusCircle className="h-8 w-8 text-gray-400" />

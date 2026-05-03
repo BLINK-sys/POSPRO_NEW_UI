@@ -55,6 +55,15 @@ import { uploadFileDirect } from "@/lib/upload-direct"
 import { cn } from "@/lib/utils"
 import { Image as ImageIcon, X as XIcon } from "lucide-react"
 
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+
 function formatSize(bytes: number | null) {
   if (!bytes) return ""
   if (bytes < 1024) return `${bytes} B`
@@ -89,14 +98,14 @@ function SortableDriverCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "relative overflow-hidden flex flex-col",
+        "relative overflow-hidden flex flex-col rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all",
         !driver.is_active && "bg-gray-50 opacity-70",
       )}
     >
       {/* Drag handle */}
       {isAdmin && (
         <button
-          className="absolute top-2 left-2 z-10 cursor-grab active:cursor-grabbing touch-none rounded-md bg-white/80 backdrop-blur p-1 text-gray-400 hover:text-gray-700 shadow-sm"
+          className="absolute top-2 left-2 z-10 cursor-grab active:cursor-grabbing touch-none rounded-full bg-white/90 backdrop-blur p-1.5 text-gray-400 hover:text-gray-700 shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
           {...attributes}
           {...listeners}
           aria-label="Перетащить"
@@ -155,9 +164,9 @@ function SortableDriverCard({
           </div>
           <div className="flex items-center gap-0.5">
             <Button
-              size="sm"
+              size="icon"
               variant="ghost"
-              className="h-7 w-7 p-0"
+              className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50"
               onClick={() => window.open(`${API_BASE_URL}${driver.url}`, "_blank")}
               title="Скачать"
             >
@@ -166,18 +175,18 @@ function SortableDriverCard({
             {isAdmin && (
               <>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="ghost"
-                  className="h-7 w-7 p-0"
+                  className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50"
                   onClick={() => onEdit(driver)}
                   title="Редактировать"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="ghost"
-                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                  className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50"
                   onClick={() => onDelete(driver)}
                   title="Удалить"
                 >
@@ -309,7 +318,7 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={handleOpenCreate}>
+          <Button onClick={handleOpenCreate} className={PRIMARY_BTN}>
             <Plus className="h-4 w-4 mr-2" />
             Добавить драйвер
           </Button>
@@ -317,7 +326,7 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
       </div>
 
       {drivers.length === 0 ? (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="py-12 text-center text-gray-500">
             Драйверов пока нет{isAdmin && ". Добавьте первый через кнопку выше."}
           </CardContent>
@@ -360,7 +369,7 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
               {linkedProducts.length > 0 ? (
                 <>
                   Этот драйвер привязан к товарам: они автоматически отвяжутся при удалении.
-                  <div className="mt-2 max-h-40 overflow-auto border rounded p-2 text-xs text-left">
+                  <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-2 text-xs text-left shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                     {linkedProducts.map((p) => (
                       <div key={p.id}>
                         • {p.name} ({p.article})
@@ -374,8 +383,11 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
+            >
               Да, удалить
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -393,7 +405,7 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
             <AlertDialogDescription>
               Этот драйвер привязан к товарам — для них он перестанет отображаться на сайте,
               но останется привязан, пока вы не включите видимость обратно.
-              <div className="mt-2 max-h-40 overflow-auto border rounded p-2 text-xs text-left">
+              <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-2 text-xs text-left shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 {linkedProducts.map((p) => (
                   <div key={p.id}>
                     • {p.name} ({p.article})
@@ -403,8 +415,10 @@ export function DriversList({ initialDrivers }: { initialDrivers: Driver[] }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeactivateConfirm}>Да, отключить</AlertDialogAction>
+            <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeactivateConfirm} className={PRIMARY_BTN}>
+              Да, отключить
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -566,6 +580,7 @@ function DriverFormDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Например: Драйвер для сканера Zebra DS2208"
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -577,7 +592,7 @@ function DriverFormDialog({
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
               />
               <div className="flex items-center gap-2">
-                <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()}>
+                <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()} className={SECONDARY_BTN}>
                   <Upload className="h-4 w-4 mr-2" />
                   {file ? "Заменить файл" : "Выбрать файл"}
                 </Button>
@@ -591,9 +606,9 @@ function DriverFormDialog({
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+              <Label htmlFor="active" className="cursor-pointer">Активен</Label>
               <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
-              <Label htmlFor="active">Активен</Label>
             </div>
           </div>
 
@@ -602,8 +617,8 @@ function DriverFormDialog({
             <Label>Картинка для карточки</Label>
             <div
               className={cn(
-                "relative aspect-square rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center",
-                hasAnyImage && "border-solid border-gray-200",
+                "relative aspect-square rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center",
+                hasAnyImage && "border-solid border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]",
               )}
             >
               {previewSrc ? (
@@ -618,9 +633,8 @@ function DriverFormDialog({
                   />
                   <Button
                     type="button"
-                    variant="secondary"
                     size="icon"
-                    className="absolute top-2 right-2 h-8 w-8 shadow-md"
+                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white text-gray-600 hover:bg-gray-100 shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
                     onClick={() => {
                       if (imageFile) setImageFile(null)
                       else if (imageUrl) setImageUrl("")
@@ -652,7 +666,7 @@ function DriverFormDialog({
             <Button
               variant="outline"
               type="button"
-              className="w-full"
+              className={cn("w-full", SECONDARY_BTN)}
               onClick={() => imageFileInputRef.current?.click()}
             >
               <ImageIcon className="h-4 w-4 mr-2" />
@@ -666,6 +680,7 @@ function DriverFormDialog({
                   setImageUrl(e.target.value)
                   if (e.target.value) setImageFile(null)
                 }}
+                className={SOFT_CONTROL}
               />
               <p className="text-xs text-gray-400">
                 При вставке URL картинка скачается на сервер и сохранится локально.
@@ -675,10 +690,10 @@ function DriverFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className={SECONDARY_BTN}>
             Отмена
           </Button>
-          <Button onClick={save} disabled={saving}>
+          <Button onClick={save} disabled={saving} className={PRIMARY_BTN}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {isEdit ? "Сохранить" : "Создать"}
           </Button>

@@ -155,20 +155,23 @@ export default function ProductAvailabilityStatusesTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">Статусы наличия товара</h3>
-        <Button onClick={() => {
-          setEditingStatus(null)
-          setIsEditDialogOpen(true)
-        }}>
+        <Button
+          onClick={() => {
+            setEditingStatus(null)
+            setIsEditDialogOpen(true)
+          }}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Добавить статус
         </Button>
       </div>
 
       {statuses.length > 0 ? (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] overflow-hidden">
           {/* Заголовки таблицы */}
           <div className="bg-gray-50 border-b border-gray-200">
             <div className="flex items-center py-3 px-4 text-sm font-medium text-gray-700">

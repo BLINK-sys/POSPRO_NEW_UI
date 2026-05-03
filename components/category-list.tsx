@@ -292,7 +292,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
               placeholder="Поиск по названию или slug..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
             />
           </div>
 
@@ -315,6 +315,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
             size="sm"
             onClick={handleExpandAll}
             title="Развернуть все категории"
+            className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
           >
             <ChevronsUpDown className="mr-2 h-4 w-4" />
             Развернуть все
@@ -324,18 +325,22 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
             size="sm"
             onClick={handleCollapseAll}
             title="Свернуть все категории"
+            className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
           >
             <ChevronsDownUp className="mr-2 h-4 w-4" />
             Свернуть все
           </Button>
-          <Button onClick={() => setCreateModalOpen(true)}>
+          <Button
+            onClick={() => setCreateModalOpen(true)}
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             <PlusCircle className="mr-2 h-4 w-4" />
             Создать категорию
           </Button>
         </div>
       </div>
-      <motion.div 
-        className="rounded-lg border p-4 space-y-2 bg-gray-50/50 dark:bg-gray-800/20"
+      <motion.div
+        className="rounded-xl border border-gray-200 bg-white p-4 space-y-2 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         layout
       >
         {filteredCategories.map((category) => (

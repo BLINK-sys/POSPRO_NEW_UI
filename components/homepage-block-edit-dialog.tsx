@@ -21,6 +21,16 @@ import { createHomepageBlock, updateHomepageBlock } from "@/app/actions/homepage
 import { Badge } from "@/components/ui/badge"
 import { ElementsSelectionDialog } from "./elements-selection-dialog"
 import SelectedElementsDisplay from "./selected-elements-display"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface HomepageBlockEditDialogProps {
   block: HomepageBlock | null
@@ -185,8 +195,8 @@ export default function HomepageBlockEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw]">
-        <DialogHeader>
+      <DialogContent className="max-w-[1400px] max-h-[90vh] w-[95vw] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 flex-shrink-0">
           <DialogTitle>
             {block ? "Редактировать блок" : "Создать новый блок"}
           </DialogTitle>
@@ -195,14 +205,13 @@ export default function HomepageBlockEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 h-full flex flex-col">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-0">
-            {/* Левая колонка - Основные настройки */}
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Основные настройки</h3>
-                
-                <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-1 min-h-0 px-6 py-4">
+            {/* Колонка 1 — Основные настройки */}
+            <div className="space-y-3 min-h-0">
+              <h3 className="text-base font-semibold">Основные настройки</h3>
+
+              <div className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="title">Название блока</Label>
                     <Input
@@ -210,7 +219,7 @@ export default function HomepageBlockEditDialog({
                       value={formData.title}
                       onChange={(e) => handleInputChange("title", e.target.value)}
                       placeholder="Введите название блока"
-                      className="focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-300"
+                      className={SOFT_CONTROL}
                       required
                     />
                   </div>
@@ -222,8 +231,8 @@ export default function HomepageBlockEditDialog({
                       value={formData.description || ""}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       placeholder="Введите описание блока (необязательно)"
-                      rows={3}
-                      className="resize-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-300"
+                      rows={2}
+                      className={cn("resize-none", SOFT_CONTROL)}
                     />
                   </div>
 
@@ -233,7 +242,7 @@ export default function HomepageBlockEditDialog({
                       value={formData.type}
                       onValueChange={(value) => handleInputChange("type", value)}
                     >
-                      <SelectTrigger className="focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-300">
+                      <SelectTrigger className={SOFT_CONTROL}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -252,7 +261,7 @@ export default function HomepageBlockEditDialog({
                       value={formData.title_align}
                       onValueChange={(value) => handleInputChange("title_align", value)}
                     >
-                      <SelectTrigger className="focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-300">
+                      <SelectTrigger className={SOFT_CONTROL}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -267,97 +276,100 @@ export default function HomepageBlockEditDialog({
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Настройки отображения</h3>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="active">Статус</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Блок будет отображаться на главной странице
-                      </p>
-                    </div>
-                    <Switch
-                      id="active"
-                      checked={formData.active}
-                      onCheckedChange={(checked) => handleInputChange("active", checked)}
-                    />
-                  </div>
+            {/* Колонка 2 — Настройки отображения */}
+            <div className="space-y-3 min-h-0">
+              <h3 className="text-base font-semibold">Настройки отображения</h3>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="carusel">Карусель</Label>
-                      <p className="text-sm text-muted-foreground">
-                        {isCarouselDisabled 
-                          ? "Недоступно для данного типа блока" 
-                          : "Отображать элементы в виде карусели"
-                        }
-                      </p>
-                    </div>
-                    <Switch
-                      id="carusel"
-                      checked={formData.carusel}
-                      disabled={isCarouselDisabled}
-                      onCheckedChange={(checked) => handleInputChange("carusel", checked)}
-                    />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                  <div>
+                    <Label htmlFor="active" className="cursor-pointer text-sm">Статус</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Блок будет отображаться на главной странице
+                    </p>
                   </div>
+                  <Switch
+                    id="active"
+                    checked={formData.active}
+                    onCheckedChange={(checked) => handleInputChange("active", checked)}
+                  />
+                </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show_title">Показывать заголовок</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Отображать заголовок блока на странице
-                      </p>
-                    </div>
-                    <Switch
-                      id="show_title"
-                      checked={formData.show_title}
-                      onCheckedChange={(checked) => handleInputChange("show_title", checked)}
-                    />
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                  <div>
+                    <Label htmlFor="carusel" className="cursor-pointer text-sm">Карусель</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {isCarouselDisabled
+                        ? "Недоступно для данного типа блока"
+                        : "Отображать элементы в виде карусели"
+                      }
+                    </p>
                   </div>
+                  <Switch
+                    id="carusel"
+                    checked={formData.carusel}
+                    disabled={isCarouselDisabled}
+                    onCheckedChange={(checked) => handleInputChange("carusel", checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                  <div>
+                    <Label htmlFor="show_title" className="cursor-pointer text-sm">Показывать заголовок</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Отображать заголовок блока на странице
+                    </p>
+                  </div>
+                  <Switch
+                    id="show_title"
+                    checked={formData.show_title}
+                    onCheckedChange={(checked) => handleInputChange("show_title", checked)}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Правая колонка - Выбор элементов */}
-          <div className="flex flex-col h-full">
-            {/* Заголовок */}
-            <div className="flex items-center justify-between flex-shrink-0 mb-4">
-              <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-semibold">Выбор элементов</h3>
-                <Badge variant="outline">
-                  {HOMEPAGE_BLOCK_TYPE_LABELS[formData.type]}
-                </Badge>
+            {/* Колонка 3 — Выбор элементов */}
+            <div className="flex flex-col min-h-0">
+              {/* Шапка колонки: заголовок + бейдж типа в одной строке,
+                  кнопка «Выбрать элементы» — отдельной строкой на всю ширину.
+                  Так колонка одинаково хорошо смотрится при любой ширине. */}
+              <div className="flex-shrink-0 mb-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold">Выбор элементов</h3>
+                  <Badge variant="outline" className="text-xs">
+                    {HOMEPAGE_BLOCK_TYPE_LABELS[formData.type]}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => setElementsSelectionOpen(true)}
+                  className={cn("w-full flex items-center justify-center gap-2", PRIMARY_BTN)}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Выбрать элементы</span>
+                </Button>
               </div>
-              <Button
-                type="button"
-                onClick={() => setElementsSelectionOpen(true)}
-                className="flex items-center space-x-2"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Выбрать элементы</span>
-              </Button>
-              </div>
-              
-                         {/* Контейнер для списка элементов */}
-             <div className="border rounded-lg p-4" style={{ height: '400px' }}>
-               <SelectedElementsDisplay
-                 blockType={formData.type}
-                 selectedItemIds={formData.items || []}
-                 onRemoveItem={handleRemoveItem}
-                 onClearAll={handleClearAllItems}
-                 className="h-full"
-               />
-              </div>
+
+            {/* Контейнер для списка элементов — карточка фиксированной высоты,
+                внутри список прокручивается. Сама карточка не скроллится. */}
+            <div className="flex-1 min-h-0 rounded-xl border border-gray-200 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+              <SelectedElementsDisplay
+                blockType={formData.type}
+                selectedItemIds={formData.items || []}
+                onRemoveItem={handleRemoveItem}
+                onClearAll={handleClearAllItems}
+                className="h-full"
+              />
+            </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="flex-shrink-0 px-6 py-4 border-t bg-gray-50/50">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className={SECONDARY_BTN}>
               Отмена
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className={PRIMARY_BTN}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {block ? "Сохранить" : "Создать"}
             </Button>

@@ -35,11 +35,13 @@ import {
   Bot,
   Eye,
   Trash2,
+  ExternalLink,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { useAuth } from "@/context/auth-context"
 import { API_BASE_URL } from "@/lib/api-address"
+import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { ru } from "date-fns/locale"
 
@@ -368,24 +370,31 @@ export default function AdminDashboardPage() {
         {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
       </div>
 
-      {/* Фильтр по периоду */}
+      {/* Фильтр по периоду — мини-карточки в стиле сайдбара. Активный
+          вариант жёлтый с тенью, неактивный белый с лёгкой тенью + lift. */}
       <div className="flex flex-wrap items-center gap-2">
         {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => {
+          const active = period === p
+          const baseBtn =
+            "rounded-xl px-4 py-2 text-sm transition-all duration-150 ease-out border"
+          const btnClass = active
+            ? "bg-brand-yellow text-black font-semibold border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.40)]"
+            : "bg-white text-gray-700 border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_14px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]"
+
           if (p === "custom") {
             return (
               <Popover key={p} open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant={period === "custom" ? "default" : "outline"}
-                    size="sm"
-                    className="gap-1"
+                  <button
+                    type="button"
+                    className={cn(baseBtn, btnClass, "inline-flex items-center gap-1.5")}
                     onClick={() => handlePeriodChange("custom")}
                   >
                     <CalendarIcon className="h-4 w-4" />
                     {period === "custom" && dateFrom && dateTo
                       ? `${format(dateFrom, "dd.MM.yy")} – ${format(dateTo, "dd.MM.yy")}`
                       : "Период"}
-                  </Button>
+                  </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
@@ -416,14 +425,14 @@ export default function AdminDashboardPage() {
             )
           }
           return (
-            <Button
+            <button
               key={p}
-              variant={period === p ? "default" : "outline"}
-              size="sm"
+              type="button"
+              className={cn(baseBtn, btnClass)}
               onClick={() => handlePeriodChange(p)}
             >
               {PERIOD_LABELS[p]}
-            </Button>
+            </button>
           )
         })}
       </div>
@@ -455,9 +464,9 @@ export default function AdminDashboardPage() {
 
       {/* Карточки: Посетители и заявки */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("web")}>
+        <Card className={cn(DASHBOARD_CARD_CLASS, "cursor-pointer")} onClick={() => openDetail("web")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Посетители WEB</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Посетители WEB</CardTitle>
             <Monitor className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -467,9 +476,9 @@ export default function AdminDashboardPage() {
             <p className="text-xs text-muted-foreground">Уникальные по IP</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("mobile")}>
+        <Card className={cn(DASHBOARD_CARD_CLASS, "cursor-pointer")} onClick={() => openDetail("mobile")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Посетители Mobile</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Посетители Mobile</CardTitle>
             <Smartphone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -479,9 +488,9 @@ export default function AdminDashboardPage() {
             <p className="text-xs text-muted-foreground">Уникальные по IP</p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => openDetail("bot")}>
+        <Card className={cn(DASHBOARD_CARD_CLASS, "cursor-pointer")} onClick={() => openDetail("bot")}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Боты</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Боты</CardTitle>
             <Bot className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -494,11 +503,14 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
         <Card
-          className={`cursor-pointer transition-colors hover:bg-muted/50 ${requestTypeFilter === "order" ? "ring-2 ring-primary" : ""}`}
+          className={cn(
+            "cursor-pointer",
+            requestTypeFilter === "order" ? DASHBOARD_CARD_ACTIVE_CLASS : DASHBOARD_CARD_CLASS,
+          )}
           onClick={() => setRequestTypeFilter(requestTypeFilter === "order" ? "all" : "order")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Оформление заказа</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Оформление заказа</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -509,11 +521,14 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
         <Card
-          className={`cursor-pointer transition-colors hover:bg-muted/50 ${requestTypeFilter === "price_inquiry" ? "ring-2 ring-primary" : ""}`}
+          className={cn(
+            "cursor-pointer",
+            requestTypeFilter === "price_inquiry" ? DASHBOARD_CARD_ACTIVE_CLASS : DASHBOARD_CARD_CLASS,
+          )}
           onClick={() => setRequestTypeFilter(requestTypeFilter === "price_inquiry" ? "all" : "price_inquiry")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Уточнение цены</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Уточнение цены</CardTitle>
             <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -527,9 +542,9 @@ export default function AdminDashboardPage() {
 
       {/* Детальный просмотр товаров */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openQuickViews}>
+        <Card className={cn(DASHBOARD_CARD_CLASS, "cursor-pointer")} onClick={openQuickViews}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Быстрый просмотр</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Быстрый просмотр</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -540,9 +555,9 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer transition-colors hover:bg-muted/50" onClick={openTopProducts}>
+        <Card className={cn(DASHBOARD_CARD_CLASS, "cursor-pointer")} onClick={openTopProducts}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Детальный просмотр товаров</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Детальный просмотр товаров</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -555,7 +570,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Последние заявки */}
-      <Card>
+      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>
             {requestTypeFilter === "order"
@@ -580,73 +595,102 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-muted-foreground">Заявок пока нет.</p>
           ) : (
             <div className="space-y-3">
-              {stats.recent_requests.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    {r.request_type === "order" ? (
-                      <ShoppingCart className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <CircleDollarSign className="h-4 w-4 text-blue-600" />
+              {stats.recent_requests.map((r) => {
+                const isOrder = r.request_type === "order"
+                // Цветовая схема по типу заявки. Используется и для левой полоски,
+                // и для иконки в кружке, и для бейджа суммы.
+                const accent = isOrder
+                  ? {
+                      stripe: "before:bg-emerald-500",
+                      iconBg: "bg-emerald-50 text-emerald-600",
+                      amountBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                    }
+                  : {
+                      stripe: "before:bg-sky-500",
+                      iconBg: "bg-sky-50 text-sky-600",
+                      amountBg: "bg-sky-50 text-sky-700 border-sky-200",
+                    }
+                return (
+                  <div
+                    key={r.id}
+                    className={cn(
+                      // Карточка с тенью + lift на hover, как остальные на дашборде.
+                      "relative flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-3 pl-5 bg-white",
+                      "shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]",
+                      "transition-all duration-150 ease-out",
+                      // Левая цветная полоска как индикатор типа заявки —
+                      // pseudoelement before, потому что чище чем делать вложенный div.
+                      "before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r",
+                      accent.stripe,
                     )}
-                    <div>
-                      <p className="text-sm font-medium">
-                        {r.customer_name || "—"}
-                        {r.customer_phone && (
-                          <span className="ml-2 font-normal text-muted-foreground">{r.customer_phone}</span>
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Иконка в круглой подложке с цветом */}
+                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", accent.iconBg)}>
+                        {isOrder ? <ShoppingCart className="h-4 w-4" /> : <CircleDollarSign className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {r.customer_name || "—"}
+                          {r.customer_phone && (
+                            <span className="ml-2 font-normal text-muted-foreground">{r.customer_phone}</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {isOrder ? "Заказ" : "Уточнение цены"}
+                          {r.product_name && ` · ${r.product_name}`}
+                          {r.assigned_to && (
+                            <span className="ml-1 inline-flex items-center text-muted-foreground">
+                              <span className="mx-1">→</span>
+                              <span className="font-medium text-gray-700">{r.assigned_to}</span>
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right flex flex-col items-end gap-1">
+                        {r.total_amount != null && (
+                          <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold", accent.amountBg)}>
+                            {formatNumber(r.total_amount)} ₸
+                          </span>
                         )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.request_type === "order" ? "Заказ" : "Уточнение цены"}
-                        {r.product_name && ` · ${r.product_name}`}
-                        {r.assigned_to && ` → ${r.assigned_to}`}
-                      </p>
+                        {r.created_at && (
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(r.created_at), "dd.MM.yy HH:mm", { locale: ru })}
+                          </p>
+                        )}
+                      </div>
+                      {user?.email === "bocan.anton@mail.ru" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Удалить заявку?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Заявка от {r.customer_name || r.customer_phone || "—"} будет удалена безвозвратно.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Отмена</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteRequest(r.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Да, удалить
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      {r.total_amount != null && (
-                        <p className="text-sm font-medium">
-                          {formatNumber(r.total_amount)} ₸
-                        </p>
-                      )}
-                      {r.created_at && (
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(r.created_at), "dd.MM.yy HH:mm", { locale: ru })}
-                        </p>
-                      )}
-                    </div>
-                    {user?.email === "bocan.anton@mail.ru" && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Удалить заявку?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Заявка от {r.customer_name || r.customer_phone || "—"} будет удалена безвозвратно.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Отмена</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteRequest(r.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Да, удалить
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -792,60 +836,15 @@ export default function AdminDashboardPage() {
             ) : topProducts.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Нет данных</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
                 {topProducts.map((p, i) => (
-                  <div
+                  <TopProductCard
                     key={p.product_id}
-                    className="relative flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <a
-                      href={`/product/${p.product_slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 flex-1 min-w-0"
-                    >
-                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                        {p.image_url ? (
-                          <img
-                            src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
-                            alt={p.product_name}
-                            className="h-full w-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                            Нет фото
-                          </div>
-                        )}
-                        <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
-                          {i + 1}
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {p.product_name || `ID ${p.product_id}`}
-                        </p>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Eye className="h-3 w-3" />
-                            <span className="font-semibold text-foreground">{p.views}</span> просм.
-                          </span>
-                          <span>
-                            <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
-                          </span>
-                        </div>
-                      </div>
-                    </a>
-                    {user?.email === "bocan.anton@mail.ru" && (
-                      <button
-                        onClick={() => handleDeleteProductViews(p.product_id, "detail")}
-                        className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Удалить просмотры"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+                    product={p}
+                    rank={i + 1}
+                    isOwner={user?.email === "bocan.anton@mail.ru"}
+                    onDelete={() => handleDeleteProductViews(p.product_id, "detail")}
+                  />
                 ))}
               </div>
             )}
@@ -927,60 +926,15 @@ export default function AdminDashboardPage() {
             ) : quickViewProducts.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Нет данных</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
                 {quickViewProducts.map((p, i) => (
-                  <div
+                  <TopProductCard
                     key={p.product_id}
-                    className="relative flex items-center gap-3 rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <a
-                      href={`/product/${p.product_slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 flex-1 min-w-0"
-                    >
-                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                        {p.image_url ? (
-                          <img
-                            src={p.image_url.startsWith("http") ? p.image_url : `${API_BASE_URL}${p.image_url}`}
-                            alt={p.product_name}
-                            className="h-full w-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                            Нет фото
-                          </div>
-                        )}
-                        <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded-br-md bg-black/60 text-[10px] font-bold text-white">
-                          {i + 1}
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {p.product_name || `ID ${p.product_id}`}
-                        </p>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Eye className="h-3 w-3" />
-                            <span className="font-semibold text-foreground">{p.views}</span> просм.
-                          </span>
-                          <span>
-                            <span className="font-semibold text-foreground">{p.unique_views}</span> уник.
-                          </span>
-                        </div>
-                      </div>
-                    </a>
-                    {user?.email === "bocan.anton@mail.ru" && (
-                      <button
-                        onClick={() => handleDeleteProductViews(p.product_id, "quick")}
-                        className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Удалить просмотры"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+                    product={p}
+                    rank={i + 1}
+                    isOwner={user?.email === "bocan.anton@mail.ru"}
+                    onDelete={() => handleDeleteProductViews(p.product_id, "quick")}
+                  />
                 ))}
               </div>
             )}
@@ -996,6 +950,109 @@ export default function AdminDashboardPage() {
   )
 }
 
+// Карточка товара в диалогах «Топ товаров — детальный/быстрый просмотр».
+// Квадратная: изображение сверху (aspect-square, object-contain — без обрезки
+// и искажений), название с переносом, метрики, кнопка «Открыть в магазине»
+// (новая вкладка). Кнопка удаления (для владельца) — поверх изображения.
+function TopProductCard({
+  product,
+  rank,
+  isOwner,
+  onDelete,
+}: {
+  product: TopProduct
+  rank: number
+  isOwner: boolean
+  onDelete?: () => void
+}) {
+  const imgSrc = product.image_url
+    ? product.image_url.startsWith("http")
+      ? product.image_url
+      : `${API_BASE_URL}${product.image_url}`
+    : null
+
+  return (
+    <div className="group flex flex-col rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-shadow overflow-hidden">
+      {/* Квадратное изображение сверху, белый фон, подгонка без обрезки */}
+      <div className="relative aspect-square w-full bg-white border-b border-gray-100">
+        {imgSrc ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={imgSrc}
+            alt={product.product_name}
+            className="absolute inset-0 h-full w-full object-contain p-3"
+            onError={(e) => {
+              ;(e.target as HTMLImageElement).style.display = "none"
+            }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+            Нет фото
+          </div>
+        )}
+        {/* Ранг */}
+        <div className="absolute left-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-brand-yellow text-black px-2 text-xs font-bold shadow-sm">
+          #{rank}
+        </div>
+        {/* Удаление (владелец) — поверх изображения, появляется на hover */}
+        {isOwner && onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="absolute right-2 top-2 rounded-md bg-white/90 p-1.5 text-gray-500 hover:text-destructive hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Удалить просмотры"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Название */}
+      <div className="px-2 pt-2">
+        <p className="text-xs font-medium leading-tight line-clamp-2 min-h-[2.1rem]">
+          {product.product_name || `ID ${product.product_id}`}
+        </p>
+      </div>
+
+      {/* Метрики */}
+      <div className="px-2 py-1.5 mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground border-t border-gray-100">
+        <span className="flex items-center gap-1">
+          <Eye className="h-3 w-3" />
+          <span className="font-semibold text-foreground">{product.views}</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <Users className="h-3 w-3" />
+          <span className="font-semibold text-foreground">{product.unique_views}</span>
+        </span>
+      </div>
+
+      {/* Кнопка «Открыть в магазине» — отдельная вкладка */}
+      <a
+        href={`/product/${product.product_slug}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mx-2 mb-2 mt-1 inline-flex items-center justify-center gap-1 rounded-lg bg-brand-yellow text-black text-[11px] font-medium px-2 py-1.5 hover:bg-yellow-500 transition-colors shadow-sm"
+        title="Открыть в магазине"
+      >
+        <ExternalLink className="h-3 w-3" />
+        В магазине
+      </a>
+    </div>
+  )
+}
+
+// Общий стиль карточки дашборда — лёгкая тень, на hover мягкий lift,
+// rounded-xl. Применяется ко всем StatCard'ам и блокам с метриками.
+const DASHBOARD_CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] " +
+  "transition-all duration-150 ease-out hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]"
+
+// Когда карточка кликабельна и сейчас выбрана как фильтр — подсвечиваем
+// брендовым жёлтым (как активный пункт в сайдбаре).
+const DASHBOARD_CARD_ACTIVE_CLASS =
+  "rounded-xl border border-brand-yellow shadow-[0_4px_14px_rgba(250,204,21,0.40)] " +
+  "bg-brand-yellow/15 transition-all duration-150"
+
 function StatCard({
   title,
   value,
@@ -1010,9 +1067,9 @@ function StatCard({
   loading: boolean
 }) {
   return (
-    <Card>
+    <Card className={DASHBOARD_CARD_CLASS}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-gray-700">{title}</CardTitle>
         {icon}
       </CardHeader>
       <CardContent>

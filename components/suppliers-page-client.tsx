@@ -27,16 +27,25 @@ export function SuppliersPageClient({
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
       <div className="flex items-center justify-between mb-4">
-        <TabsList>
-          <TabsTrigger value="suppliers" className="flex items-center gap-2">
+        <TabsList className="rounded-lg bg-gray-100 p-1">
+          <TabsTrigger
+            value="suppliers"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
             <Truck className="h-4 w-4" />
             Поставщики
           </TabsTrigger>
-          <TabsTrigger value="warehouses" className="flex items-center gap-2">
+          <TabsTrigger
+            value="warehouses"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
             <WarehouseIcon className="h-4 w-4" />
             Склады
           </TabsTrigger>
-          <TabsTrigger value="currencies" className="flex items-center gap-2">
+          <TabsTrigger
+            value="currencies"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
             <Coins className="h-4 w-4" />
             Справочник валют
           </TabsTrigger>
@@ -44,7 +53,7 @@ export function SuppliersPageClient({
       </div>
 
       <TabsContent value="suppliers">
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardHeader>
             <CardTitle>Поставщики</CardTitle>
             <CardDescription>
@@ -58,7 +67,7 @@ export function SuppliersPageClient({
       </TabsContent>
 
       <TabsContent value="warehouses">
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardHeader>
             <CardTitle>Склады</CardTitle>
             <CardDescription>
@@ -76,7 +85,7 @@ export function SuppliersPageClient({
       </TabsContent>
 
       <TabsContent value="currencies">
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardHeader>
             <CardTitle>Справочник валют</CardTitle>
             <CardDescription>

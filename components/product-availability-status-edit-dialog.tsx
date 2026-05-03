@@ -16,6 +16,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import type { ProductAvailabilityStatus } from "@/app/actions/product-availability-statuses"
 import type { Supplier } from "@/app/actions/suppliers"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface ProductAvailabilityStatusEditDialogProps {
   status: ProductAvailabilityStatus | null
@@ -117,6 +127,7 @@ export default function ProductAvailabilityStatusEditDialog({
               value={statusName}
               onChange={(e) => setStatusName(e.target.value)}
               placeholder="Например: На складе достаточно"
+              className={SOFT_CONTROL}
             />
           </div>
 
@@ -124,7 +135,7 @@ export default function ProductAvailabilityStatusEditDialog({
           <div className="grid gap-2">
             <Label htmlFor="supplier">Поставщик</Label>
             <Select value={supplierId} onValueChange={setSupplierId}>
-              <SelectTrigger>
+              <SelectTrigger className={SOFT_CONTROL}>
                 <SelectValue placeholder="Выберите поставщика" />
               </SelectTrigger>
               <SelectContent>
@@ -142,7 +153,7 @@ export default function ProductAvailabilityStatusEditDialog({
           <div className="grid gap-2">
             <Label htmlFor="conditionOperator">Оператор</Label>
             <Select value={conditionOperator} onValueChange={setConditionOperator}>
-              <SelectTrigger>
+              <SelectTrigger className={SOFT_CONTROL}>
                 <SelectValue placeholder="Выберите оператор" />
               </SelectTrigger>
               <SelectContent>
@@ -165,6 +176,7 @@ export default function ProductAvailabilityStatusEditDialog({
               value={conditionValue}
               onChange={(e) => setConditionValue(e.target.value)}
               placeholder="0"
+              className={SOFT_CONTROL}
             />
           </div>
 
@@ -178,12 +190,13 @@ export default function ProductAvailabilityStatusEditDialog({
                   type="color"
                   value={backgroundColor}
                   onChange={(e) => setBackgroundColor(e.target.value)}
-                  className="w-12 h-10 p-1"
+                  className={cn("w-12 h-10 p-1 cursor-pointer", SOFT_CONTROL)}
                 />
                 <Input
                   value={backgroundColor}
                   onChange={(e) => setBackgroundColor(e.target.value)}
                   placeholder="#ffffff"
+                  className={SOFT_CONTROL}
                 />
               </div>
             </div>
@@ -196,19 +209,20 @@ export default function ProductAvailabilityStatusEditDialog({
                   type="color"
                   value={textColor}
                   onChange={(e) => setTextColor(e.target.value)}
-                  className="w-12 h-10 p-1"
+                  className={cn("w-12 h-10 p-1 cursor-pointer", SOFT_CONTROL)}
                 />
                 <Input
                   value={textColor}
                   onChange={(e) => setTextColor(e.target.value)}
                   placeholder="#000000"
+                  className={SOFT_CONTROL}
                 />
               </div>
             </div>
           </div>
 
           {/* Активность */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-3">
             <Label htmlFor="active">Активен</Label>
             <Switch
               id="active"
@@ -220,7 +234,7 @@ export default function ProductAvailabilityStatusEditDialog({
           {/* Предварительный просмотр */}
           <div className="grid gap-2">
             <Label>Предварительный просмотр</Label>
-            <div className="p-3 rounded-lg border" style={{ backgroundColor, color: textColor }}>
+            <div className="p-3 rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)]" style={{ backgroundColor, color: textColor }}>
               <p className="text-sm font-medium">{statusName || "Название статуса"}</p>
               <p className="text-xs opacity-80">{getFormulaDisplay()}</p>
               {supplierId !== "none" && (
@@ -233,10 +247,10 @@ export default function ProductAvailabilityStatusEditDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className={SECONDARY_BTN}>
             Отмена
           </Button>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} className={PRIMARY_BTN}>
             {status ? "Сохранить" : "Создать"}
           </Button>
         </DialogFooter>

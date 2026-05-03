@@ -112,7 +112,7 @@ export function ParentCategoryDialog({
               placeholder="Поиск категорий..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
             />
           </div>
 
@@ -154,10 +154,17 @@ export function ParentCategoryDialog({
         </div>
 
         <DialogFooter className="flex-shrink-0">
-          <Button variant="outline" onClick={handleCancel}>
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+          >
             Отмена
           </Button>
-          <Button onClick={handleConfirm}>
+          <Button
+            onClick={handleConfirm}
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             Выбрать
           </Button>
         </DialogFooter>

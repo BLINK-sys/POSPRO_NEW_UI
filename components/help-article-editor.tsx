@@ -56,7 +56,11 @@ export function HelpArticleEditor({ mode, article, onSaved, onCancel }: Props) {
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" asChild>
+        <Button
+          variant="ghost"
+          asChild
+          className="rounded-full hover:bg-gray-100"
+        >
           <Link href={mode === "create" ? "/admin/help" : `/admin/help/${article?.id}`}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Назад
@@ -64,7 +68,7 @@ export function HelpArticleEditor({ mode, article, onSaved, onCancel }: Props) {
         </Button>
       </div>
 
-      <Card>
+      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
         <CardHeader>
           <CardTitle>{mode === "create" ? "Новая инструкция" : "Редактирование инструкции"}</CardTitle>
         </CardHeader>
@@ -76,6 +80,7 @@ export function HelpArticleEditor({ mode, article, onSaved, onCancel }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Например: Как создать товар"
+              className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
             />
           </div>
 
@@ -86,11 +91,20 @@ export function HelpArticleEditor({ mode, article, onSaved, onCancel }: Props) {
 
           <div className="flex gap-2 justify-end">
             {onCancel && (
-              <Button variant="outline" onClick={onCancel} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={onCancel}
+                disabled={isPending}
+                className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+              >
                 Отмена
               </Button>
             )}
-            <Button onClick={handleSave} disabled={isPending}>
+            <Button
+              onClick={handleSave}
+              disabled={isPending}
+              className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+            >
               {isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (

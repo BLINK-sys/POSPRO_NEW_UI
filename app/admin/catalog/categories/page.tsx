@@ -6,7 +6,7 @@ export default async function CategoriesPage() {
   const initialCategories = await getCategories()
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
         <CardTitle>Категории</CardTitle>
         <CardDescription>

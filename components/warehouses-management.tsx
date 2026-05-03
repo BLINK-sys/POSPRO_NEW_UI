@@ -33,6 +33,16 @@ import { useToast } from "@/hooks/use-toast"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface WarehousesManagementProps {
   initialWarehouses: Warehouse[]
@@ -140,7 +150,7 @@ export function WarehousesManagement({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <Select value={filterSupplierId} onValueChange={setFilterSupplierId}>
-          <SelectTrigger className="w-[250px]">
+          <SelectTrigger className={cn("w-[250px] h-10", SOFT_CONTROL)}>
             <SelectValue placeholder="Все поставщики" />
           </SelectTrigger>
           <SelectContent>
@@ -152,7 +162,7 @@ export function WarehousesManagement({
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={openCreate} className="flex items-center gap-2">
+        <Button onClick={openCreate} className={cn("flex items-center gap-2", PRIMARY_BTN)}>
           <Plus className="h-4 w-4" />
           Добавить склад
         </Button>
@@ -163,7 +173,7 @@ export function WarehousesManagement({
           {filteredWarehouses.map((warehouse) => (
             <Card
               key={warehouse.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
+              className="cursor-pointer rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all"
               onClick={() => router.push(`/admin/suppliers/warehouses/${warehouse.id}`)}
             >
               <CardContent className="p-4">
@@ -173,11 +183,23 @@ export function WarehousesManagement({
                     {warehouse.name}
                   </h3>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(warehouse)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEdit(warehouse)}
+                      className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
+                      title="Редактировать"
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeletingWarehouse(warehouse)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingWarehouse(warehouse)}
+                      className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -188,7 +210,7 @@ export function WarehousesManagement({
                     {warehouse.city}
                   </div>
                 )}
-                <div className="flex items-center gap-2 mt-3">
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
                   {warehouse.currency && (
                     <Badge variant="outline" className="flex items-center gap-1">
                       <Coins className="h-3 w-3" />
@@ -200,7 +222,7 @@ export function WarehousesManagement({
                     {warehouse.product_count || 0}
                   </Badge>
                   {warehouse.has_formula && (
-                    <Badge className="flex items-center gap-1 bg-green-100 text-green-700">
+                    <Badge className="flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 hover:bg-green-100">
                       <Calculator className="h-3 w-3" />
                       Формула
                     </Badge>
@@ -211,11 +233,13 @@ export function WarehousesManagement({
           ))}
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-8">
-          {filterSupplierId !== "all"
-            ? "У этого поставщика нет складов."
-            : "Нет складов. Создайте первый склад."}
-        </div>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
+          <CardContent className="text-center text-gray-500 py-12">
+            {filterSupplierId !== "all"
+              ? "У этого поставщика нет складов."
+              : "Нет складов. Создайте первый склад."}
+          </CardContent>
+        </Card>
       )}
 
       {/* Create/Edit Dialog */}
@@ -236,7 +260,7 @@ export function WarehousesManagement({
                 onValueChange={(val) => setFormData({ ...formData, supplier_id: val })}
                 disabled={isPending}
               >
-                <SelectTrigger>
+                <SelectTrigger className={SOFT_CONTROL}>
                   <SelectValue placeholder="Выберите поставщика" />
                 </SelectTrigger>
                 <SelectContent>
@@ -253,6 +277,7 @@ export function WarehousesManagement({
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Склад Гуанчжоу"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -262,6 +287,7 @@ export function WarehousesManagement({
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 placeholder="Гуанчжоу"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -271,6 +297,7 @@ export function WarehousesManagement({
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Адрес склада"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -280,7 +307,7 @@ export function WarehousesManagement({
                 onValueChange={(val) => setFormData({ ...formData, currency_id: val })}
                 disabled={isPending}
               >
-                <SelectTrigger>
+                <SelectTrigger className={SOFT_CONTROL}>
                   <SelectValue placeholder="Выберите валюту" />
                 </SelectTrigger>
                 <SelectContent>
@@ -298,10 +325,11 @@ export function WarehousesManagement({
               variant="outline"
               onClick={() => { setIsCreating(false); setEditingWarehouse(null) }}
               disabled={isPending}
+              className={SECONDARY_BTN}
             >
               Отмена
             </Button>
-            <Button onClick={handleSave} disabled={isPending}>
+            <Button onClick={handleSave} disabled={isPending} className={PRIMARY_BTN}>
               {isPending ? "Сохранение..." : editingWarehouse ? "Сохранить" : "Создать"}
             </Button>
           </DialogFooter>

@@ -40,8 +40,8 @@ export function SortableProductAvailabilityStatusItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="border-b border-gray-200 last:border-b-0">
-      <div className="flex items-center py-3 px-4 hover:bg-gray-50">
+    <div ref={setNodeRef} style={style} className="border-b border-gray-100 last:border-b-0">
+      <div className="flex items-center py-3 px-4 hover:bg-yellow-50/40 transition-colors">
         {/* Ручка для перетягивания */}
         <div className="w-12 flex justify-center">
           <div
@@ -82,20 +82,20 @@ export function SortableProductAvailabilityStatusItem({
         </div>
 
         {/* Кнопки действий */}
-        <div className="flex items-center space-x-2 px-4">
+        <div className="flex items-center space-x-1 px-4">
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={() => onEdit(status)}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
           >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={() => onDelete(status)}
-            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+            className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4" />
           </Button>

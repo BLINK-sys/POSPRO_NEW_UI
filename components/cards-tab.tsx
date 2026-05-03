@@ -76,9 +76,19 @@ export default function CardsTab() {
       </div>
 
       <Tabs defaultValue="benefits" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="benefits">Преимущества</TabsTrigger>
-          <TabsTrigger value="information">Информация</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1">
+          <TabsTrigger
+            value="benefits"
+            className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
+            Преимущества
+          </TabsTrigger>
+          <TabsTrigger
+            value="information"
+            className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
+            Информация
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="benefits" className="mt-6">

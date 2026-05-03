@@ -27,6 +27,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, Plus, Trash2, GripVertical, Edit, Check, X, Search } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface ProductCharacteristicsDialogProps {
   productId: number
@@ -63,7 +75,11 @@ function SortableCharacteristicItem({
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+    >
       <Button {...attributes} {...listeners} variant="ghost" size="icon" className="cursor-grab" disabled={char.isNew}>
         <GripVertical className="h-5 w-5" />
       </Button>
@@ -78,7 +94,7 @@ function SortableCharacteristicItem({
             placeholder="Значение"
             value={char.tempValue ?? char.value}
             onChange={(e) => onTempUpdate(char.id, "value", e.target.value)}
-            className="flex-1"
+            className={cn("flex-1", SOFT_CONTROL)}
             disabled={isPending}
           />
           <div className="text-sm text-gray-500 min-w-[60px]">
@@ -88,7 +104,7 @@ function SortableCharacteristicItem({
             variant="ghost"
             size="icon"
             onClick={() => onDelete(char.id)}
-            className="text-red-500"
+            className="text-red-500 rounded-full hover:bg-red-50"
             disabled={isPending}
           >
             <Trash2 className="h-4 w-4" />
@@ -101,7 +117,7 @@ function SortableCharacteristicItem({
             onValueChange={(value) => onTempUpdate(char.id, "characteristicId", parseInt(value))}
             disabled={isPending}
           >
-            <SelectTrigger className="flex-1">
+            <SelectTrigger className={cn("flex-1", SOFT_CONTROL)}>
               <SelectValue placeholder="Выберите характеристику" />
             </SelectTrigger>
             <SelectContent>
@@ -116,7 +132,7 @@ function SortableCharacteristicItem({
             placeholder="Значение"
             value={char.tempValue ?? char.value}
             onChange={(e) => onTempUpdate(char.id, "value", e.target.value)}
-            className="flex-1"
+            className={cn("flex-1", SOFT_CONTROL)}
             disabled={isPending}
           />
           <div className="text-sm text-gray-500 min-w-[60px]">
@@ -128,7 +144,7 @@ function SortableCharacteristicItem({
             variant="ghost"
             size="icon"
             onClick={() => onSave(char.id)}
-            className="text-green-600"
+            className="text-green-600 rounded-full hover:bg-green-50"
             disabled={isPending}
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -137,7 +153,7 @@ function SortableCharacteristicItem({
             variant="ghost"
             size="icon"
             onClick={() => onCancel(char.id)}
-            className="text-gray-500"
+            className="text-gray-500 rounded-full hover:bg-gray-100"
             disabled={isPending}
           >
             <X className="h-4 w-4" />
@@ -158,7 +174,7 @@ function SortableCharacteristicItem({
             variant="ghost"
             size="icon"
             onClick={() => onEdit(char.id)}
-            className="text-blue-600"
+            className="text-blue-600 rounded-full hover:bg-blue-50"
             disabled={isPending}
           >
             <Edit className="h-4 w-4" />
@@ -167,7 +183,7 @@ function SortableCharacteristicItem({
             variant="ghost"
             size="icon"
             onClick={() => onDelete(char.id)}
-            className="text-red-500"
+            className="text-red-500 rounded-full hover:bg-red-50"
             disabled={isPending}
           >
             <Trash2 className="h-4 w-4" />
@@ -462,17 +478,21 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
         </div>
         <DialogFooter className="flex justify-between">
           <div className="flex gap-2">
-            <Button onClick={handleOpenPicker} disabled={isPending}>
+            <Button onClick={handleOpenPicker} disabled={isPending} className={PRIMARY_BTN}>
               <Plus className="mr-2 h-4 w-4" /> Добавить
             </Button>
             {characteristics.some(c => c.isNew) && (
-              <Button onClick={handleSaveAllNew} disabled={isPending} variant="default" className="bg-green-600 hover:bg-green-700">
+              <Button
+                onClick={handleSaveAllNew}
+                disabled={isPending}
+                className="rounded-lg bg-green-600 text-white hover:bg-green-700 shadow-[0_2px_6px_rgba(34,197,94,0.30)] hover:shadow-[0_6px_16px_rgba(34,197,94,0.40)] transition-shadow"
+              >
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
                 Сохранить новые ({characteristics.filter(c => c.isNew).length})
               </Button>
             )}
           </div>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} className={SECONDARY_BTN}>
             Закрыть
           </Button>
         </DialogFooter>
@@ -490,11 +510,11 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
               value={pickerSearch}
               onChange={(e) => setPickerSearch(e.target.value)}
               placeholder="Поиск по наименованию..."
-              className="pl-9"
+              className={cn("pl-9", SOFT_CONTROL)}
               autoFocus
             />
           </div>
-          <div className="flex-1 overflow-y-auto border rounded-md divide-y max-h-[50vh]">
+          <div className="flex-1 overflow-y-auto border border-gray-200 rounded-xl divide-y bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] max-h-[50vh]">
             {filteredPickerList.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
                 {pickerSearch ? 'Ничего не найдено' : 'Справочник пуст'}
@@ -525,10 +545,10 @@ export function ProductCharacteristicsDialog({ productId, onClose }: ProductChar
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPickerOpen(false)}>
+            <Button variant="outline" onClick={() => setPickerOpen(false)} className={SECONDARY_BTN}>
               Отмена
             </Button>
-            <Button onClick={handlePickerConfirm} disabled={pickerSelected.size === 0}>
+            <Button onClick={handlePickerConfirm} disabled={pickerSelected.size === 0} className={PRIMARY_BTN}>
               <Plus className="mr-2 h-4 w-4" />
               Добавить ({pickerSelected.size})
             </Button>

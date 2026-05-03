@@ -6,15 +6,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { 
-  RotateCcw, 
-  Grid3X3, 
-  Package, 
-  Tag, 
-  Star, 
+import {
+  RotateCcw,
+  Grid3X3,
+  Package,
+  Tag,
+  Star,
   Info,
   Loader2,
-  Check
+  Check,
+  GripVertical,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
@@ -99,61 +100,63 @@ function SortableCard({ item, blockType, getImageUrl, getTypeIcon }: SortableCar
   const name = item.name || item.title || "Без названия"
   const description = item.description || ""
 
+  // Квадратная карточка. ВАЖНО: никаких CSS transitions / transforms на этом
+  // div — transform используется @dnd-kit для перетаскивания, и любая своя
+  // transform-анимация (hover:-translate-y, scale) вызовет дёрганье.
+  // По примеру SortableImageCard в product-import-from-url-dialog: только
+  // shadow / opacity меняем классами, transform полностью оставляем dnd-kit.
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative flex flex-col rounded-lg border bg-background w-[180px] h-[180px] cursor-grab active:cursor-grabbing overflow-hidden ${
-        isDragging ? "opacity-50 shadow-lg z-50" : "hover:shadow-md transition-shadow"
+      className={`group relative aspect-square flex flex-col rounded-xl border bg-white overflow-hidden cursor-grab active:cursor-grabbing select-none touch-none ${
+        isDragging
+          ? "opacity-60 shadow-[0_12px_28px_rgba(0,0,0,0.18)] border-brand-yellow ring-2 ring-brand-yellow/40 z-50"
+          : "border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:border-gray-300"
       }`}
       {...attributes}
       {...listeners}
     >
-      {/* Номер позиции - поверх карточки в левом верхнем углу */}
-      <Badge 
-        variant="secondary" 
-        className="absolute top-2 left-2 z-10 text-xs px-2 py-0.5 bg-white/90 backdrop-blur-sm"
-      >
+      {/* Бейдж с номером позиции — brand-yellow в верхнем левом углу */}
+      <div className="absolute top-2 left-2 z-10 inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-full bg-brand-yellow text-black text-xs font-semibold shadow-[0_2px_6px_rgba(250,204,21,0.30)] pointer-events-none">
         #{item.order + 1}
-      </Badge>
+      </div>
 
-      {/* Изображение или иконка - 80% высоты */}
-      <div className="w-full h-4/5 flex items-center justify-center bg-muted/20 p-2">
-        {/* Для преимуществ показываем их иконку */}
+      {/* Иконка-индикатор drag в правом верхнем углу — видна на hover */}
+      <div className="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/90 text-gray-400 opacity-0 group-hover:opacity-100 pointer-events-none shadow-[0_2px_6px_rgba(0,0,0,0.10)]">
+        <GripVertical className="h-4 w-4" />
+      </div>
+
+      {/* Изображение / иконка — занимает всё доступное пространство сверху */}
+      <div className="flex-1 min-h-0 w-full bg-gray-50 flex items-center justify-center p-3">
         {blockType === HOMEPAGE_BLOCK_TYPES.BENEFITS ? (
-           <div className="w-full h-full bg-muted flex items-center justify-center">
-             {item.icon ? (
-               getIcon(item.icon, "h-12 w-12")
-             ) : (
-               getTypeIcon()
-             )}
-           </div>
+          <div className="w-16 h-16 rounded-full bg-brand-yellow/15 flex items-center justify-center text-black">
+            {item.icon ? getIcon(item.icon, "h-8 w-8") : getTypeIcon()}
+          </div>
         ) : (item.image_url || item.image) ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={getImageUrl(item.image_url || item.image)}
             alt={name}
-            width={160}
-            height={160}
-            className="max-w-full max-h-full object-contain"
-            unoptimized
+            draggable={false}
+            className="max-w-full max-h-full object-contain pointer-events-none"
             onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg"
+              (e.currentTarget as HTMLImageElement).src = "/placeholder.svg"
             }}
           />
         ) : (
-          <div className="w-full h-full bg-muted flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center text-gray-400">
             {getTypeIcon()}
           </div>
         )}
       </div>
 
-      {/* Название - под изображением */}
-      <div className="h-1/5 flex items-center justify-center p-2 bg-background">
-        <div className="font-medium text-sm leading-tight text-center w-full">
+      {/* Название — под изображением, прижато книзу */}
+      <div className="flex-shrink-0 px-3 py-2 border-t border-gray-100 bg-white">
+        <div className="font-medium text-xs leading-tight text-center text-gray-900 line-clamp-2 min-h-[2rem] flex items-center justify-center">
           {name}
         </div>
       </div>
-
     </div>
   )
 }
@@ -170,12 +173,9 @@ export default function HomepageBlockItemsReorderDialogV2({
   const [hasChanges, setHasChanges] = useState(false)
   const { toast } = useToast()
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
+  // Только PointerSensor без activationConstraint — мгновенный отклик на drag,
+  // как в SortableImageCard на странице импорта товара через AI.
+  const sensors = useSensors(useSensor(PointerSensor))
 
   // Загрузка элементов при открытии диалога
   useEffect(() => {
@@ -369,16 +369,16 @@ export default function HomepageBlockItemsReorderDialogV2({
                 size="sm"
                 onClick={resetOrder}
                 disabled={!hasChanges}
-                className="flex items-center space-x-1"
+                className="flex items-center space-x-1 rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
               >
                 <RotateCcw className="h-4 w-4" />
                 <span>Сбросить</span>
               </Button>
-              
+
               <Button
                 onClick={saveOrder}
                 disabled={!hasChanges || isSaving}
-                className="flex items-center space-x-1"
+                className="flex items-center space-x-1 rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
               >
                 {isSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -415,7 +415,7 @@ export default function HomepageBlockItemsReorderDialogV2({
                       items={items.map(item => item.id)}
                       strategy={rectSortingStrategy}
                     >
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
                         {items.map((item) => (
                           <SortableCard
                             key={item.id}
@@ -434,7 +434,7 @@ export default function HomepageBlockItemsReorderDialogV2({
           </div>
 
           {/* Подсказка */}
-          <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+          <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
             💡 <strong>Совет:</strong> Перетаскивайте карточки за любое место для изменения порядка
           </div>
         </div>

@@ -6,7 +6,7 @@ export default async function BrandsAndStatusesPage() {
   const [brands, statuses] = await Promise.all([getBrands(), getStatuses()])
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
         <CardTitle>Бренды и Статусы</CardTitle>
         <CardDescription>Управление брендами товаров и статусами наличия.</CardDescription>

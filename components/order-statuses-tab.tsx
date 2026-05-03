@@ -43,6 +43,16 @@ import {
   type CreateOrderStatusData
 } from '@/app/actions/order-statuses'
 import { reorderOrderStatuses } from '@/app/actions/order-statuses-reorder'
+import { cn } from '@/lib/utils'
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 // Компонент для сортируемого элемента статуса заказа
 interface SortableOrderStatusItemProps {
@@ -66,8 +76,8 @@ function SortableOrderStatusItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="border-b border-gray-200 last:border-b-0">
-      <div className="flex items-center py-3 px-4 hover:bg-gray-50">
+    <div ref={setNodeRef} style={style} className="border-b border-gray-100 last:border-b-0">
+      <div className="flex items-center py-3 px-4 hover:bg-yellow-50/40 transition-colors">
         {/* Ручка для перетягивания */}
         <div className="w-12 flex justify-center">
           <div
@@ -108,20 +118,20 @@ function SortableOrderStatusItem({
         </div>
 
         {/* Кнопки действий */}
-        <div className="flex items-center space-x-2 px-4">
+        <div className="flex items-center space-x-1 px-4">
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={() => onEdit(status)}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
           >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={() => onDelete(status)}
-            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+            className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -334,7 +344,7 @@ export function OrderStatusesTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-4">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Статусы заказов</h2>
@@ -342,10 +352,10 @@ export function OrderStatusesTab() {
             Управление статусами заказов с настраиваемыми цветами
           </p>
         </div>
-        
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} className={PRIMARY_BTN}>
               <Plus className="h-4 w-4 mr-2" />
               Добавить статус
             </Button>
@@ -370,6 +380,7 @@ export function OrderStatusesTab() {
                   placeholder="В ожидании, Подтверждён..."
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className={SOFT_CONTROL}
                 />
               </div>
 
@@ -380,6 +391,7 @@ export function OrderStatusesTab() {
                   placeholder="Описание статуса..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className={SOFT_CONTROL}
                 />
               </div>
 
@@ -392,12 +404,13 @@ export function OrderStatusesTab() {
                       type="color"
                       value={formData.background_color}
                       onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
-                      className="w-12 h-10 p-1 rounded"
+                      className={cn("w-12 h-10 p-1 rounded cursor-pointer", SOFT_CONTROL)}
                     />
                     <Input
                       value={formData.background_color}
                       onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                       placeholder="#e5e7eb"
+                      className={SOFT_CONTROL}
                     />
                   </div>
                 </div>
@@ -410,12 +423,13 @@ export function OrderStatusesTab() {
                       type="color"
                       value={formData.text_color}
                       onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
-                      className="w-12 h-10 p-1 rounded"
+                      className={cn("w-12 h-10 p-1 rounded cursor-pointer", SOFT_CONTROL)}
                     />
                     <Input
                       value={formData.text_color}
                       onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
                       placeholder="#374151"
+                      className={SOFT_CONTROL}
                     />
                   </div>
                 </div>
@@ -444,8 +458,8 @@ export function OrderStatusesTab() {
               {/* Preview */}
               <div>
                 <Label>Предварительный просмотр</Label>
-                <div className="mt-2">
-                  <Badge 
+                <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                  <Badge
                     style={{
                       backgroundColor: formData.background_color,
                       color: formData.text_color
@@ -458,12 +472,13 @@ export function OrderStatusesTab() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className={SECONDARY_BTN}>
                 Отмена
               </Button>
-              <Button 
-                onClick={handleSubmit} 
+              <Button
+                onClick={handleSubmit}
                 disabled={isSubmitting || !formData.name.trim()}
+                className={PRIMARY_BTN}
               >
                 {isSubmitting ? 'Сохранение...' : 'Сохранить'}
               </Button>
@@ -474,17 +489,17 @@ export function OrderStatusesTab() {
 
       {/* Список статусов */}
       {statuses.length === 0 ? (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">Статусы заказов не найдены</p>
-            <Button className="mt-4" onClick={handleCreate}>
+            <Button className={cn("mt-4", PRIMARY_BTN)} onClick={handleCreate}>
               <Plus className="h-4 w-4 mr-2" />
               Создать первый статус
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] overflow-hidden">
           {/* Заголовки таблицы */}
           <div className="bg-gray-50 border-b border-gray-200">
             <div className="flex items-center py-3 px-4 text-sm font-medium text-gray-700">
@@ -529,8 +544,11 @@ export function OrderStatusesTab() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
+            >
               Удалить
             </AlertDialogAction>
           </AlertDialogFooter>

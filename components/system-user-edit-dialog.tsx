@@ -17,6 +17,18 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/auth-context"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface SystemUserEditDialogProps {
   user?: SystemUser | null
@@ -84,15 +96,15 @@ export function SystemUserEditDialog({ user, onClose }: SystemUserEditDialogProp
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="full_name">Полное имя</Label>
-              <Input name="full_name" defaultValue={user?.full_name ?? ""} required />
+              <Input name="full_name" defaultValue={user?.full_name ?? ""} required className={SOFT_CONTROL} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input name="email" type="email" defaultValue={user?.email ?? ""} required />
+              <Input name="email" type="email" defaultValue={user?.email ?? ""} required className={SOFT_CONTROL} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Телефон</Label>
-              <Input name="phone" type="tel" defaultValue={user?.phone ?? ""} required />
+              <Input name="phone" type="tel" defaultValue={user?.phone ?? ""} required className={SOFT_CONTROL} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
@@ -101,15 +113,21 @@ export function SystemUserEditDialog({ user, onClose }: SystemUserEditDialogProp
                 type="password"
                 placeholder={isEditMode ? "Оставьте пустым, чтобы не менять" : ""}
                 required={!isEditMode}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
               <Label>Права доступа</Label>
-              <div className="grid grid-cols-2 gap-2 rounded-md border p-4">
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 {Object.entries(accessTranslations).map(([key, label]) => (
                   <div key={key} className="flex items-center space-x-2">
-                    <Checkbox id={`access_${key}`} name={`access_${key}`} defaultChecked={user?.access[key] ?? false} />
-                    <Label htmlFor={`access_${key}`} className="font-normal">
+                    <Checkbox
+                      id={`access_${key}`}
+                      name={`access_${key}`}
+                      defaultChecked={user?.access[key] ?? false}
+                      className="data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow data-[state=checked]:text-black"
+                    />
+                    <Label htmlFor={`access_${key}`} className="font-normal cursor-pointer">
                       {label}
                     </Label>
                   </div>
@@ -118,10 +136,10 @@ export function SystemUserEditDialog({ user, onClose }: SystemUserEditDialogProp
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} className={SECONDARY_BTN}>
               Отмена
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} className={PRIMARY_BTN}>
               {isPending ? "Сохранение..." : "Сохранить"}
             </Button>
           </DialogFooter>

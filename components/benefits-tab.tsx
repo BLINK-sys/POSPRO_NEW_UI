@@ -137,6 +137,7 @@ export default function BenefitsTab() {
             setEditingBenefit(null)
             setIsEditDialogOpen(true)
           }}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
         >
           <Plus className="h-4 w-4 mr-2" />
           Добавить преимущество
@@ -159,11 +160,11 @@ export default function BenefitsTab() {
       </DndContext>
 
       {benefits.length === 0 && !isLoading && (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="text-center py-8">
             <p className="text-muted-foreground">Преимущества не найдены</p>
             <Button
-              className="mt-4"
+              className="mt-4 rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
               onClick={() => {
                 setEditingBenefit(null)
                 setIsEditDialogOpen(true)

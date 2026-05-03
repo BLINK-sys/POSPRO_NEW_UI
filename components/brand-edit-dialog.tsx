@@ -15,6 +15,18 @@ import { useToast } from "@/hooks/use-toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Trash2, Crop as CropIcon } from "lucide-react"
 import { ImageCropperDialog } from "./image-cropper-dialog"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 type ImageSource = "url" | "upload"
 
@@ -209,11 +221,11 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Название</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required disabled={isPending} />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required disabled={isPending} className={SOFT_CONTROL} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="country">Страна</Label>
-              <Input id="country" value={country} onChange={(e) => setCountry(e.target.value)} disabled={isPending} />
+              <Input id="country" value={country} onChange={(e) => setCountry(e.target.value)} disabled={isPending} className={SOFT_CONTROL} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Описание</Label>
@@ -223,6 +235,7 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isPending}
                 rows={8}
+                className={SOFT_CONTROL}
               />
             </div>
           </div>
@@ -231,7 +244,7 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
           <div className="space-y-4">
             <div className="flex flex-col items-center gap-4">
               <Label>Предпросмотр (как карточка на сайте)</Label>
-              <div className="w-64 aspect-square rounded-xl border bg-gray-50 flex items-center justify-center overflow-hidden">
+              <div className="w-64 aspect-square rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
                 {preview ? (
                   <Image
                     src={getImageUrl(preview) ?? ""}
@@ -247,13 +260,18 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
               </div>
               <div className="flex gap-2">
                 {selectedFile && (
-                  <Button variant="outline" size="sm" onClick={reopenCropperForCurrentFile} disabled={isPending}>
+                  <Button variant="outline" size="sm" onClick={reopenCropperForCurrentFile} disabled={isPending} className={SECONDARY_BTN}>
                     <CropIcon className="mr-2 h-4 w-4" />
                     Обрезать заново
                   </Button>
                 )}
                 {imageUrl && (
-                  <Button variant="destructive" size="sm" onClick={handleRemoveImage} disabled={isPending}>
+                  <Button
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    disabled={isPending}
+                    className="rounded-lg bg-red-500 text-white hover:bg-red-600 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Удалить изображение
                   </Button>
@@ -288,7 +306,7 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
                     disabled={isPending || urlCropBusy}
-                    className="flex-1"
+                    className={cn("flex-1", SOFT_CONTROL)}
                   />
                   <Button
                     type="button"
@@ -296,6 +314,7 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
                     onClick={handleCropFromUrl}
                     disabled={isPending || urlCropBusy || !imageUrl.trim()}
                     title="Загрузить картинку с URL и открыть обрезку"
+                    className={SECONDARY_BTN}
                   >
                     <CropIcon className="h-4 w-4 mr-2" />
                     {urlCropBusy ? "Загрузка..." : "Обрезать"}
@@ -308,14 +327,14 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="file-upload">Файл</Label>
-                <Input id="file-upload" type="file" onChange={handleFileChange} accept="image/*" disabled={isPending} />
+                <Input id="file-upload" type="file" onChange={handleFileChange} accept="image/*" disabled={isPending} className={SOFT_CONTROL} />
                 <p className="text-[11px] text-gray-500">
                   После выбора файла откроется окно обрезки 1:1. Кнопка «Обрезать заново» в превью позволит изменить кадр до сохранения.
                 </p>
               </div>
             )}
 
-            <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-1 shadow-[0_1px_3px_rgba(59,130,246,0.10)]">
               <p><strong>Рекомендуемый размер:</strong> 600 × 600 px (квадрат, соотношение 1:1).</p>
               <p>Логотип бренда отображается в каталоге и на главной как квадратная карточка с обрезкой по краям (object-cover). Минимум — 300 × 300 px.</p>
               <p>Формат: PNG (с прозрачным или белым фоном) / JPG / WebP. Размер файла: до 5 MB.</p>
@@ -323,10 +342,10 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} className={SECONDARY_BTN}>
             Отмена
           </Button>
-          <Button onClick={handleSubmit} disabled={isPending}>
+          <Button onClick={handleSubmit} disabled={isPending} className={PRIMARY_BTN}>
             {isPending ? "Сохранение..." : "Сохранить"}
           </Button>
         </DialogFooter>

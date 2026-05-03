@@ -86,17 +86,17 @@ function SortableBlockItem({
 
   return (
     <div ref={setNodeRef} style={style} className={`${isDragging ? "opacity-50" : ""}`}>
-      <Card className="mb-4">
+      <Card className="mb-4 rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
             {/* Drag Handle - как в баннерах */}
             <div className="flex items-center">
               <button
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                className="cursor-grab active:cursor-grabbing p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700"
                 {...attributes}
                 {...listeners}
               >
-                <GripVertical className="h-5 w-5 text-gray-400" />
+                <GripVertical className="h-5 w-5" />
               </button>
             </div>
 
@@ -136,31 +136,33 @@ function SortableBlockItem({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => onReorderItems(block)}
                   disabled={isUpdating || block.items.length === 0}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 rounded-full text-gray-600 hover:bg-gray-100"
                   title="Настроить порядок элементов"
                 >
                   <ListOrdered className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => onEdit(block)} 
-                  className="h-8 w-8 p-0"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(block)}
+                  className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
                   disabled={isUpdating}
+                  title="Редактировать"
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => onDelete(block.id)}
                   disabled={isUpdating}
-                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                  className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
+                  title="Удалить"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -428,12 +430,12 @@ export default function MainBlocksTab() {
             <h3 className="text-lg font-semibold">Блоки на главной странице</h3>
             <p className="text-sm text-muted-foreground">Управляйте контентными блоками на главной странице</p>
           </div>
-          <Button disabled>
+          <Button disabled className="rounded-lg bg-brand-yellow text-black opacity-60">
             <Plus className="h-4 w-4 mr-2" />
             Добавить блок
           </Button>
         </div>
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="text-center py-8">
             <div className="flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -459,7 +461,10 @@ export default function MainBlocksTab() {
             <span>Активных: {activeBlocksCount}</span>
           </div>
         </div>
-        <Button onClick={handleAddBlock}>
+        <Button
+          onClick={handleAddBlock}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Добавить блок
         </Button>
@@ -477,17 +482,22 @@ export default function MainBlocksTab() {
         >
           <div className="space-y-4">
             {sortedBlocks.length === 0 ? (
-              <div className="text-center py-12">
-                <Grid3X3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Блоки не найдены</h3>
-                <p className="text-muted-foreground mb-4">
-                  Создайте первый блок для отображения на главной странице
-                </p>
-                <Button onClick={handleAddBlock}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Создать блок
-                </Button>
-              </div>
+              <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
+                <CardContent className="text-center py-12">
+                  <Grid3X3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Блоки не найдены</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Создайте первый блок для отображения на главной странице
+                  </p>
+                  <Button
+                    onClick={handleAddBlock}
+                    className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Создать блок
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               sortedBlocks.map((block) => (
                 <SortableBlockItem
@@ -534,10 +544,12 @@ export default function MainBlocksTab() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogCancel className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
             >
               Удалить
             </AlertDialogAction>

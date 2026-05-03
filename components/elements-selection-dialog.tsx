@@ -24,6 +24,7 @@ import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
 import { getSuppliers } from "@/app/actions/suppliers"
 import { ParentCategoryDialog } from "./parent-category-dialog"
+import { BrandSelectDialog } from "./brand-select-dialog"
 import { getImageUrl as buildImageUrl } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 import type { Category } from "@/app/actions/categories"
@@ -338,15 +339,15 @@ function GenericElementsSelectionDialog({
                 placeholder="Поиск элементов..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
               />
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleSelectAll}>
+              <Button variant="outline" size="sm" onClick={handleSelectAll} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
                 Выбрать все
               </Button>
-              <Button variant="outline" size="sm" onClick={handleClearAll}>
+              <Button variant="outline" size="sm" onClick={handleClearAll} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
                 Очистить
               </Button>
             </div>
@@ -393,10 +394,10 @@ function GenericElementsSelectionDialog({
         </div>
 
         <DialogFooter className="flex-shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
             Отмена
           </Button>
-          <Button onClick={() => onOpenChange(false)}>Готово</Button>
+          <Button onClick={() => onOpenChange(false)} className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow">Готово</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -414,6 +415,7 @@ function ProductElementsSelectionDialog({
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [brandDialogOpen, setBrandDialogOpen] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null)
   const [brandFilter, setBrandFilter] = useState<string>("all")
   const [supplierFilter, setSupplierFilter] = useState<string>("all")
@@ -655,7 +657,7 @@ function ProductElementsSelectionDialog({
                   placeholder="Введите название или артикул..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
                 />
               </div>
             </div>
@@ -666,7 +668,7 @@ function ProductElementsSelectionDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-between"
+                  className="w-full justify-between rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
                   onClick={() => setCategoryDialogOpen(true)}
                 >
                   <span className="truncate text-left">{categoryFilterLabel}</span>
@@ -687,26 +689,39 @@ function ProductElementsSelectionDialog({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm.font-medium">Бренд</p>
-              <Select value={brandFilter} onValueChange={setBrandFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Бренд" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все бренды</SelectItem>
-                  {brands.map((brand) => (
-                    <SelectItem key={brand.id} value={String(brand.id)}>
-                      {brand.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-sm font-medium">Бренд</p>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between font-normal rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                  onClick={() => setBrandDialogOpen(true)}
+                >
+                  <span className="truncate text-left">
+                    {brandFilter === "all"
+                      ? "Все бренды"
+                      : brands.find((b) => String(b.id) === brandFilter)?.name || "Бренд"}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                </Button>
+                {brandFilter !== "all" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start px-2 text-muted-foreground"
+                    onClick={() => setBrandFilter("all")}
+                  >
+                    Сбросить
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Поставщик</p>
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300">
                   <SelectValue placeholder="Поставщик" />
                 </SelectTrigger>
                 <SelectContent>
@@ -748,7 +763,7 @@ function ProductElementsSelectionDialog({
 
             {page < totalPages && (
               <div className="pt-4 border-t mt-4">
-                <Button onClick={handleLoadMore} disabled={isLoadingMore} className="w-full" variant="outline">
+                <Button onClick={handleLoadMore} disabled={isLoadingMore} className="w-full rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow" variant="outline">
                   {isLoadingMore ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -765,10 +780,10 @@ function ProductElementsSelectionDialog({
 
         <DialogFooter className="mt-4">
           <div className="mr-auto text-sm text-muted-foreground">Выбрано товаров: {selectedItems.length}</div>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
             Отмена
           </Button>
-          <Button onClick={() => onOpenChange(false)}>Готово</Button>
+          <Button onClick={() => onOpenChange(false)} className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow">Готово</Button>
         </DialogFooter>
 
         <ParentCategoryDialog
@@ -778,6 +793,15 @@ function ProductElementsSelectionDialog({
           selectedCategoryId={categoryFilter}
           onSelect={(id) => setCategoryFilter(id)}
           title="Выберите категорию"
+        />
+
+        <BrandSelectDialog
+          open={brandDialogOpen}
+          onOpenChange={setBrandDialogOpen}
+          brands={brands as any}
+          selectedBrandId={brandFilter === "all" ? null : Number(brandFilter)}
+          onSelect={(id) => setBrandFilter(id === null ? "all" : String(id))}
+          title="Выберите бренд"
         />
       </DialogContent>
     </Dialog>

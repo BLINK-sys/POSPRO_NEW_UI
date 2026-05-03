@@ -24,6 +24,20 @@ import { mediaApi } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
 import { attachDriversToProduct, listDrivers, type Driver as MasterDriver } from "@/app/actions/drivers"
 import { uploadFileDirect } from "@/lib/upload-direct"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 type Document = {
   id: number
@@ -338,12 +352,18 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
         </DialogHeader>
 
         <Tabs defaultValue="documents" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="documents" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1">
+            <TabsTrigger
+              value="documents"
+              className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
               <FileText className="h-4 w-4" />
               Документы ({documents.length})
             </TabsTrigger>
-            <TabsTrigger value="drivers" className="flex items-center gap-2">
+            <TabsTrigger
+              value="drivers"
+              className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
               <HardDrive className="h-4 w-4" />
               Драйверы ({drivers.length})
             </TabsTrigger>
@@ -351,7 +371,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
           <TabsContent value="documents" className="space-y-4">
             {/* Загрузка документов */}
-            <Card>
+            <Card className={CARD_CLASS}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
@@ -369,9 +389,13 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                       accept=".doc,.docx,.pdf,.txt,.rtf"
                       onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
                       disabled={isPending}
-                      className="flex-1"
+                      className={cn("flex-1", SOFT_CONTROL)}
                     />
-                    <Button onClick={handleDocumentUpload} disabled={isPending || !documentFile}>
+                    <Button
+                      onClick={handleDocumentUpload}
+                      disabled={isPending || !documentFile}
+                      className={PRIMARY_BTN}
+                    >
                       {isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -390,7 +414,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
             </Card>
 
             {/* Список документов */}
-            <Card>
+            <Card className={CARD_CLASS}>
               <CardHeader>
                 <CardTitle>Загруженные документы</CardTitle>
               </CardHeader>
@@ -402,7 +426,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                     {documents.map((doc) => (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                        className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
                       >
                         <div className="flex items-center gap-3">
                           {getFileIcon(doc.file_type)}
@@ -417,14 +441,22 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => downloadFile(doc.url, doc.filename)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => downloadFile(doc.url, doc.filename)}
+                            className="rounded-full text-blue-600 hover:bg-blue-50"
+                            title="Скачать"
+                          >
                             <Download className="h-4 w-4" />
                           </Button>
                           <Button
-                            variant="outline"
-                            size="sm"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDeleteDocument(doc.id)}
                             disabled={isPending}
+                            className="rounded-full text-red-500 hover:bg-red-50"
+                            title="Удалить"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -439,7 +471,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
 
           <TabsContent value="drivers" className="space-y-4">
             {/* Загрузка драйверов */}
-            <Card>
+            <Card className={CARD_CLASS}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
@@ -459,9 +491,13 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                       accept=".zip,.rar,.exe,.msi,.7z"
                       onChange={(e) => setDriverFile(e.target.files?.[0] || null)}
                       disabled={isPending}
-                      className="flex-1"
+                      className={cn("flex-1", SOFT_CONTROL)}
                     />
-                    <Button onClick={handleDriverUpload} disabled={isPending || !driverFile}>
+                    <Button
+                      onClick={handleDriverUpload}
+                      disabled={isPending || !driverFile}
+                      className={PRIMARY_BTN}
+                    >
                       {isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -482,6 +518,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                   </div>
                   <Button
                     variant="outline"
+                    className={SECONDARY_BTN}
                     onClick={async () => {
                       setMasterLoading(true)
                       setSelectDriversOpen(true)
@@ -506,7 +543,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
             </Card>
 
             {/* Список драйверов */}
-            <Card>
+            <Card className={CARD_CLASS}>
               <CardHeader>
                 <CardTitle>Загруженные драйверы</CardTitle>
               </CardHeader>
@@ -518,7 +555,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                     {drivers.map((driver) => (
                       <div
                         key={driver.id}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                        className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
                       >
                         <div className="flex items-center gap-3">
                           {getFileIcon(driver.file_type)}
@@ -539,28 +576,34 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => downloadFile(driver.url, driver.filename)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => downloadFile(driver.url, driver.filename)}
+                            className="rounded-full text-blue-600 hover:bg-blue-50"
+                            title="Скачать"
+                          >
                             <Download className="h-4 w-4" />
                           </Button>
                           {driver.driver_id != null ? (
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="ghost"
+                              size="icon"
                               onClick={() => setDriverActionTarget(driver)}
                               disabled={isPending}
                               title="Отвязать от товара"
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              className="rounded-full text-blue-600 hover:bg-blue-50"
                             >
                               <Unlink className="h-4 w-4" />
                             </Button>
                           ) : (
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="ghost"
+                              size="icon"
                               onClick={() => setDriverActionTarget(driver)}
                               disabled={isPending}
                               title="Удалить драйвер"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="rounded-full text-red-500 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -596,7 +639,12 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                 return (
                   <label
                     key={d.id}
-                    className="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition-all bg-white",
+                      checked
+                        ? "border-brand-yellow shadow-[0_2px_6px_rgba(250,204,21,0.20)]"
+                        : "border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)]"
+                    )}
                   >
                     <input
                       type="checkbox"
@@ -609,6 +657,7 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                           return next
                         })
                       }}
+                      className="accent-brand-yellow"
                     />
                     <HardDrive className="h-4 w-4 text-brand-yellow shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -621,11 +670,16 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
             )}
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" onClick={() => setSelectDriversOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setSelectDriversOpen(false)}
+              className={SECONDARY_BTN}
+            >
               Отмена
             </Button>
             <Button
               disabled={selectedMasterIds.size === 0 || isPending}
+              className={PRIMARY_BTN}
               onClick={() => {
                 const ids = Array.from(selectedMasterIds)
                 startTransition(async () => {
@@ -659,9 +713,9 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
                 <AlertDialogAction
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-[0_2px_6px_rgba(37,99,235,0.30)] hover:shadow-[0_6px_16px_rgba(37,99,235,0.40)] transition-shadow"
                   onClick={() => {
                     const t = driverActionTarget
                     setDriverActionTarget(null)
@@ -682,9 +736,9 @@ export function ProductDocumentsDriversDialog({ productId, onClose }: ProductDoc
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogCancel className={SECONDARY_BTN}>Отмена</AlertDialogCancel>
                 <AlertDialogAction
-                  className="bg-red-500 hover:bg-red-600"
+                  className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
                   onClick={() => {
                     const t = driverActionTarget
                     setDriverActionTarget(null)

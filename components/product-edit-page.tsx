@@ -24,6 +24,23 @@ import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
 import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
 import { CharacteristicsListDialog } from "./characteristics-list-dialog"
+import { cn } from "@/lib/utils"
+
+// Единая стилизация в духе таблицы товаров: убираем чёрную рамку фокуса и
+// добавляем мягкую тень с небольшим лифтом на hover, чтобы все элементы
+// смотрелись «объёмно» и одинаково.
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface ProductEditPageProps {
   product: Product
@@ -339,7 +356,12 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
   return (
     <div className="container mx-auto py-6 max-w-7xl">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={handleCancel}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleCancel}
+          className="rounded-full hover:bg-gray-100"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -351,7 +373,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column */}
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Основная информация</CardTitle>
             </CardHeader>
@@ -359,7 +381,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="name">Название *</Label>
-                  <Input id="name" value={name} onChange={handleNameChange} required disabled={isPending} />
+                  <Input id="name" value={name} onChange={handleNameChange} required disabled={isPending} className={SOFT_CONTROL} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="slug">URL (slug)</Label>
@@ -368,7 +390,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={product.slug}
                     disabled={true}
                     placeholder="Генерируется сервером"
-                    className="bg-gray-50"
+                    className={cn("bg-gray-50", SOFT_CONTROL)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -378,13 +400,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={article}
                     onChange={(e) => setArticle(e.target.value)}
                     disabled={isPending}
+                    className={SOFT_CONTROL}
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Цены и количество</CardTitle>
             </CardHeader>
@@ -398,6 +421,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={price}
                     onChange={(e) => setPrice(Number(e.target.value))}
                     disabled={isPending}
+                    className={SOFT_CONTROL}
                   />
                 </div>
                 <div className="space-y-2">
@@ -408,6 +432,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={wholesalePrice}
                     onChange={(e) => setWholesalePrice(Number(e.target.value))}
                     disabled={isPending}
+                    className={SOFT_CONTROL}
                   />
                 </div>
                 <div className="space-y-2">
@@ -418,13 +443,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
                     disabled={isPending}
+                    className={SOFT_CONTROL}
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Статус и бренд</CardTitle>
             </CardHeader>
@@ -433,7 +459,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                 <div className="space-y-2">
                   <Label htmlFor="status_id">Статус</Label>
                   <Select value={statusId} onValueChange={setStatusId} disabled={isPending}>
-                    <SelectTrigger>
+                    <SelectTrigger className={SOFT_CONTROL}>
                       <SelectValue placeholder="Выберите статус" />
                     </SelectTrigger>
                     <SelectContent>
@@ -453,7 +479,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     variant="outline"
                     onClick={() => setShowBrandDialog(true)}
                     disabled={isPending}
-                    className="w-full justify-between font-normal"
+                    className={cn("w-full justify-between font-normal", SOFT_CONTROL)}
                   >
                     <span className={brandId === "no-brand" ? "text-gray-400" : ""}>
                       {brandId === "no-brand"
@@ -470,20 +496,21 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
                     disabled={isPending}
+                    className={SOFT_CONTROL}
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Категория</CardTitle>
             </CardHeader>
             <CardContent>
               <Button
                 variant="outline"
-                className="w-full justify-between bg-transparent"
+                className={cn("w-full justify-between bg-transparent", SOFT_CONTROL)}
                 onClick={() => setShowCategoryDialog(true)}
                 disabled={isPending}
               >
@@ -493,14 +520,14 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Поставщик</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <Select value={supplierId} onValueChange={setSupplierId} disabled={isPending}>
-                  <SelectTrigger>
+                  <SelectTrigger className={SOFT_CONTROL}>
                     <SelectValue placeholder="Выберите поставщика" />
                   </SelectTrigger>
                   <SelectContent>
@@ -520,7 +547,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
         {/* Right Column */}
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <div>
                 <CardTitle>Характеристики</CardTitle>
@@ -528,16 +555,26 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               </div>
             </CardHeader>
             <CardContent className="flex justify-center gap-2">
-              <Button variant="outline" onClick={() => setShowCharacteristicsDialog(true)} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={() => setShowCharacteristicsDialog(true)}
+                disabled={isPending}
+                className={SECONDARY_BTN}
+              >
                 <List className="mr-2 h-4 w-4" /> Характеристики
               </Button>
-              <Button variant="outline" onClick={() => setShowCharacteristicsListDialog(true)} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={() => setShowCharacteristicsListDialog(true)}
+                disabled={isPending}
+                className={SECONDARY_BTN}
+              >
                 <BookOpen className="mr-2 h-4 w-4" /> Справочник
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <div>
                 <CardTitle>Медиафайлы</CardTitle>
@@ -545,13 +582,18 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               </div>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <Button variant="outline" onClick={() => setShowMediaDialog(true)} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={() => setShowMediaDialog(true)}
+                disabled={isPending}
+                className={SECONDARY_BTN}
+              >
                 <ImageIcon className="mr-2 h-4 w-4" /> Медиа
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <div>
                 <CardTitle>Документы и драйверы</CardTitle>
@@ -559,13 +601,18 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               </div>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <Button variant="outline" onClick={() => setShowDocumentsDriversDialog(true)} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={() => setShowDocumentsDriversDialog(true)}
+                disabled={isPending}
+                className={SECONDARY_BTN}
+              >
                 <FileText className="mr-2 h-4 w-4" /> Документы/Драйверы
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Видимость</CardTitle>
@@ -582,7 +629,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
       {/* Warehouse Costs - Full Width */}
       {supplierId !== "no-supplier" && (
-        <Card className="mt-6">
+        <Card className={cn(CARD_CLASS, "mt-6")}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <WarehouseIcon className="h-4 w-4" />
@@ -622,7 +669,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                                       step={1}
                                       value={cost.quantity ?? 0}
                                       onChange={(e) => handleQuantityChange(cost.id, e.target.value)}
-                                      className="h-8 w-20 text-sm text-right font-mono"
+                                      className={cn("h-8 w-20 text-sm text-right font-mono", SOFT_CONTROL)}
                                     />
                                   </div>
                                   <div className="text-right">
@@ -633,7 +680,13 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                                       <div className="text-xs text-gray-400">Нет формулы</div>
                                     )}
                                   </div>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteWarehouseCost(cost.id)} disabled={isPending}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteWarehouseCost(cost.id)}
+                                    disabled={isPending}
+                                    className="rounded-full hover:bg-red-50"
+                                  >
                                     <Trash2 className="h-4 w-4 text-red-500" />
                                   </Button>
                                 </div>
@@ -647,7 +700,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                         <div className="flex-1 space-y-1">
                           <Label className="text-xs">Склад</Label>
                           <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
-                            <SelectTrigger className="text-sm"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                            <SelectTrigger className={cn("text-sm", SOFT_CONTROL)}><SelectValue placeholder="Выберите склад" /></SelectTrigger>
                             <SelectContent>
                               {supplierWarehouses?.filter((w) => !allCosts?.some((c) => c.warehouse_id === w.id)).map((w) => (
                                 <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
@@ -657,13 +710,18 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
                         </div>
                         <div className="w-[120px] space-y-1">
                           <Label className="text-xs">Себестоимость</Label>
-                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
                         </div>
                         <div className="w-[90px] space-y-1">
                           <Label className="text-xs">Остаток</Label>
-                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
                         </div>
-                        <Button size="sm" onClick={handleAddWarehouseCost} disabled={isPending || !addingWarehouseId || !addingCostPrice}>
+                        <Button
+                          size="sm"
+                          onClick={handleAddWarehouseCost}
+                          disabled={isPending || !addingWarehouseId || !addingCostPrice}
+                          className={PRIMARY_BTN}
+                        >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
@@ -722,7 +780,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
       {/* Description Card - Full Width */}
       <div className="mt-8">
-        <Card>
+        <Card className={CARD_CLASS}>
           <CardHeader>
             <CardTitle>Описание</CardTitle>
           </CardHeader>
@@ -733,6 +791,7 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
               rows={8}
               disabled={isPending}
               placeholder="Описание товара..."
+              className={SOFT_CONTROL}
             />
           </CardContent>
         </Card>
@@ -740,10 +799,16 @@ export function ProductEditPage({ product, categories, brands, statuses, supplie
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
-        <Button type="button" variant="ghost" onClick={handleCancel} disabled={isPending}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleCancel}
+          disabled={isPending}
+          className={SECONDARY_BTN}
+        >
           Отмена
         </Button>
-        <Button onClick={handleSave} disabled={isPending}>
+        <Button onClick={handleSave} disabled={isPending} className={PRIMARY_BTN}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Сохранить изменения
         </Button>

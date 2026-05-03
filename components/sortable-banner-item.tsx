@@ -85,17 +85,17 @@ export function SortableBannerItem({ banner, onEdit, onDelete, onToggleActive }:
 
   return (
     <div ref={setNodeRef} style={style} className={`${isDragging ? "opacity-50" : ""}`}>
-      <Card className="mb-4">
+      <Card className="mb-4 rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
             {/* Drag Handle */}
             <div className="flex items-center">
               <button
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                className="cursor-grab active:cursor-grabbing p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700"
                 {...attributes}
                 {...listeners}
               >
-                <GripVertical className="h-5 w-5 text-gray-400" />
+                <GripVertical className="h-5 w-5" />
               </button>
             </div>
 
@@ -144,14 +144,21 @@ export function SortableBannerItem({ banner, onEdit, onDelete, onToggleActive }:
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => onEdit(banner)} className="h-8 w-8 p-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(banner)}
+                  className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
+                  title="Редактировать"
+                >
                   <Edit className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => onDelete(banner.id)}
-                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                  className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50"
+                  title="Удалить"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

@@ -62,16 +62,26 @@ export default function BenefitEditDialog({ benefit, open, onOpenChange, onSave 
         <div className="space-y-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="title">Заголовок</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="description">Описание</Label>
-            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="icon">Иконка</Label>
             <Select value={icon} onValueChange={setIcon}>
-              <SelectTrigger>
+              <SelectTrigger className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300">
                 <SelectValue placeholder="Выберите иконку" />
               </SelectTrigger>
               <SelectContent>
@@ -88,10 +98,12 @@ export default function BenefitEditDialog({ benefit, open, onOpenChange, onSave 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
             Отмена
           </Button>
-          <Button onClick={handleSubmit}>Сохранить</Button>
+          <Button onClick={handleSubmit} className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow">
+            Сохранить
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

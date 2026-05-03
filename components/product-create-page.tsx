@@ -34,6 +34,23 @@ import { ProductMediaDialog } from "./product-media-dialog"
 import { ProductDocumentsDriversDialog } from "./product-documents-drivers-dialog"
 import { CharacteristicsListDialog } from "./characteristics-list-dialog"
 import { ProductImportFromUrlDialog, type ImportedProductData } from "./product-import-from-url-dialog"
+import { cn } from "@/lib/utils"
+
+// Единая стилизация в духе таблицы товаров: убираем чёрную рамку фокуса и
+// добавляем мягкую тень с небольшим лифтом на hover, чтобы все элементы
+// смотрелись «объёмно» и одинаково.
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface ProductCreatePageProps {
   categories: Category[]
@@ -412,7 +429,13 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleCancel} disabled={isPending}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCancel}
+            disabled={isPending}
+            className="rounded-full hover:bg-gray-100"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold">Создать новый товар</h1>
@@ -424,7 +447,10 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
               variant="outline"
               onClick={() => setShowImportDialog(true)}
               disabled={isPending || importing || !draftId}
-              className="gap-2 border-brand-yellow/50 hover:bg-brand-yellow/10"
+              className={cn(
+                "gap-2 rounded-lg border-brand-yellow/50 bg-brand-yellow/10 hover:bg-brand-yellow/20",
+                "shadow-[0_2px_6px_rgba(250,204,21,0.20)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.30)] transition-shadow"
+              )}
               title="Заполнить карточку из URL через PosPro AI"
             >
               {importing ? (
@@ -435,11 +461,16 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
               PosPro AI помощник
             </Button>
           )}
-          <Button variant="ghost" onClick={handleCancel} disabled={isPending}>
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isPending}
+            className={SECONDARY_BTN}
+          >
             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Отмена
           </Button>
-          <Button onClick={handleSave} disabled={isPending || !draftId}>
+          <Button onClick={handleSave} disabled={isPending || !draftId} className={PRIMARY_BTN}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Сохранить
           </Button>
@@ -449,33 +480,33 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column */}
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Основная информация</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Название *</Label>
-                <Input value={name} onChange={handleNameChange} required disabled={isPending} />
+                <Input value={name} onChange={handleNameChange} required disabled={isPending} className={SOFT_CONTROL} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>URL (slug)</Label>
-                  <Input value={serverSlug} disabled placeholder="Генерируется" className="bg-gray-50" />
+                  <Input value={serverSlug} disabled placeholder="Генерируется" className={cn("bg-gray-50", SOFT_CONTROL)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Артикул</Label>
-                  <Input value={article} onChange={(e) => setArticle(e.target.value)} disabled={isPending} />
+                  <Input value={article} onChange={(e) => setArticle(e.target.value)} disabled={isPending} className={SOFT_CONTROL} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Описание</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} disabled={isPending} />
+                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} disabled={isPending} className={SOFT_CONTROL} />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Цена и количество</CardTitle>
             </CardHeader>
@@ -483,21 +514,21 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Цена</Label>
-                  <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} disabled={isPending} />
+                  <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} disabled={isPending} className={SOFT_CONTROL} />
                 </div>
                 <div className="space-y-2">
                   <Label>Оптовая цена</Label>
-                  <Input type="number" value={wholesalePrice} onChange={(e) => setWholesalePrice(Number(e.target.value))} disabled={isPending} />
+                  <Input type="number" value={wholesalePrice} onChange={(e) => setWholesalePrice(Number(e.target.value))} disabled={isPending} className={SOFT_CONTROL} />
                 </div>
                 <div className="space-y-2">
                   <Label>Кол-во</Label>
-                  <Input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} disabled={isPending} />
+                  <Input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} disabled={isPending} className={SOFT_CONTROL} />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Классификация</CardTitle>
             </CardHeader>
@@ -506,7 +537,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                 <div className="space-y-2">
                   <Label>Статус</Label>
                   <Select value={statusId} onValueChange={setStatusId} disabled={isPending}>
-                    <SelectTrigger><SelectValue placeholder="Статус" /></SelectTrigger>
+                    <SelectTrigger className={SOFT_CONTROL}><SelectValue placeholder="Статус" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="no-status">Без статуса</SelectItem>
                       {statuses.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
@@ -520,7 +551,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                     variant="outline"
                     onClick={() => setShowBrandDialog(true)}
                     disabled={isPending}
-                    className="w-full justify-between font-normal bg-transparent"
+                    className={cn("w-full justify-between font-normal bg-transparent", SOFT_CONTROL)}
                   >
                     <span className={brandId === "no-brand" ? "text-gray-400" : ""}>
                       {brandId === "no-brand"
@@ -532,12 +563,17 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                 </div>
                 <div className="space-y-2">
                   <Label>Страна</Label>
-                  <Input value={country} onChange={(e) => setCountry(e.target.value)} disabled={isPending} />
+                  <Input value={country} onChange={(e) => setCountry(e.target.value)} disabled={isPending} className={SOFT_CONTROL} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Категория</Label>
-                <Button variant="outline" className="w-full justify-between bg-transparent" onClick={() => setShowCategoryDialog(true)} disabled={isPending}>
+                <Button
+                  variant="outline"
+                  className={cn("w-full justify-between bg-transparent", SOFT_CONTROL)}
+                  onClick={() => setShowCategoryDialog(true)}
+                  disabled={isPending}
+                >
                   <span>{categoryName}</span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -545,13 +581,13 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Поставщик</CardTitle>
             </CardHeader>
             <CardContent>
               <Select value={supplierId} onValueChange={setSupplierId} disabled={isPending}>
-                <SelectTrigger><SelectValue placeholder="Поставщик" /></SelectTrigger>
+                <SelectTrigger className={SOFT_CONTROL}><SelectValue placeholder="Поставщик" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="no-supplier">Без поставщика</SelectItem>
                   {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
@@ -560,7 +596,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader className="p-4 flex-row items-center justify-between">
               <CardDescription>Укажите будет ли виден товар для клиентов на страницах магазина</CardDescription>
               <div className="flex items-center space-x-2">
@@ -573,40 +609,60 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
 
         {/* Right Column */}
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Характеристики</CardTitle>
               <CardDescription>Управление списком характеристик для товара и их очередностью</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center gap-2">
-              <Button variant="outline" onClick={() => setShowCharacteristicsDialog(true)} disabled={isPending || !draftId}>
+              <Button
+                variant="outline"
+                onClick={() => setShowCharacteristicsDialog(true)}
+                disabled={isPending || !draftId}
+                className={SECONDARY_BTN}
+              >
                 <List className="mr-2 h-4 w-4" /> Характеристики
               </Button>
-              <Button variant="outline" onClick={() => setShowCharacteristicsListDialog(true)} disabled={isPending}>
+              <Button
+                variant="outline"
+                onClick={() => setShowCharacteristicsListDialog(true)}
+                disabled={isPending}
+                className={SECONDARY_BTN}
+              >
                 <BookOpen className="mr-2 h-4 w-4" /> Справочник
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Медиа</CardTitle>
               <CardDescription>Добавьте изображения и видео для товара</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <Button variant="outline" onClick={() => setShowMediaDialog(true)} disabled={isPending || !draftId}>
+              <Button
+                variant="outline"
+                onClick={() => setShowMediaDialog(true)}
+                disabled={isPending || !draftId}
+                className={SECONDARY_BTN}
+              >
                 <ImageIcon className="mr-2 h-4 w-4" /> Медиа
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={CARD_CLASS}>
             <CardHeader>
               <CardTitle>Документы</CardTitle>
               <CardDescription>Документация и Драйвера для товара</CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <Button variant="outline" onClick={() => setShowDocumentsDriversDialog(true)} disabled={isPending || !draftId}>
+              <Button
+                variant="outline"
+                onClick={() => setShowDocumentsDriversDialog(true)}
+                disabled={isPending || !draftId}
+                className={SECONDARY_BTN}
+              >
                 <FileText className="mr-2 h-4 w-4" /> Документы/Драйверы
               </Button>
             </CardContent>
@@ -616,7 +672,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
 
       {/* Warehouse Costs - Full Width */}
       {supplierId !== "no-supplier" && (
-        <Card className="mt-6">
+        <Card className={cn(CARD_CLASS, "mt-6")}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <WarehouseIcon className="h-4 w-4" />
@@ -654,7 +710,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                                     step={1}
                                     value={cost.quantity ?? 0}
                                     onChange={(e) => handleQuantityChange(cost.id, e.target.value)}
-                                    className="h-8 w-20 text-sm text-right font-mono"
+                                    className={cn("h-8 w-20 text-sm text-right font-mono", SOFT_CONTROL)}
                                   />
                                 </div>
                                 <div className="text-right">
@@ -665,7 +721,13 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                                     <div className="text-xs text-gray-400">Нет формулы</div>
                                   )}
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteWarehouseCost(cost.id)} disabled={isPending}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteWarehouseCost(cost.id)}
+                                  disabled={isPending}
+                                  className="rounded-full hover:bg-red-50"
+                                >
                                   <Trash2 className="h-4 w-4 text-red-500" />
                                 </Button>
                               </div>
@@ -679,7 +741,7 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                         <div className="flex-1 space-y-1">
                           <Label className="text-xs">Склад</Label>
                           <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
-                            <SelectTrigger className="text-sm"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                            <SelectTrigger className={cn("text-sm", SOFT_CONTROL)}><SelectValue placeholder="Выберите склад" /></SelectTrigger>
                             <SelectContent>
                               {supplierWarehouses.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
                                 <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
@@ -689,13 +751,18 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                         </div>
                         <div className="w-[120px] space-y-1">
                           <Label className="text-xs">Себестоимость</Label>
-                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
                         </div>
                         <div className="w-[90px] space-y-1">
                           <Label className="text-xs">Остаток</Label>
-                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className="text-sm" disabled={isPending} />
+                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
                         </div>
-                        <Button size="sm" onClick={handleAddWarehouseCost} disabled={isPending || !addingWarehouseId || !addingCostPrice || !draftId}>
+                        <Button
+                          size="sm"
+                          onClick={handleAddWarehouseCost}
+                          disabled={isPending || !addingWarehouseId || !addingCostPrice || !draftId}
+                          className={PRIMARY_BTN}
+                        >
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>

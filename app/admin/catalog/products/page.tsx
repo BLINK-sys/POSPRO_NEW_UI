@@ -21,7 +21,7 @@ export default async function ProductsPage({ isSidebarCollapsed = false }: Produ
   ])
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
         <CardTitle>Товары</CardTitle>
         <CardDescription>Управление товарами в каталоге.</CardDescription>

@@ -19,6 +19,14 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
+import { cn } from "@/lib/utils"
+
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface SmallBannerEditDialogProps {
   banner: Partial<SmallBanner> | null
@@ -233,11 +241,31 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
         </DialogHeader>
         <div className="flex-grow overflow-y-auto pr-2">
           <Tabs defaultValue="content" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="content">Контент</TabsTrigger>
-              <TabsTrigger value="images">Изображения</TabsTrigger>
-              <TabsTrigger value="button">Кнопка</TabsTrigger>
-              <TabsTrigger value="preview">Превью</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 rounded-lg bg-gray-100 p-1">
+              <TabsTrigger
+                value="content"
+                className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+              >
+                Контент
+              </TabsTrigger>
+              <TabsTrigger
+                value="images"
+                className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+              >
+                Изображения
+              </TabsTrigger>
+              <TabsTrigger
+                value="button"
+                className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+              >
+                Кнопка
+              </TabsTrigger>
+              <TabsTrigger
+                value="preview"
+                className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+              >
+                Превью
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="content" className="pt-4">
               <div className="space-y-4">
@@ -465,7 +493,7 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                       variant="outline"
                       size="sm"
                       onClick={handleSetStandardColors}
-                      className="text-xs"
+                      className={cn("text-xs", SECONDARY_BTN)}
                     >
                       Стандартный цвет
                     </Button>
@@ -477,6 +505,7 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                       id="button_text"
                       value={formData.button_text || ""}
                       onChange={(e) => handleInputChange("button_text", e.target.value)}
+                      className={SOFT_CONTROL}
                     />
                   </div>
                   <div className="space-y-2">
@@ -485,6 +514,7 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                       id="button_link"
                       value={formData.button_link || ""}
                       onChange={(e) => handleInputChange("button_link", e.target.value)}
+                      className={SOFT_CONTROL}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-6">
@@ -498,11 +528,12 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                             type="color"
                             value={formData.button_bg_color || "#007bff"}
                             onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
-                            className="p-1 h-10 w-14 block"
+                            className={cn("p-1 h-10 w-14 block cursor-pointer", SOFT_CONTROL)}
                           />
                           <Input
                             value={formData.button_bg_color || "#007bff"}
                             onChange={(e) => handleInputChange("button_bg_color", e.target.value)}
+                            className={SOFT_CONTROL}
                           />
                         </div>
                       </div>
@@ -514,11 +545,12 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
                             type="color"
                             value={formData.button_text_color || "#ffffff"}
                             onChange={(e) => handleInputChange("button_text_color", e.target.value)}
-                            className="p-1 h-10 w-14 block"
+                            className={cn("p-1 h-10 w-14 block cursor-pointer", SOFT_CONTROL)}
                           />
                           <Input
                             value={formData.button_text_color || "#ffffff"}
                             onChange={(e) => handleInputChange("button_text_color", e.target.value)}
+                            className={SOFT_CONTROL}
                           />
                         </div>
                       </div>
@@ -606,10 +638,19 @@ export default function SmallBannerEditDialog({ banner, open, onOpenChange, onSa
           </Tabs>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving || isUploading}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving || isUploading}
+            className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+          >
             Отмена
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isUploading || !formData.title?.trim()}>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || isUploading || !formData.title?.trim()}
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             {isSaving ? "Сохранение..." : "Сохранить"}
           </Button>
         </DialogFooter>

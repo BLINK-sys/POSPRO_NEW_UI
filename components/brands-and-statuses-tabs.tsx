@@ -15,11 +15,31 @@ interface BrandsAndStatusesTabsProps {
 export function BrandsAndStatusesTabs({ initialBrands, initialStatuses }: BrandsAndStatusesTabsProps) {
   return (
     <Tabs defaultValue="brands" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="brands">Бренды</TabsTrigger>
-        <TabsTrigger value="statuses">Статусы товаров</TabsTrigger>
-        <TabsTrigger value="order-statuses">Статусы заказов</TabsTrigger>
-        <TabsTrigger value="product-availability-statuses">Статус наличия товара</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-4 rounded-lg bg-gray-100 p-1">
+        <TabsTrigger
+          value="brands"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Бренды
+        </TabsTrigger>
+        <TabsTrigger
+          value="statuses"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Статусы товаров
+        </TabsTrigger>
+        <TabsTrigger
+          value="order-statuses"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Статусы заказов
+        </TabsTrigger>
+        <TabsTrigger
+          value="product-availability-statuses"
+          className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+        >
+          Статус наличия товара
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="brands">
         <BrandsList brands={initialBrands} />

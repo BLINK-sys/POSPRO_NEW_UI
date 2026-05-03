@@ -27,6 +27,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Trash2, Video, GripVertical, Upload, Link, Play, ImageIcon, Youtube, Crop as CropIcon } from "lucide-react"
 import { ImageCropperDialog } from "./image-cropper-dialog"
+import { cn } from "@/lib/utils"
+
+const FOCUS_NO_RING =
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  FOCUS_NO_RING
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
 
 interface ProductMediaDialogProps {
   productId: number
@@ -74,9 +86,12 @@ function SortableMediaItem({
   return (
     <div ref={setNodeRef} style={style} className="group">
       <div
-        className={`relative aspect-square cursor-pointer border-2 rounded-lg overflow-hidden bg-white ${
-          isSelected ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300"
-        }`}
+        className={cn(
+          "relative aspect-square cursor-pointer border-2 rounded-xl overflow-hidden bg-white transition-all",
+          isSelected
+            ? "border-brand-yellow ring-2 ring-brand-yellow/40 shadow-[0_4px_12px_rgba(250,204,21,0.30)]"
+            : "border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] hover:border-gray-300"
+        )}
         onClick={() => onSelect(media)}
       >
         <div className="absolute top-1 left-1 z-10" {...attributes} {...listeners}>
@@ -129,7 +144,7 @@ function SortableMediaItem({
               e.stopPropagation()
               onCrop(media)
             }}
-            className="flex-1 h-7 px-2"
+            className={cn("flex-1 h-7 px-2", SECONDARY_BTN)}
             title="Обрезать изображение под квадрат каталога"
           >
             <CropIcon className="h-3.5 w-3.5" />
@@ -142,7 +157,7 @@ function SortableMediaItem({
             e.stopPropagation()
             onDelete(media.id)
           }}
-          className="flex-1 h-7 px-2"
+          className="flex-1 h-7 px-2 rounded-lg shadow-[0_1px_3px_rgba(220,38,38,0.20)] hover:shadow-[0_4px_10px_rgba(220,38,38,0.30)] transition-shadow"
           title="Удалить"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -169,7 +184,7 @@ function MediaViewer({ media }: { media: Media | null }) {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden p-4 min-h-0">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden p-4 min-h-0 border border-gray-200">
         {media.media_type === "image" ? (
           // Use a plain <img> here — Next/Image with fixed width/height doesn't
           // play well with `object-contain` inside a flex container that needs
@@ -195,7 +210,7 @@ function MediaViewer({ media }: { media: Media | null }) {
           </video>
         )}
       </div>
-      <div className="mt-3 p-3 bg-gray-50 rounded-lg flex-shrink-0">
+      <div className="mt-3 p-3 bg-gray-50 rounded-xl flex-shrink-0 border border-gray-200">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="font-medium text-gray-600">Тип:</span>
@@ -426,18 +441,24 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
           {/* Левая панель — управление + список медиа (55%) */}
           <div className="w-[55%] flex flex-col min-w-0 h-full">
             {/* Панель добавления медиафайлов */}
-            <Card className="flex-shrink-0 mb-4">
+            <Card className={cn(CARD_CLASS, "flex-shrink-0 mb-4")}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Добавить медиафайлы</CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload" className="flex items-center gap-2">
+                  <TabsList className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1">
+                    <TabsTrigger
+                      value="upload"
+                      className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+                    >
                       <Upload className="h-4 w-4" />
                       Загрузить файлы
                     </TabsTrigger>
-                    <TabsTrigger value="url" className="flex items-center gap-2">
+                    <TabsTrigger
+                      value="url"
+                      className="flex items-center gap-2 rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+                    >
                       <Link className="h-4 w-4" />
                       Добавить по URL
                     </TabsTrigger>
@@ -451,11 +472,11 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                         onChange={handleFileChange}
                         disabled={isPending}
                         accept="image/*,video/*"
-                        className="cursor-pointer"
+                        className={cn("cursor-pointer", SOFT_CONTROL)}
                       />
                       <p className="text-xs text-gray-500">Поддерживаемые форматы: JPG, PNG, GIF, MP4, AVI, MOV</p>
                     </div>
-                    <div className="rounded-md border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-2">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 space-y-2 shadow-[0_1px_3px_rgba(59,130,246,0.10)]">
                       <div>
                         <p className="font-semibold">Изображения товара</p>
                         <p>Рекомендуемый размер: <strong>1200 × 1200 px</strong> (квадрат, соотношение 1:1).</p>
@@ -480,6 +501,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                           value={url}
                           onChange={(e) => setUrl(e.target.value)}
                           disabled={isPending}
+                          className={SOFT_CONTROL}
                         />
                         <p className="text-xs text-gray-500">
                           Поддерживаются прямые ссылки на изображения, видео и YouTube
@@ -489,7 +511,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                         <Button
                           onClick={() => handleAddByUrl("image")}
                           disabled={isPending || !url.trim()}
-                          className="flex-1"
+                          className={cn("flex-1", SECONDARY_BTN)}
                           variant="outline"
                         >
                           {isPending ? (
@@ -502,7 +524,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
                         <Button
                           onClick={() => handleAddByUrl("video")}
                           disabled={isPending || !url.trim()}
-                          className="flex-1"
+                          className={cn("flex-1", SECONDARY_BTN)}
                           variant="outline"
                         >
                           {isPending ? (
@@ -520,7 +542,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
             </Card>
 
             {/* Список медиафайлов */}
-            <Card className="flex-1 flex flex-col min-h-0">
+            <Card className={cn(CARD_CLASS, "flex-1 flex flex-col min-h-0")}>
               <CardHeader className="pb-3 flex-shrink-0">
                 <CardTitle className="text-lg">Медиафайлы ({media.length})</CardTitle>
                 <p className="text-sm text-gray-600">Перетаскивайте для изменения порядка, кликайте для просмотра</p>
@@ -560,7 +582,7 @@ export function ProductMediaDialog({ productId, onClose }: ProductMediaDialogPro
 
           {/* Правая панель — просмотр выбранного медиа (45%) */}
           <div className="w-[45%] min-w-0 h-full">
-            <Card className="h-full flex flex-col">
+            <Card className={cn(CARD_CLASS, "h-full flex flex-col")}>
               <CardHeader className="pb-3 flex-shrink-0">
                 <CardTitle className="text-lg">Просмотр</CardTitle>
               </CardHeader>

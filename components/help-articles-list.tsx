@@ -51,11 +51,15 @@ function SortableCard({
   }
 
   return (
-    <Card ref={setNodeRef} style={style} className="group">
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className="group rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+    >
       <CardContent className="p-4 flex gap-4">
         {isAdmin && (
           <button
-            className="cursor-grab active:cursor-grabbing touch-none text-gray-400 hover:text-gray-700 flex items-center"
+            className="cursor-grab active:cursor-grabbing touch-none p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center"
             {...attributes}
             {...listeners}
             aria-label="Перетащить"
@@ -84,9 +88,10 @@ function SortableCard({
 
         <div className="flex items-start gap-1">
           <Button
-            size="sm"
+            size="icon"
             variant="ghost"
             onClick={() => router.push(`/admin/help/${article.id}`)}
+            className="h-8 w-8 rounded-full text-gray-600 hover:bg-gray-100"
             title="Открыть"
           >
             <Eye className="h-4 w-4" />
@@ -94,17 +99,18 @@ function SortableCard({
           {isAdmin && (
             <>
               <Button
-                size="sm"
+                size="icon"
                 variant="ghost"
                 onClick={() => router.push(`/admin/help/${article.id}?edit=1`)}
+                className="h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50"
                 title="Редактировать"
               >
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
-                size="sm"
+                size="icon"
                 variant="ghost"
-                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
                 onClick={() => onDelete(article.id)}
                 title="Удалить"
               >
@@ -174,7 +180,10 @@ export function HelpArticlesList({ initialArticles }: { initialArticles: HelpArt
           <p className="text-sm text-gray-500 mt-1">Инструкции по работе с магазином</p>
         </div>
         {isAdmin && (
-          <Button asChild>
+          <Button
+            asChild
+            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+          >
             <Link href="/admin/help/new">
               <Plus className="h-4 w-4 mr-2" />
               Создать инструкцию
@@ -184,7 +193,7 @@ export function HelpArticlesList({ initialArticles }: { initialArticles: HelpArt
       </div>
 
       {articles.length === 0 ? (
-        <Card>
+        <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
           <CardContent className="py-12 text-center text-gray-500">
             Инструкций пока нет{isAdmin && ". Нажмите «Создать инструкцию», чтобы добавить первую."}
           </CardContent>
@@ -210,8 +219,13 @@ export function HelpArticlesList({ initialArticles }: { initialArticles: HelpArt
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
+            >
               Удалить
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -13,7 +13,7 @@ export default async function UsersPage() {
   ])
 
   return (
-    <Card>
+    <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
         <CardTitle>Управление пользователями</CardTitle>
         <CardDescription>Просмотр, создание и редактирование клиентов, оптовых покупателей и системных пользователей.</CardDescription>

@@ -8,7 +8,16 @@ import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
 import { API_BASE_URL } from "@/lib/api-address"
+import { cn } from "@/lib/utils"
 import { getSupplierNames } from "@/lib/product-helpers"
+
+// Общие классы для фильтров: лёгкая тень, на hover больше тени, без чёрного
+// фокус-кольца. Применяется ко всем SelectTrigger / Button / Input на этой
+// странице, чтобы все элементы выглядели одинаково «объёмно».
+const FILTER_CONTROL_CLASS =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] " +
+  "transition-shadow focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 " +
+  "focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import AdminLoading from "@/components/admin-loading"
@@ -31,7 +40,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X, LayoutGrid, List, ExternalLink } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
@@ -119,6 +128,19 @@ export function ProductsTable({
   const [customItemsPerPage, setCustomItemsPerPage] = useState("")
   const [isCustomItemsPerPage, setIsCustomItemsPerPage] = useState(false)
   const requestIdRef = useRef(0)
+
+  // Режим отображения товаров: классическая таблица или плитка карточек.
+  // Сохраняется в localStorage, чтобы пользователь не выбирал заново при возврате.
+  const [viewMode, setViewMode] = useState<"table" | "cards">(() => {
+    if (typeof window === "undefined") return "table"
+    const saved = window.localStorage.getItem("admin-products-view-mode")
+    return saved === "cards" ? "cards" : "table"
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem("admin-products-view-mode", viewMode)
+  }, [viewMode])
 
   const { toast } = useToast()
   const router = useRouter()
@@ -374,7 +396,7 @@ export function ProductsTable({
     } catch {/* ignore quota / private mode */}
   }, [searchQuery, categoryFilter, statusFilter, brandFilter, supplierFilter, visibilityFilter, quantityFilter, priceFilter, currentPage, itemsPerPage, pathname, router])
 
-  const getImageUrl = (url: string | null) => {
+  const getImageUrl = (url: string | null | undefined) => {
     if (!url) return "/placeholder.svg?width=40&height=40"
     if (url.startsWith("http")) return url
     return `${API_BASE_URL}${url}`
@@ -436,7 +458,7 @@ export function ProductsTable({
       <div className="flex flex-col gap-2">
         <Button
           variant="outline"
-          className="w-full justify-between"
+          className={cn("w-full justify-between", FILTER_CONTROL_CLASS)}
           onClick={() => setIsCategoryDialogOpen(true)}
         >
           <span className="truncate text-left">{categoryFilterLabel}</span>
@@ -455,7 +477,7 @@ export function ProductsTable({
       </div>
 
       <Select value={statusFilter} onValueChange={setStatusFilter}>
-        <SelectTrigger>
+        <SelectTrigger className={FILTER_CONTROL_CLASS}>
           <SelectValue placeholder="Статус" />
         </SelectTrigger>
         <SelectContent>
@@ -471,7 +493,7 @@ export function ProductsTable({
 
       <Button
         variant="outline"
-        className="w-full justify-between font-normal"
+        className={cn("w-full justify-between font-normal", FILTER_CONTROL_CLASS)}
         onClick={() => setIsBrandDialogOpen(true)}
       >
         <span className="truncate text-left">{brandFilterLabel}</span>
@@ -479,7 +501,7 @@ export function ProductsTable({
       </Button>
 
       <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-        <SelectTrigger>
+        <SelectTrigger className={FILTER_CONTROL_CLASS}>
           <SelectValue placeholder="Поставщик" />
         </SelectTrigger>
         <SelectContent>
@@ -494,7 +516,7 @@ export function ProductsTable({
       </Select>
 
       <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-        <SelectTrigger>
+        <SelectTrigger className={FILTER_CONTROL_CLASS}>
           <SelectValue placeholder="Видимость" />
         </SelectTrigger>
         <SelectContent>
@@ -505,7 +527,7 @@ export function ProductsTable({
       </Select>
 
       <Select value={quantityFilter} onValueChange={setQuantityFilter}>
-        <SelectTrigger>
+        <SelectTrigger className={FILTER_CONTROL_CLASS}>
           <SelectValue placeholder="Наличие" />
         </SelectTrigger>
         <SelectContent>
@@ -516,7 +538,7 @@ export function ProductsTable({
       </Select>
 
       <Select value={priceFilter} onValueChange={setPriceFilter}>
-        <SelectTrigger>
+        <SelectTrigger className={FILTER_CONTROL_CLASS}>
           <SelectValue placeholder="Цена" />
         </SelectTrigger>
         <SelectContent>
@@ -530,13 +552,414 @@ export function ProductsTable({
         <Button
           variant="outline"
           onClick={handleResetAllFilters}
-          className="text-muted-foreground"
+          className={cn("text-muted-foreground", FILTER_CONTROL_CLASS)}
           title="Сбросить все фильтры"
         >
           <X className="mr-2 h-4 w-4" />
           Сбросить фильтры
         </Button>
       )}
+    </div>
+  )
+
+  const emptyMessage = error
+    ? error
+    : searchQuery ||
+      categoryFilter !== "all" ||
+      statusFilter !== "all" ||
+      brandFilter !== "all" ||
+      supplierFilter !== "all" ||
+      visibilityFilter !== "all" ||
+      quantityFilter !== "all"
+      ? "Товары не найдены по заданным фильтрам."
+      : "Товары не найдены."
+
+  // Единый рендер таблицы товаров с белым фоном, мягкой тенью, hover-подсветкой
+  // строк и закруглёнными углами. Используется в обоих макетах (sidebar и
+  // обычном), чтобы не дублировать код.
+  const ProductsTableView = () => (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50 hover:bg-gray-50 border-b border-gray-200">
+            <TableHead className="w-[60px] text-gray-700 font-medium">Изоб.</TableHead>
+            <TableHead className="text-gray-700 font-medium">Название</TableHead>
+            <TableHead className="text-gray-700 font-medium">Цена</TableHead>
+            <TableHead className="text-gray-700 font-medium">Кол-во</TableHead>
+            <TableHead className="text-gray-700 font-medium">Поставщики</TableHead>
+            <TableHead className="text-gray-700 font-medium">Видимость</TableHead>
+            <TableHead className="text-gray-700 font-medium">Бренд</TableHead>
+            <TableHead className="w-[100px] text-gray-700 font-medium">На сайте</TableHead>
+            <TableHead className="w-[60px]">
+              <span className="sr-only">Действия</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {products.length > 0 ? (
+            products.map((product) => (
+              <TableRow
+                key={product.id}
+                className="border-b border-gray-100 last:border-0 hover:bg-yellow-50/40 transition-colors"
+              >
+                <TableCell>
+                  <Image
+                    src={getImageUrl(product.image) || "/placeholder.svg"}
+                    alt={product.name}
+                    width={40}
+                    height={40}
+                    className="rounded-md object-cover ring-1 ring-gray-200"
+                    unoptimized
+                  />
+                </TableCell>
+                <TableCell className="font-medium text-gray-900">{product.name}</TableCell>
+                <TableCell className="text-gray-800">
+                  {product.price.toLocaleString("ru-RU")} ₸
+                  {product.winning_warehouse?.name && (
+                    <span className="text-xs text-gray-500 ml-1">({product.winning_warehouse.name})</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 text-xs rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                    onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                  >
+                    Остатки на складах
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const names = getSupplierNames(product as any)
+                    if (names.length === 0) {
+                      return <span className="text-xs text-gray-400">—</span>
+                    }
+                    return (
+                      <div className="flex flex-col gap-0.5">
+                        {names.map((n) => (
+                          <span key={n} className="text-xs text-gray-700">{n}</span>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </TableCell>
+                <TableCell>
+                  {product.is_visible ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                      Виден
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      Скрыт
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-gray-700">
+                  {product.brand_info?.name || <span className="text-gray-400">Без бренда</span>}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full hover:bg-brand-yellow/20"
+                    title="Открыть на сайте"
+                    onClick={() => {
+                      if (product.slug) {
+                        window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                    disabled={!product.slug}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        aria-haspopup="true"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-full hover:bg-gray-100"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Меню</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Действия</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleEditProduct(product)}>
+                        Редактировать
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeletingProduct(product)} className="text-red-600">
+                        Удалить
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={9} className="h-24 text-center text-gray-500">
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  )
+
+  // Сетка карточек для альтернативного представления списка товаров.
+  // Карточки квадратные, с обложкой сверху и сводкой по товару снизу.
+  const ProductsCardsView = () => {
+    if (products.length === 0) {
+      return (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] py-12 text-center text-gray-500">
+          {emptyMessage}
+        </div>
+      )
+    }
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+        {products.map((product) => {
+          const supplierNames = getSupplierNames(product as any)
+          return (
+            <div
+              key={product.id}
+              className="group relative rounded-xl border border-gray-200 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all overflow-hidden flex flex-col"
+            >
+              <div className="relative aspect-square bg-gray-50 border-b border-gray-100">
+                <Image
+                  src={getImageUrl(product.image) || "/placeholder.svg"}
+                  alt={product.name}
+                  fill
+                  className="object-contain p-3"
+                  unoptimized
+                />
+                <div className="absolute top-2 right-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-full bg-white/90 hover:bg-white shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Действия</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleEditProduct(product)}>
+                        Редактировать
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeletingProduct(product)} className="text-red-600">
+                        Удалить
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="absolute top-2 left-2">
+                  {product.is_visible ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
+                      Виден
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      Скрыт
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col flex-1 p-3 gap-2">
+                <h4
+                  className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug min-h-[2.5rem]"
+                  title={product.name}
+                >
+                  {product.name}
+                </h4>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-base font-semibold text-gray-900">
+                    {product.price.toLocaleString("ru-RU")} ₸
+                  </span>
+                  {product.winning_warehouse?.name && (
+                    <span className="text-[11px] text-gray-500">({product.winning_warehouse.name})</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 space-y-0.5">
+                  <div className="truncate">
+                    Бренд: <span className="text-gray-700">{product.brand_info?.name || "—"}</span>
+                  </div>
+                  {supplierNames.length > 0 && (
+                    <div className="truncate">
+                      Поставщик: <span className="text-gray-700">{supplierNames.join(", ")}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-auto flex items-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                    onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                  >
+                    Остатки
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full hover:bg-brand-yellow/20"
+                    title="Открыть на сайте"
+                    onClick={() => {
+                      if (product.slug) {
+                        window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                    disabled={!product.slug}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const ProductsView = () => (viewMode === "cards" ? <ProductsCardsView /> : <ProductsTableView />)
+
+  // Унифицированная пагинация — общий блок для обоих макетов.
+  const PaginationView = () =>
+    totalPages > 1 ? (
+      <div className="flex justify-center">
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => {
+                  if (currentPage > 1 && !isLoading) {
+                    loadProducts(currentPage - 1, itemsPerPage)
+                  }
+                }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+
+            {currentPage > 3 && (
+              <>
+                <PaginationItem>
+                  <PaginationLink
+                    onClick={() => {
+                      if (!isLoading) loadProducts(1, itemsPerPage)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    1
+                  </PaginationLink>
+                </PaginationItem>
+                {currentPage > 4 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+              </>
+            )}
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
+              if (pageNum > totalPages) return null
+              return (
+                <PaginationItem key={pageNum}>
+                  <PaginationLink
+                    onClick={() => {
+                      if (!isLoading) loadProducts(pageNum, itemsPerPage)
+                    }}
+                    isActive={pageNum === currentPage}
+                    className={cn(
+                      "cursor-pointer",
+                      pageNum === currentPage &&
+                        "bg-brand-yellow text-black border-brand-yellow hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)]"
+                    )}
+                  >
+                    {pageNum}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            })}
+
+            {currentPage < totalPages - 2 && (
+              <>
+                {currentPage < totalPages - 3 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+                <PaginationItem>
+                  <PaginationLink
+                    onClick={() => {
+                      if (!isLoading) loadProducts(totalPages, itemsPerPage)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {totalPages}
+                  </PaginationLink>
+                </PaginationItem>
+              </>
+            )}
+
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => {
+                  if (currentPage < totalPages && !isLoading) {
+                    loadProducts(currentPage + 1, itemsPerPage)
+                  }
+                }}
+                className={
+                  currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                }
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    ) : null
+
+  // Общий компактный переключатель таблица/карточки. Используется в обоих
+  // макетах рядом с контролом «Показывать по».
+  const ViewModeToggle = () => (
+    <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-0.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <button
+        type="button"
+        onClick={() => setViewMode("table")}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-3 h-7 rounded-full text-xs font-medium transition-all",
+          viewMode === "table"
+            ? "bg-brand-yellow text-black shadow-[0_2px_6px_rgba(250,204,21,0.30)]"
+            : "text-gray-600 hover:text-gray-900"
+        )}
+        title="Таблица"
+      >
+        <List className="h-3.5 w-3.5" />
+        Таблица
+      </button>
+      <button
+        type="button"
+        onClick={() => setViewMode("cards")}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-3 h-7 rounded-full text-xs font-medium transition-all",
+          viewMode === "cards"
+            ? "bg-brand-yellow text-black shadow-[0_2px_6px_rgba(250,204,21,0.30)]"
+            : "text-gray-600 hover:text-gray-900"
+        )}
+        title="Карточки"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Карточки
+      </button>
     </div>
   )
 
@@ -548,13 +971,16 @@ export function ProductsTable({
           <Input
             type="search"
             placeholder="Поиск по названию товара..."
-            className="w-full pl-10"
+            className="w-full pl-10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         </div>
-        <Button onClick={() => router.push("/admin/catalog/products/create")} className="w-full sm:w-auto">
+        <Button
+          onClick={() => router.push("/admin/catalog/products/create")}
+          className="w-full sm:w-auto rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+        >
           <PlusCircle className="mr-2 h-4 w-4" />
           Создать товар
         </Button>
@@ -576,7 +1002,7 @@ export function ProductsTable({
                 <div className="space-y-2">
                   <Button
                     variant="outline"
-                    className="w-full justify-between"
+                    className={cn("w-full justify-between", FILTER_CONTROL_CLASS)}
                     onClick={() => setIsCategoryDialogOpen(true)}
                   >
                     <span className="truncate text-left">{categoryFilterLabel}</span>
@@ -595,7 +1021,7 @@ export function ProductsTable({
                 </div>
 
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", FILTER_CONTROL_CLASS)}>
                     <SelectValue placeholder="Статус" />
                   </SelectTrigger>
                   <SelectContent>
@@ -611,7 +1037,7 @@ export function ProductsTable({
 
                 <Button
                   variant="outline"
-                  className="w-full justify-between font-normal"
+                  className={cn("w-full justify-between font-normal", FILTER_CONTROL_CLASS)}
                   onClick={() => setIsBrandDialogOpen(true)}
                 >
                   <span className="truncate text-left">{brandFilterLabel}</span>
@@ -619,7 +1045,7 @@ export function ProductsTable({
                 </Button>
 
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", FILTER_CONTROL_CLASS)}>
                     <SelectValue placeholder="Поставщик" />
                   </SelectTrigger>
                   <SelectContent>
@@ -634,7 +1060,7 @@ export function ProductsTable({
                 </Select>
 
                 <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", FILTER_CONTROL_CLASS)}>
                     <SelectValue placeholder="Видимость" />
                   </SelectTrigger>
                   <SelectContent>
@@ -645,7 +1071,7 @@ export function ProductsTable({
                 </Select>
 
                 <Select value={quantityFilter} onValueChange={setQuantityFilter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", FILTER_CONTROL_CLASS)}>
                     <SelectValue placeholder="Наличие" />
                   </SelectTrigger>
                   <SelectContent>
@@ -656,7 +1082,7 @@ export function ProductsTable({
                 </Select>
 
                 <Select value={priceFilter} onValueChange={setPriceFilter}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={cn("w-full", FILTER_CONTROL_CLASS)}>
                     <SelectValue placeholder="Цена" />
                   </SelectTrigger>
                   <SelectContent>
@@ -670,7 +1096,7 @@ export function ProductsTable({
                   <Button
                     variant="outline"
                     onClick={handleResetAllFilters}
-                    className="w-full text-muted-foreground"
+                    className={cn("w-full text-muted-foreground", FILTER_CONTROL_CLASS)}
                   >
                     <X className="mr-2 h-4 w-4" />
                     Сбросить фильтры
@@ -687,13 +1113,14 @@ export function ProductsTable({
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 Показано {totalCount === 0 ? 0 : startIndex + 1}-{endIndex} из {totalCount} товаров
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <ViewModeToggle />
                 <span className="text-sm text-gray-600">Показывать по:</span>
                 <Select
                   value={isCustomItemsPerPage ? "custom" : String(itemsPerPage)}
                   onValueChange={handleItemsPerPageChange}
                 >
-                  <SelectTrigger className="w-20">
+                  <SelectTrigger className={cn("w-20", FILTER_CONTROL_CLASS)}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -708,13 +1135,17 @@ export function ProductsTable({
                     <Input
                       type="number"
                       placeholder="Кол-во"
-                      className="w-20"
+                      className={cn("w-20", FILTER_CONTROL_CLASS)}
                       value={customItemsPerPage}
                       onChange={(e) => setCustomItemsPerPage(e.target.value)}
                       min="1"
                       max="1000"
                     />
-                    <Button size="sm" onClick={handleCustomItemsPerPageSubmit}>
+                    <Button
+                      size="sm"
+                      onClick={handleCustomItemsPerPageSubmit}
+                      className={cn("bg-brand-yellow text-black hover:bg-yellow-500", FILTER_CONTROL_CLASS)}
+                    >
                       OK
                     </Button>
                   </div>
@@ -724,232 +1155,9 @@ export function ProductsTable({
 
             {isLoading && <AdminLoading text="Загрузка товаров..." />}
 
-            {/* Таблица товаров */}
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[60px]">Изоб.</TableHead>
-                    <TableHead>Название</TableHead>
-                    <TableHead>Цена</TableHead>
-                    <TableHead>Кол-во</TableHead>
-                    <TableHead>Поставщики</TableHead>
-                    <TableHead>Видимость</TableHead>
-                    <TableHead>Бренд</TableHead>
-                    <TableHead className="w-[100px]">На сайте</TableHead>
-                    <TableHead>
-                      <span className="sr-only">Действия</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.length > 0 ? (
-                    products.map((product) => {
-                      return (
-                        <TableRow key={product.id}>
-                          <TableCell>
-                            <Image
-                              src={getImageUrl(product.image) || "/placeholder.svg"}
-                              alt={product.name}
-                              width={40}
-                              height={40}
-                              className="rounded-md object-cover"
-                              unoptimized
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell>
-                            {product.price.toLocaleString("ru-RU")} ₸
-                            {product.winning_warehouse?.name && (
-                              <span className="text-xs text-gray-500 ml-1">({product.winning_warehouse.name})</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-3 text-xs"
-                              onClick={() => setStocksProduct({ id: product.id, name: product.name })}
-                            >
-                              Остатки на складах
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const names = getSupplierNames(product as any)
-                              if (names.length === 0) {
-                                return <span className="text-xs text-gray-400">—</span>
-                              }
-                              return (
-                                <div className="flex flex-col gap-0.5">
-                                  {names.map((n) => (
-                                    <span key={n} className="text-xs text-gray-700">{n}</span>
-                                  ))}
-                                </div>
-                              )
-                            })()}
-                          </TableCell>
-                          <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
-                          <TableCell>
-                            {product.brand_info?.name || "Без бренда"}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title="Открыть на сайте"
-                              onClick={() => {
-                                if (product.slug) {
-                                  window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
-                                }
-                              }}
-                              disabled={!product.slug}
-                            >
-                              <Search className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button aria-haspopup="true" size="icon" variant="ghost">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                  <span className="sr-only">Toggle menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Действия</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleEditProduct(product)}>
-                                  Редактировать
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setDeletingProduct(product)} className="text-red-600">
-                                  Удалить
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center">
-                        {error
-                          ? error
-                          : searchQuery ||
-                            categoryFilter !== "all" ||
-                            statusFilter !== "all" ||
-                            brandFilter !== "all" ||
-                            supplierFilter !== "all" ||
-                            visibilityFilter !== "all" ||
-                            quantityFilter !== "all"
-                            ? "Товары не найдены по заданным фильтрам."
-                            : "Товары не найдены."}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <ProductsView />
 
-            {/* Пагинация */}
-            {totalPages > 1 && (
-              <div className="flex justify-center">
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() => {
-                          if (currentPage > 1 && !isLoading) {
-                            loadProducts(currentPage - 1, itemsPerPage)
-                          }
-                        }}
-                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-
-                    {/* Показываем первую страницу */}
-                    {currentPage > 3 && (
-                      <>
-                        <PaginationItem>
-                          <PaginationLink
-                            onClick={() => {
-                              if (!isLoading) {
-                                loadProducts(1, itemsPerPage)
-                              }
-                            }}
-                            className="cursor-pointer"
-                          >
-                            1
-                          </PaginationLink>
-                        </PaginationItem>
-                        {currentPage > 4 && (
-                          <PaginationItem>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        )}
-                      </>
-                    )}
-
-                    {/* Показываем страницы вокруг текущей */}
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-                      if (pageNum > totalPages) return null
-
-                      return (
-                        <PaginationItem key={pageNum}>
-                          <PaginationLink
-                            onClick={() => {
-                              if (!isLoading) {
-                                loadProducts(pageNum, itemsPerPage)
-                              }
-                            }}
-                            isActive={pageNum === currentPage}
-                            className="cursor-pointer"
-                          >
-                            {pageNum}
-                          </PaginationLink>
-                        </PaginationItem>
-                      )
-                    })}
-
-                    {/* Показываем последнюю страницу */}
-                    {currentPage < totalPages - 2 && (
-                      <>
-                        {currentPage < totalPages - 3 && (
-                          <PaginationItem>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        )}
-                        <PaginationItem>
-                          <PaginationLink
-                            onClick={() => {
-                              if (!isLoading) {
-                                loadProducts(totalPages, itemsPerPage)
-                              }
-                            }}
-                            className="cursor-pointer"
-                          >
-                            {totalPages}
-                          </PaginationLink>
-                        </PaginationItem>
-                      </>
-                    )}
-
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() => {
-                          if (currentPage < totalPages && !isLoading) {
-                            loadProducts(currentPage + 1, itemsPerPage)
-                          }
-                        }}
-                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
-            )}
+            <PaginationView />
           </div>
         </div>
       ) : (
@@ -968,13 +1176,14 @@ export function ProductsTable({
             <div className="flex items-center gap-2 text-sm text-gray-600">
               Показано {totalCount === 0 ? 0 : startIndex + 1}-{endIndex} из {totalCount} товаров
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <ViewModeToggle />
               <span className="text-sm text-gray-600">Показывать по:</span>
               <Select
                 value={isCustomItemsPerPage ? "custom" : String(itemsPerPage)}
                 onValueChange={handleItemsPerPageChange}
               >
-                <SelectTrigger className="w-20">
+                <SelectTrigger className={cn("w-20", FILTER_CONTROL_CLASS)}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -989,13 +1198,17 @@ export function ProductsTable({
                   <Input
                     type="number"
                     placeholder="Кол-во"
-                    className="w-20"
+                    className={cn("w-20", FILTER_CONTROL_CLASS)}
                     value={customItemsPerPage}
                     onChange={(e) => setCustomItemsPerPage(e.target.value)}
                     min="1"
                     max="1000"
                   />
-                  <Button size="sm" onClick={handleCustomItemsPerPageSubmit}>
+                  <Button
+                    size="sm"
+                    onClick={handleCustomItemsPerPageSubmit}
+                    className={cn("bg-brand-yellow text-black hover:bg-yellow-500", FILTER_CONTROL_CLASS)}
+                  >
                     OK
                   </Button>
                 </div>
@@ -1007,230 +1220,9 @@ export function ProductsTable({
             <div className="text-sm text-gray-500">Загрузка товаров...</div>
           )}
 
-          {/* Таблица товаров */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[60px]">Изоб.</TableHead>
-                  <TableHead>Название</TableHead>
-                  <TableHead>Цена</TableHead>
-                  <TableHead>Кол-во</TableHead>
-                  <TableHead>Поставщики</TableHead>
-                  <TableHead>Видимость</TableHead>
-                  <TableHead>Бренд</TableHead>
-                  <TableHead className="w-[100px]">На сайте</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Действия</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.length > 0 ? (
-                  products.map((product) => {
-                    return (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <Image
-                            src={getImageUrl(product.image) || "/placeholder.svg"}
-                            alt={product.name}
-                            width={40}
-                            height={40}
-                            className="rounded-md object-cover"
-                            unoptimized
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>
-                          {product.price.toLocaleString("ru-RU")} ₸
-                          {product.winning_warehouse?.name && (
-                            <span className="text-xs text-gray-500 ml-1">({product.winning_warehouse.name})</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs"
-                            onClick={() => setStocksProduct({ id: product.id, name: product.name })}
-                          >
-                            Остатки на складах
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const names = getSupplierNames(product as any)
-                            if (names.length === 0) {
-                              return <span className="text-xs text-gray-400">—</span>
-                            }
-                            return (
-                              <div className="flex flex-col gap-0.5">
-                                {names.map((n) => (
-                                  <span key={n} className="text-xs text-gray-700">{n}</span>
-                                ))}
-                              </div>
-                            )
-                          })()}
-                        </TableCell>
-                        <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
-                        <TableCell>{product.brand_info?.name || "Без бренда"}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Открыть на сайте"
-                            onClick={() => {
-                              if (product.slug) {
-                                window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
-                              }
-                            }}
-                            disabled={!product.slug}
-                          >
-                            <Search className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button aria-haspopup="true" size="icon" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Действия</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditProduct(product)}>
-                                Редактировать
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setDeletingProduct(product)} className="text-red-600">
-                                Удалить
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
-                      {error
-                        ? error
-                        : searchQuery ||
-                          categoryFilter !== "all" ||
-                          statusFilter !== "all" ||
-                          brandFilter !== "all" ||
-                          supplierFilter !== "all" ||
-                          visibilityFilter !== "all" ||
-                          quantityFilter !== "all"
-                          ? "Товары не найдены по заданным фильтрам."
-                          : "Товары не найдены."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ProductsView />
 
-          {/* Пагинация */}
-          {totalPages > 1 && (
-            <div className="flex justify-center">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => {
-                        if (currentPage > 1 && !isLoading) {
-                          loadProducts(currentPage - 1, itemsPerPage)
-                        }
-                      }}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-
-                  {/* Показываем первую страницу */}
-                  {currentPage > 3 && (
-                    <>
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => {
-                            if (!isLoading) {
-                              loadProducts(1, itemsPerPage)
-                            }
-                          }}
-                          className="cursor-pointer"
-                        >
-                          1
-                        </PaginationLink>
-                      </PaginationItem>
-                      {currentPage > 4 && (
-                        <PaginationItem>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      )}
-                    </>
-                  )}
-
-                  {/* Показываем страницы вокруг текущей */}
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-                    if (pageNum > totalPages) return null
-
-                    return (
-                      <PaginationItem key={pageNum}>
-                        <PaginationLink
-                          onClick={() => {
-                            if (!isLoading) {
-                              loadProducts(pageNum, itemsPerPage)
-                            }
-                          }}
-                          isActive={pageNum === currentPage}
-                          className="cursor-pointer"
-                        >
-                          {pageNum}
-                        </PaginationLink>
-                      </PaginationItem>
-                    )
-                  })}
-
-                  {/* Показываем последнюю страницу */}
-                  {currentPage < totalPages - 2 && (
-                    <>
-                      {currentPage < totalPages - 3 && (
-                        <PaginationItem>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      )}
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => {
-                            if (!isLoading) {
-                              loadProducts(totalPages, itemsPerPage)
-                            }
-                          }}
-                          className="cursor-pointer"
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => {
-                        if (currentPage < totalPages && !isLoading) {
-                          loadProducts(currentPage + 1, itemsPerPage)
-                        }
-                      }}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
+          <PaginationView />
         </div>
       )}
 

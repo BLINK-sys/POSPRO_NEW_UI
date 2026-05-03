@@ -29,14 +29,20 @@ export function StatusesList({ statuses }: { statuses: Status[] }) {
   return (
     <>
       <div className="flex justify-end mt-4">
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button
+          onClick={() => setCreateOpen(true)}
+          className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+        >
           <PlusCircle className="mr-2 h-4 w-4" />
           Создать статус
         </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mt-4">
         {statuses.map((status) => (
-          <Card key={status.id} className="relative group overflow-hidden rounded-lg">
+          <Card
+            key={status.id}
+            className="relative group overflow-hidden rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all"
+          >
             <div className="p-4">
               <div
                 style={{ backgroundColor: status.background_color, color: status.text_color }}
@@ -54,17 +60,15 @@ export function StatusesList({ statuses }: { statuses: Status[] }) {
               <div className="flex space-x-3">
                 <Button
                   size="sm"
-                  variant="secondary"
                   onClick={() => setEditingStatus(status)}
-                  className="h-9 w-9 p-0 bg-white/90 hover:bg-white text-gray-900"
+                  className="h-9 w-9 p-0 rounded-full bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
                   size="sm"
-                  variant="destructive"
                   onClick={() => setDeletingStatus(status)}
-                  className="h-9 w-9 p-0 bg-red-500 hover:bg-red-600"
+                  className="h-9 w-9 p-0 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-[0_2px_6px_rgba(220,38,38,0.30)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.40)] transition-shadow"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

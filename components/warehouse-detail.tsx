@@ -65,6 +65,17 @@ import {
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
+const SOFT_CONTROL =
+  "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
+  "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
+  "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
+const CARD_CLASS =
+  "rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+const PRIMARY_BTN =
+  "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+const SECONDARY_BTN =
+  "rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+
 interface RangeRow {
   from: number
   to: number | null  // null = infinity
@@ -548,7 +559,12 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/admin/suppliers")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/admin/suppliers")}
+          className="rounded-full hover:bg-gray-100"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
@@ -561,7 +577,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       </div>
 
       {/* Built-in Variables Reference */}
-      <Card>
+      <Card className={CARD_CLASS}>
         <CardHeader>
           <CardTitle className="text-lg">Встроенные переменные</CardTitle>
           <CardDescription>
@@ -583,7 +599,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       </Card>
 
       {/* Custom Variables */}
-      <Card>
+      <Card className={CARD_CLASS}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -593,15 +609,15 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => addVariable("formula")}>
+              <Button variant="outline" size="sm" onClick={() => addVariable("formula")} className={SECONDARY_BTN}>
                 <Plus className="h-4 w-4 mr-1" />
                 Формула
               </Button>
-              <Button variant="outline" size="sm" onClick={() => addVariable("range")}>
+              <Button variant="outline" size="sm" onClick={() => addVariable("range")} className={SECONDARY_BTN}>
                 <Plus className="h-4 w-4 mr-1" />
                 По диапазонам
               </Button>
-              <Button size="sm" onClick={handleSaveVariables} disabled={isPending}>
+              <Button size="sm" onClick={handleSaveVariables} disabled={isPending} className={PRIMARY_BTN}>
                 <Save className="h-4 w-4 mr-1" />
                 Сохранить
               </Button>
@@ -621,8 +637,8 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragEnd={handleDragEnd}
                     className={cn(
-                      "border rounded-lg bg-gray-50 transition-shadow",
-                      dragIndex === index && "opacity-50 shadow-lg",
+                      "rounded-xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-all",
+                      dragIndex === index && "opacity-50 shadow-[0_8px_20px_rgba(0,0,0,0.15)]",
                       !isExpanded && "cursor-grab active:cursor-grabbing"
                     )}
                   >
@@ -676,7 +692,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                                   value={variable.name}
                                   onChange={(e) => updateVariable(index, "name", e.target.value)}
                                   placeholder="тариф_доставки"
-                                  className="font-mono text-sm"
+                                  className={cn("font-mono text-sm", SOFT_CONTROL)}
                                   disabled={isPending}
                                 />
                               </div>
@@ -690,7 +706,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                                   }}
                                   disabled={isPending}
                                 >
-                                  <SelectTrigger className="text-sm">
+                                  <SelectTrigger className={cn("text-sm", SOFT_CONTROL)}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -867,6 +883,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                                   updateRangeConfig(index, { ...config, ranges })
                                 }}
                                 disabled={isPending}
+                                className={SECONDARY_BTN}
                               >
                                 <Plus className="h-3 w-3 mr-1" />
                                 Добавить диапазон
@@ -893,7 +910,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                                   value={variable.name}
                                   onChange={(e) => updateVariable(index, "name", e.target.value)}
                                   placeholder="доставка"
-                                  className="font-mono text-sm"
+                                  className={cn("font-mono text-sm", SOFT_CONTROL)}
                                   disabled={isPending}
                                 />
                               </div>
@@ -903,7 +920,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                                   value={variable.label || ""}
                                   onChange={(e) => updateVariable(index, "label", e.target.value)}
                                   placeholder="Стоимость доставки за кг"
-                                  className="text-sm"
+                                  className={cn("text-sm", SOFT_CONTROL)}
                                   disabled={isPending}
                                 />
                               </div>
@@ -927,7 +944,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                             size="sm"
                             onClick={() => removeVariable(index)}
                             disabled={isPending}
-                            className="text-red-500 hover:text-red-700"
+                            className="rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="h-4 w-4 mr-1" />
                             Удалить
@@ -936,6 +953,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                             size="sm"
                             onClick={() => handleSaveSingleVariable(index)}
                             disabled={isPending}
+                            className={PRIMARY_BTN}
                           >
                             <Save className="h-4 w-4 mr-1" />
                             Сохранить
@@ -956,7 +974,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       </Card>
 
       {/* Final Formula */}
-      <Card>
+      <Card className={CARD_CLASS}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -972,13 +990,13 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   size="sm"
                   onClick={handleDeleteFormula}
                   disabled={isPending}
-                  className="text-red-500"
+                  className={cn("text-red-500", SECONDARY_BTN)}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   Удалить
                 </Button>
               )}
-              <Button size="sm" onClick={handleSaveFormula} disabled={isPending}>
+              <Button size="sm" onClick={handleSaveFormula} disabled={isPending} className={PRIMARY_BTN}>
                 <Save className="h-4 w-4 mr-1" />
                 Сохранить формулу
               </Button>
@@ -1021,7 +1039,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   value={previewCostPrice}
                   onChange={(e) => setPreviewCostPrice(e.target.value)}
                   placeholder="100000"
-                  className="w-[160px]"
+                  className={cn("w-[160px]", SOFT_CONTROL)}
                   type="number"
                   step="0.01"
                   disabled={isPending}
@@ -1033,7 +1051,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   value={previewWeight}
                   onChange={(e) => setPreviewWeight(e.target.value)}
                   placeholder="50"
-                  className="w-[100px]"
+                  className={cn("w-[100px]", SOFT_CONTROL)}
                   type="number"
                   step="0.01"
                   disabled={isPending}
@@ -1045,7 +1063,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   value={previewDimensions}
                   onChange={(e) => setPreviewDimensions(e.target.value)}
                   placeholder="340х465х425"
-                  className="w-[160px]"
+                  className={cn("w-[160px]", SOFT_CONTROL)}
                   disabled={isPending}
                 />
               </div>
@@ -1053,13 +1071,14 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                 variant="outline"
                 onClick={handlePreview}
                 disabled={isPending || !previewCostPrice}
+                className={SECONDARY_BTN}
               >
                 <Eye className="h-4 w-4 mr-1" />
                 Рассчитать
               </Button>
             </div>
             {previewResult && (
-              <div className="mt-3 p-4 bg-green-50 rounded-lg space-y-3">
+              <div className="mt-3 p-4 bg-green-50 rounded-xl border border-green-200 shadow-[0_1px_3px_rgba(34,197,94,0.10)] space-y-3">
                 <p className="font-semibold text-green-700 text-xl">
                   Итоговая цена: {previewResult.calculated_price.toLocaleString("ru-RU")} тг
                 </p>
@@ -1090,7 +1109,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       </Card>
 
       {/* Product Costs */}
-      <Card>
+      <Card className={CARD_CLASS}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -1104,6 +1123,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
               size="sm"
               onClick={handleRecalculate}
               disabled={isPending || isRecalculating}
+              className={SECONDARY_BTN}
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isRecalculating ? 'animate-spin' : ''}`} />
               {isRecalculating && recalcResult
@@ -1115,7 +1135,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
           {/* Recalculation results */}
           {recalcResult && (
             <div className="px-6 pb-4 space-y-2 text-sm">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-3 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-3 bg-gray-50 rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                 {/* Status header */}
                 <span className="text-gray-500">Статус:</span>
                 <span className={`font-medium ${recalcResult.status === 'running' ? 'text-blue-600' : recalcResult.status === 'error' ? 'text-red-600' : 'text-green-600'}`}>
@@ -1197,6 +1217,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                 onChange={(e) => setNewProductId(e.target.value)}
                 placeholder="123"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
             <div className="space-y-2">
@@ -1210,14 +1231,20 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                 onChange={(e) => setNewCostPrice(e.target.value)}
                 placeholder="500"
                 disabled={isPending}
+                className={SOFT_CONTROL}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddingProduct(false)} disabled={isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddingProduct(false)}
+              disabled={isPending}
+              className={SECONDARY_BTN}
+            >
               Отмена
             </Button>
-            <Button onClick={handleAddProduct} disabled={isPending}>
+            <Button onClick={handleAddProduct} disabled={isPending} className={PRIMARY_BTN}>
               {isPending ? "Добавление..." : "Добавить"}
             </Button>
           </DialogFooter>
