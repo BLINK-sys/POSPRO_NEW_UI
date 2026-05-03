@@ -380,13 +380,6 @@ export function ProductsTable({
     return `${API_BASE_URL}${url}`
   }
 
-  // Функция для получения статуса по ID
-  const getStatusById = (statusId: string | Status): Status | null => {
-    if (typeof statusId === "object") return statusId // Уже объект Status
-    if (statusId === "no") return null // Нет статуса
-    const status = statuses.find((s) => String(s.id) === String(statusId))
-    return status || null
-  }
 
   const handleDelete = async () => {
     if (!deletingProduct) return
@@ -752,7 +745,6 @@ export function ProductsTable({
                 <TableBody>
                   {products.length > 0 ? (
                     products.map((product) => {
-                      const status = getStatusById(product.status)
                       return (
                         <TableRow key={product.id}>
                           <TableCell>
@@ -1024,7 +1016,7 @@ export function ProductsTable({
                   <TableHead>Название</TableHead>
                   <TableHead>Цена</TableHead>
                   <TableHead>Кол-во</TableHead>
-                  <TableHead>Статус</TableHead>
+                  <TableHead>Поставщики</TableHead>
                   <TableHead>Видимость</TableHead>
                   <TableHead>Бренд</TableHead>
                   <TableHead className="w-[100px]">На сайте</TableHead>
@@ -1036,7 +1028,6 @@ export function ProductsTable({
               <TableBody>
                 {products.length > 0 ? (
                   products.map((product) => {
-                    const status = getStatusById(product.status)
                     return (
                       <TableRow key={product.id}>
                         <TableCell>
@@ -1050,7 +1041,12 @@ export function ProductsTable({
                           />
                         </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>{product.price.toLocaleString("ru-RU")} ₸</TableCell>
+                        <TableCell>
+                          {product.price.toLocaleString("ru-RU")} ₸
+                          {product.winning_warehouse?.name && (
+                            <span className="text-xs text-gray-500 ml-1">({product.winning_warehouse.name})</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="outline"
@@ -1062,21 +1058,19 @@ export function ProductsTable({
                           </Button>
                         </TableCell>
                         <TableCell>
-                          {status ? (
-                            <span
-                              className="px-2 py-1 rounded-full text-xs font-semibold"
-                              style={{
-                                backgroundColor: status.background_color,
-                                color: status.text_color,
-                              }}
-                            >
-                              {status.name}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">
-                              Без статуса
-                            </span>
-                          )}
+                          {(() => {
+                            const names = getSupplierNames(product as any)
+                            if (names.length === 0) {
+                              return <span className="text-xs text-gray-400">—</span>
+                            }
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                {names.map((n) => (
+                                  <span key={n} className="text-xs text-gray-700">{n}</span>
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell>{product.is_visible ? "Да" : "Нет"}</TableCell>
                         <TableCell>{product.brand_info?.name || "Без бренда"}</TableCell>
