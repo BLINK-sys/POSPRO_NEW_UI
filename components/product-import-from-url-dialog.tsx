@@ -637,7 +637,7 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
                     </span>
                     {images.length > 1 && (
                       <span className="text-[11px] text-gray-400 font-normal ml-2">
-                        (перетаскивайте для смены порядка)
+                        (первое — главное; перетащите чтобы поменять)
                       </span>
                     )}
                   </Label>
@@ -740,6 +740,8 @@ function SortableImageCard({
     transition,
   }
 
+  const isMain = order === 0 && image.enabled
+
   return (
     <div
       ref={setNodeRef}
@@ -750,11 +752,21 @@ function SortableImageCard({
       className={cn(
         "relative aspect-square rounded-lg border-2 overflow-hidden bg-white group cursor-grab active:cursor-grabbing select-none touch-none",
         image.enabled
-          ? "border-brand-yellow ring-1 ring-brand-yellow/40"
+          ? isMain
+            ? "border-brand-yellow ring-4 ring-brand-yellow/60 shadow-lg shadow-brand-yellow/20"
+            : "border-brand-yellow ring-1 ring-brand-yellow/40"
           : "border-gray-200 opacity-50",
         isDragging && "opacity-50 shadow-lg z-50",
       )}
     >
+      {/* Бэйдж «Главное» — только у первой включённой фотки. При drag-and-drop
+          порядок пересчитывается, бэйдж сам перепрыгнет на ту что окажется
+          первой. */}
+      {isMain && (
+        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-brand-yellow text-black text-[10px] font-semibold shadow-sm pointer-events-none z-10">
+          Главное
+        </div>
+      )}
       {image.failed ? (
         <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-1 pointer-events-none">
           <ImageLucide className="h-6 w-6" />
