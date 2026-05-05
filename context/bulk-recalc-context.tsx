@@ -132,6 +132,10 @@ export function BulkRecalcProvider({ children }: { children: ReactNode }) {
       stopPolling()
       doneToastFiredRef.current = false
       setIsMinimized(false)
+      // Удерживаем модалку открытой через контекст. Родительский `open`
+      // диалога переключится в false когда selection-фаза «применит»
+      // выбор — без этого флага диалог бы закрылся целиком.
+      setIsModalOpen(true)
 
       const snap: typeof warehousesSnap = {}
       for (const w of selectedWarehouses) {

@@ -131,8 +131,12 @@ export function BulkRecalcDialog({
   const handleStart = async () => {
     if (selectedIds.size === 0) return
     const selected = warehouses.filter((w) => selectedIds.has(w.id))
-    onOpenChange(false) // закрываем фазу selection, контекст откроет прогресс
+    // Сначала запускаем пересчёт в контексте — он сразу выставит
+    // isModalOpen=true, поэтому диалог не закроется когда родитель
+    // переведёт `open` в false. Если поменять порядок — увидим закрытие
+    // диалога между этими двумя вызовами.
     await ctx.start(selected)
+    onOpenChange(false)
   }
 
   // Закрытие модалки в зависимости от текущей фазы:
