@@ -3,7 +3,12 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { logoutAction, refreshProfile, checkTokenValid } from "@/app/actions/auth"
+import {
+  logoutAction,
+  refreshProfile,
+  checkTokenValid,
+  refreshAccessToken,
+} from "@/app/actions/auth"
 
 interface User {
   id: number
@@ -49,19 +54,36 @@ export function AuthProvider({
     setIsLoading(false)
   }, [initialUser])
 
-  // Periodic auth check — every 2 minutes, verify token is still valid
+  // Background refresh каждые 25 минут — access-токен живёт 30 мин,
+  // обновляем за 5 мин до истечения. Если refresh-токен валидный —
+  // юзер остаётся залогинен незаметно. Если refresh не прошёл —
+  // setUser(null), фронт отрендерит как «не авторизован».
+  //
+  // 2-минутная checkTokenValid оставлена как safety net на случай
+  // когда access всё-таки протух (clock-skew, pause/sleep вкладки и т.п.) —
+  // тогда сначала пробуем refresh, и только если он тоже не прошёл —
+  // вылогиниваем.
   useEffect(() => {
-    if (!initialUser) return // no user to check
+    if (!user) return
 
-    const interval = setInterval(async () => {
+    const proactiveRefresh = setInterval(async () => {
+      const ok = await refreshAccessToken()
+      if (!ok) setUser(null)
+    }, 25 * 60 * 1000)
+
+    const reactiveCheck = setInterval(async () => {
       const valid = await checkTokenValid()
-      if (!valid) {
-        setUser(null)
-      }
-    }, 2 * 60 * 1000) // 2 minutes
+      if (valid) return
+      // Access невалиден — попытка refresh
+      const refreshed = await refreshAccessToken()
+      if (!refreshed) setUser(null)
+    }, 2 * 60 * 1000)
 
-    return () => clearInterval(interval)
-  }, [initialUser])
+    return () => {
+      clearInterval(proactiveRefresh)
+      clearInterval(reactiveCheck)
+    }
+  }, [user])
 
   const handleLogout = useCallback(async () => {
     setUser(null)

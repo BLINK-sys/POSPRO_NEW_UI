@@ -97,12 +97,13 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
     const data = await handleApiResponse(response, "Ошибка авторизации")
 
     if (data.token) {
-      // Сохраняем токен в cookies
+      // Access-токен живёт 30 мин на бэке; cookie — 7 дней (но контент
+      // обновится через /auth/refresh раньше истечения cookie).
       cookies().set("jwt-token", data.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 дней
+        maxAge: 60 * 60 * 24 * 7,
       })
       // Дубликат для клиентского JS — нужен для прямой загрузки файлов
       // в Flask, минуя Next.js (иначе Next.js падает по OOM на больших файлах).
@@ -112,6 +113,16 @@ export async function loginAction(prevState: ActionState, formData: FormData): P
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7,
       })
+      // Refresh-токен живёт 30 дней на бэке; cookie тоже 30 дней.
+      // Обменивается на новый access через /auth/refresh.
+      if (data.refresh_token) {
+        cookies().set("jwt-refresh-token", data.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 60 * 60 * 24 * 30,
+        })
+      }
 
       // Получаем полный профиль из /api/profile (login и /auth/profile возвращают урезанные данные)
       let userData: User | null = null
@@ -219,16 +230,77 @@ export async function logoutAction() {
     // Удаляем cookies
     cookies().delete("jwt-token")
     cookies().delete("jwt-token-client")
+    cookies().delete("jwt-refresh-token")
     cookies().delete("user-data")
   } catch (error) {
     console.error("Logout Action Error:", error)
     // Принудительно удаляем cookies
     cookies().delete("jwt-token")
     cookies().delete("jwt-token-client")
+    cookies().delete("jwt-refresh-token")
     cookies().delete("user-data")
   }
 
   revalidatePath("/", "layout")
+}
+
+
+/**
+ * Обмен refresh-токена на новую пару (access + refresh).
+ * Вызывается:
+ *  - периодически из AuthContext (каждые ~25 мин — за 5 мин до истечения)
+ *  - реактивно при 401 от любого защищённого запроса
+ *
+ * Возвращает true если обновили, false если refresh-токен невалиден/просрочен —
+ * вызывающий код в этом случае должен сделать логаут.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const refreshToken = cookies().get("jwt-refresh-token")?.value
+    if (!refreshToken) return false
+
+    const res = await fetch(getApiUrl("/auth/refresh"), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${refreshToken}` },
+    })
+
+    if (!res.ok) {
+      // Refresh-токен просрочен / отозван — сессия закончилась
+      return false
+    }
+
+    const data = await res.json()
+    if (!data.token) return false
+
+    // Обновляем access cookie. Cookie max-age сохраняем большим (7 дней)
+    // чтобы переживать перезагрузки браузера; реальный TTL внутри JWT — 30 мин.
+    cookies().set("jwt-token", data.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    })
+    cookies().set("jwt-token-client", data.token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    })
+    // Rotating refresh: бэк выдаёт новый refresh при каждом обмене.
+    if (data.refresh_token) {
+      cookies().set("jwt-refresh-token", data.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30,
+      })
+    }
+
+    return true
+  } catch (e) {
+    console.error("refreshAccessToken error:", e)
+    return false
+  }
 }
 
 export async function getProfile(): Promise<User | null> {
