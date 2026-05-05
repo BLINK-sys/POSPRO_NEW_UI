@@ -65,6 +65,8 @@ import {
   Eye,
   Copy,
   Loader2,
+  Download,
+  Upload,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -189,8 +191,9 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
   const [previewDimensions, setPreviewDimensions] = useState("")
   const [expandedVars, setExpandedVars] = useState<Set<number>>(new Set())
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  // Модалка «Скопировать конфигурацию»
-  const [showCopyConfig, setShowCopyConfig] = useState(false)
+  // Модалки экспорта (раздать на другие склады) и импорта (взять с другого склада)
+  const [showExportConfig, setShowExportConfig] = useState(false)
+  const [showImportConfig, setShowImportConfig] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -586,12 +589,38 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{warehouse.name}</h1>
-          <p className="text-gray-500">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold truncate">{warehouse.name}</h1>
+          <p className="text-gray-500 truncate">
             {warehouse.supplier_name} · {warehouse.city || "Город не указан"} ·{" "}
             {warehouse.currency?.code} ({warehouse.currency?.rate_to_tenge} тг)
           </p>
+        </div>
+        {/* Экспорт — отдать конфигурацию на другие склады.
+            Импорт — забрать конфигурацию с другого склада в этот. */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImportConfig(true)}
+            disabled={isPending}
+            className={cn("border-emerald-400 text-emerald-700 hover:bg-emerald-50", SECONDARY_BTN)}
+            title="Загрузить переменные и формулы с другого склада в этот"
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Импорт конфигурации
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExportConfig(true)}
+            disabled={isPending}
+            className={cn("border-blue-400 text-blue-700 hover:bg-blue-50", SECONDARY_BTN)}
+            title="Применить переменные и формулы текущего склада к другим складам"
+          >
+            <Upload className="h-4 w-4 mr-1" />
+            Экспорт конфигурации
+          </Button>
         </div>
       </div>
 
@@ -1015,17 +1044,6 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   Удалить
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCopyConfig(true)}
-                disabled={isPending}
-                className={cn("border-blue-400 text-blue-700 hover:bg-blue-50", SECONDARY_BTN)}
-                title="Скопировать переменные и все формулы (цена/доставка/себестоимость) на другой склад"
-              >
-                <Copy className="h-4 w-4 mr-1" />
-                Скопировать конфигурацию
-              </Button>
               <Button size="sm" onClick={handleSaveFormula} disabled={isPending} className={PRIMARY_BTN}>
                 <Save className="h-4 w-4 mr-1" />
                 Сохранить формулу
@@ -1318,10 +1336,16 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
         description="Рассчитанная цена для этого товара на этом складе будет удалена."
       />
 
-      <CopyConfigDialog
-        open={showCopyConfig}
-        onOpenChange={setShowCopyConfig}
+      <ExportConfigDialog
+        open={showExportConfig}
+        onOpenChange={setShowExportConfig}
         sourceWarehouse={warehouse}
+      />
+
+      <ImportConfigDialog
+        open={showImportConfig}
+        onOpenChange={setShowImportConfig}
+        targetWarehouse={warehouse}
       />
     </div>
   )
@@ -1329,14 +1353,14 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
 
 
 // ─────────────────────────────────────────────────────────────────────
-// CopyConfigDialog — модалка «Скопировать конфигурацию» с двумя колонками:
-//   слева — список поставщиков, справа — склады выбранного поставщика
-//   с чекбоксами. Источник (текущий склад) исключается из списка.
-//   Перед применением показывается короткая подтверждающая фраза с
-//   именами получателей и предупреждением о замене существующих данных.
+// ExportConfigDialog — «отдать» конфигурацию текущего склада на другие.
+// Две колонки: слева — список поставщиков, справа — склады выбранного
+// поставщика с чекбоксами (multi-select). Источник (текущий склад)
+// исключается из списка. Перед применением — шаг подтверждения с
+// поимённым перечнем получателей и предупреждением о замене данных.
 // ─────────────────────────────────────────────────────────────────────
 
-function CopyConfigDialog({
+function ExportConfigDialog({
   open,
   onOpenChange,
   sourceWarehouse,
@@ -1454,8 +1478,8 @@ function CopyConfigDialog({
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Copy className="h-5 w-5 text-blue-600" />
-            Скопировать конфигурацию
+            <Upload className="h-5 w-5 text-blue-600" />
+            Экспорт конфигурации
           </DialogTitle>
           <p className="text-sm text-gray-500">
             Источник: <strong>{sourceWarehouse.name}</strong>. На выбранные склады
@@ -1637,6 +1661,286 @@ function CopyConfigDialog({
                   <>
                     <Check className="h-4 w-4 mr-1" />
                     Подтвердить и скопировать
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// ImportConfigDialog — «забрать» конфигурацию с другого склада в текущий.
+// Зеркальная логика к Export: две колонки, поставщик слева, склады справа,
+// но выбор только ОДНОГО склада (radio-стиль через single-state).
+// Текущий склад исключается из списка как кандидат-донор.
+// ─────────────────────────────────────────────────────────────────────
+
+function ImportConfigDialog({
+  open,
+  onOpenChange,
+  targetWarehouse,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  targetWarehouse: Warehouse
+}) {
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null)
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null)
+  const [confirmStep, setConfirmStep] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!open) return
+    setSelectedSupplier(null)
+    setSelectedSourceId(null)
+    setConfirmStep(false)
+    setLoading(true)
+    getWarehouses()
+      .then((all) => {
+        // Текущий склад из списка-доноров исключаем — забирать с самого себя нечего
+        setWarehouses(all.filter((w) => w.id !== targetWarehouse.id))
+      })
+      .finally(() => setLoading(false))
+  }, [open, targetWarehouse.id])
+
+  const suppliers = React.useMemo(() => {
+    const map = new Map<number, { id: number; name: string; count: number }>()
+    for (const w of warehouses) {
+      const sid = w.supplier_id
+      const existing = map.get(sid)
+      if (existing) {
+        existing.count += 1
+      } else {
+        map.set(sid, {
+          id: sid,
+          name: w.supplier_name || `Поставщик #${sid}`,
+          count: 1,
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  }, [warehouses])
+
+  const supplierWarehouses = React.useMemo(
+    () =>
+      selectedSupplier
+        ? warehouses
+            .filter((w) => w.supplier_id === selectedSupplier)
+            .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+        : [],
+    [warehouses, selectedSupplier],
+  )
+
+  const selectedSourceWarehouse = warehouses.find((w) => w.id === selectedSourceId)
+
+  const handleApply = async () => {
+    if (!selectedSourceId) return
+    setSubmitting(true)
+    try {
+      // Импорт делается тем же endpoint'ом copy-config, просто меняем местами:
+      // source — выбранный донор, target — текущий склад (один в списке).
+      const result = await copyWarehouseConfig(selectedSourceId, [targetWarehouse.id])
+      if (result.success) {
+        toast({
+          title: "Конфигурация загружена",
+          description: `Переменные и формулы взяты со склада «${selectedSourceWarehouse?.name}». Запустите «Пересчитать всё», чтобы цены обновились.`,
+        })
+        onOpenChange(false)
+        // Перезагружаем страницу чтобы UI подтянул новые переменные/формулы
+        router.refresh()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Не удалось загрузить",
+          description: result.message,
+        })
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5 text-emerald-600" />
+            Импорт конфигурации
+          </DialogTitle>
+          <p className="text-sm text-gray-500">
+            В склад <strong>«{targetWarehouse.name}»</strong> будут загружены все
+            переменные и формулы (цена / доставка / себестоимость) с выбранного склада-донора.
+          </p>
+        </DialogHeader>
+
+        {!confirmStep ? (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 min-h-[280px]">
+                {/* Левая колонка — поставщики */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600">
+                    Поставщик
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {suppliers.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        Нет других складов
+                      </p>
+                    ) : (
+                      suppliers.map((s) => {
+                        const isActive = s.id === selectedSupplier
+                        const hasSelected = warehouses.some(
+                          (w) => w.supplier_id === s.id && w.id === selectedSourceId,
+                        )
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setSelectedSupplier(s.id)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between gap-2",
+                              isActive
+                                ? "bg-emerald-50 text-emerald-900 border-l-2 border-emerald-500"
+                                : "hover:bg-gray-50 border-l-2 border-transparent",
+                            )}
+                          >
+                            <span className="truncate flex items-center gap-1.5">
+                              {hasSelected && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              )}
+                              {s.name}
+                            </span>
+                            <span className="text-xs text-gray-400 shrink-0">{s.count}</span>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Правая колонка — склады выбранного поставщика (radio: один за раз) */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600">
+                    Склад-донор
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {!selectedSupplier ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        Выберите поставщика слева
+                      </p>
+                    ) : supplierWarehouses.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        У этого поставщика нет других складов
+                      </p>
+                    ) : (
+                      supplierWarehouses.map((w) => {
+                        const checked = selectedSourceId === w.id
+                        return (
+                          <label
+                            key={w.id}
+                            className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="radio"
+                              name="import-source"
+                              checked={checked}
+                              onChange={() => setSelectedSourceId(w.id)}
+                              className="h-4 w-4 accent-emerald-600"
+                            />
+                            <span className="flex-1 truncate">{w.name}</span>
+                            {w.city && (
+                              <span className="text-xs text-gray-400">{w.city}</span>
+                            )}
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="mt-4">
+              <span className="mr-auto text-sm text-gray-500 self-center">
+                {selectedSourceWarehouse
+                  ? `Донор: ${selectedSourceWarehouse.name}`
+                  : "Выберите склад-донор"}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+                className="rounded-lg"
+              >
+                Отмена
+              </Button>
+              <Button
+                onClick={() => setConfirmStep(true)}
+                disabled={!selectedSourceId || submitting}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Применить
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* Шаг 2 — подтверждение */
+          <div className="space-y-4">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm space-y-2">
+              <p>
+                Конфигурация склада <strong>«{selectedSourceWarehouse?.name}»</strong>
+                {selectedSourceWarehouse?.supplier_name && (
+                  <span className="text-gray-500">
+                    {" "}({selectedSourceWarehouse.supplier_name})
+                  </span>
+                )}
+                {" "}будет загружена в текущий склад{" "}
+                <strong>«{targetWarehouse.name}»</strong>.
+              </p>
+              <p className="text-orange-700 font-medium pt-1">
+                ⚠️ Текущие переменные и формулы этого склада будут полностью
+                заменены. Цены товаров не пересчитаются автоматически — после
+                импорта запустите «Пересчитать всё» вручную.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmStep(false)}
+                disabled={submitting}
+                className="rounded-lg"
+              >
+                Назад
+              </Button>
+              <Button
+                onClick={handleApply}
+                disabled={submitting}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Применение...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-1" />
+                    Подтвердить и загрузить
                   </>
                 )}
               </Button>
