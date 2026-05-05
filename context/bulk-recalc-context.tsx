@@ -55,10 +55,12 @@ interface BulkRecalcContextType extends BulkRecalcState {
   start: (selectedWarehouses: Warehouse[]) => Promise<void>
   /** Открыть модалку прогресса (когда есть запущенный пересчёт). */
   openModal: () => void
+  /** Закрыть только модалку, оставив контекст и polling — карточки
+   *  складов продолжат тикать в реальном времени из ctx.progress. */
+  closeModal: () => void
   /** Свернуть в плавающую кнопку — модалка закрыта, polling продолжается. */
   minimize: () => void
-  /** Полностью завершить и убрать кнопку. Используется в «ОК» когда всё готово
-   *  или когда пользователь явно закрыл (X) без сворачивания. */
+  /** Полностью завершить и убрать кнопку. Используется в «ОК» когда всё готово. */
   dismiss: () => void
   /** True если все запущенные пересчёты завершились (done или error). */
   allDone: boolean
@@ -211,6 +213,14 @@ export function BulkRecalcProvider({ children }: { children: ReactNode }) {
     setIsMinimized(false)
   }, [])
 
+  const closeModal = useCallback(() => {
+    // Только прячем модалку. Polling и состояние остаются — это нужно
+    // чтобы карточки складов на странице /admin/suppliers продолжали
+    // показывать live-прогресс через ctx.progress даже если модалку
+    // закрыли крестиком (а не «свернули»).
+    setIsModalOpen(false)
+  }, [])
+
   const minimize = useCallback(() => {
     setIsModalOpen(false)
     setIsMinimized(true)
@@ -235,6 +245,7 @@ export function BulkRecalcProvider({ children }: { children: ReactNode }) {
     isModalOpen,
     start,
     openModal,
+    closeModal,
     minimize,
     dismiss,
     allDone,

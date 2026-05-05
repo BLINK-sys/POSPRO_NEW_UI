@@ -131,16 +131,16 @@ export function BulkRecalcDialog() {
     await ctx.start(selected)
   }
 
-  // Закрытие диалога:
-  //  - Selection-фаза (нет активного пересчёта) — просто закрываем
-  //  - Progress-фаза (есть пересчёт, юзер закрыл через X / Escape) —
-  //    dismiss(): треды на сервере доработают, но кнопка-кружок не появится.
-  //    «Свернуть» — отдельная кнопка, которая ставит isMinimized=true.
+  // Закрытие диалога через X / Escape:
+  //  - Selection-фаза (нет активного пересчёта) → dismiss(), всё чисто
+  //  - Progress-фаза, ещё идёт → closeModal(): только прячем диалог.
+  //    Контекст и polling остаются — карточки складов продолжают тикать.
+  //    Если хочешь полностью прибить — есть кнопка «ОК» когда allDone.
+  //  - Progress-фаза, allDone → dismiss(): пересчёт уже завершён, чистим.
   const handleClose = () => {
-    if (showProgress) {
-      ctx.dismiss()
+    if (showProgress && !ctx.allDone) {
+      ctx.closeModal()
     } else {
-      // selection-фаза — просто скрыть диалог через контекст
       ctx.dismiss()
     }
   }
