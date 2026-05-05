@@ -8,6 +8,8 @@ import { AuthProvider } from "@/context/auth-context"
 import { CartProvider } from "@/context/cart-context"
 import { CatalogPanelProvider } from "@/context/catalog-panel-context"
 import { KPProvider } from "@/context/kp-context"
+import { BulkRecalcProvider } from "@/context/bulk-recalc-context"
+import { BulkRecalcFloatingButton } from "@/components/bulk-recalc-floating-button"
 import { getProfile } from "./actions/auth"
 import { Toaster } from "@/components/ui/toaster"
 import ConditionalLayout from "./conditional-layout"
@@ -66,8 +68,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           <CartProvider>
             <KPProvider>
               <CatalogPanelProvider>
-                <ConditionalLayout>{children}</ConditionalLayout>
-                <Toaster />
+                <BulkRecalcProvider>
+                  <ConditionalLayout>{children}</ConditionalLayout>
+                  {/* Плавающая кнопка свёрнутого массового пересчёта.
+                      Видна на любой странице если контекст в режиме minimized. */}
+                  <BulkRecalcFloatingButton />
+                  <Toaster />
+                </BulkRecalcProvider>
               </CatalogPanelProvider>
             </KPProvider>
           </CartProvider>

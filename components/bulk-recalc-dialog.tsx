@@ -3,19 +3,19 @@
 /**
  * BulkRecalcDialog — модалка массового пересчёта складов.
  *
- * Шаги:
- *  1. Selection — две колонки (поставщик / склады с чекбоксами), как в
- *     Экспорт-конфигурации, multi-select. Можно выбрать склады разных
- *     поставщиков. Дополнительно — кнопки «Все» / «Сбросить» для всех складов.
+ * Состоит из двух фаз:
+ *  1. Selection — две колонки (поставщик / склады с чекбоксами), multi-select.
+ *     Доступна только когда контекст idle (нет активного пересчёта).
  *  2. Progress — сетка карточек по одной на каждый выбранный склад,
- *     каждая карточка независимо обновляется через polling. Показывает:
- *     Статус, Дата, Курс, Всего товаров, Цена/Доставка/Себестоимость/Нулевая.
+ *     обновляется через polling в `BulkRecalcContext`. Доступна когда
+ *     контекст running или done.
  *
- * Бэкенд не трогаем — просто параллельно дёргаем существующие
- * /meta/warehouses/<id>/recalculate и /recalculate-status для каждого склада.
+ * Состояние пересчёта живёт в глобальном контексте, поэтому модалку можно
+ * сворачивать (плавающая кнопка) и переоткрывать с любой страницы — данные
+ * не теряются.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -25,20 +25,15 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
 import {
   type Warehouse,
   type RecalculateData,
   getWarehouses,
-  recalculateWarehouse,
-  getRecalculateStatus,
 } from "@/app/actions/warehouses"
-import { Loader2, RefreshCw, Check, AlertCircle, X } from "lucide-react"
+import { useBulkRecalc } from "@/context/bulk-recalc-context"
+import { Loader2, RefreshCw, Check, AlertCircle, Minimize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-type Phase = "select" | "running"
-
-const POLL_INTERVAL_MS = 2000
 
 export function BulkRecalcDialog({
   open,
@@ -47,41 +42,34 @@ export function BulkRecalcDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { toast } = useToast()
-  const [phase, setPhase] = useState<Phase>("select")
+  const ctx = useBulkRecalc()
+  // Открыта ли диалоговая часть. Снаружи open управляет фазой selection
+  // (т.е. кнопка «Массовый пересчёт» открывает диалог в режиме выбора).
+  // Контекст управляет открытием в режиме progress (через openModal).
+  const dialogOpen = open || ctx.isModalOpen
+
+  // Локальное состояние для фазы selection
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [loadingList, setLoadingList] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
-  // Прогресс по каждому выбранному складу. Ключ — warehouse_id.
-  const [progress, setProgress] = useState<Record<number, RecalculateData | null>>({})
-  // Какие склады «не смогли запустить пересчёт» (например — нет формулы).
-  // Ключ — warehouse_id, значение — текст ошибки от бэка.
-  const [startErrors, setStartErrors] = useState<Record<number, string>>({})
-  // Активный таймер polling'а — единственный setInterval опрашивает все
-  // выбранные склады параллельно. Когда все завершены — таймер останавливается.
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Если контекст уже что-то пересчитывает — показываем фазу прогресса.
+  // Иначе — фазу выбора.
+  const showProgress = ctx.phase === "running" || ctx.phase === "done"
 
-  // Сбрасываем стейт при каждом открытии модалки
+  // Сбрасываем локальный selection-state при каждом открытии в фазе selection
   useEffect(() => {
-    if (!open) return
-    setPhase("select")
+    if (!dialogOpen || showProgress) return
     setSelectedSupplier(null)
     setSelectedIds(new Set())
-    setProgress({})
-    setStartErrors({})
     setLoadingList(true)
     getWarehouses()
       .then(setWarehouses)
       .finally(() => setLoadingList(false))
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-      pollTimerRef.current = null
-    }
-  }, [open])
+  }, [dialogOpen, showProgress])
 
-  // Группировка складов по поставщикам для левой колонки
+  // Группировка складов по поставщикам
   const suppliers = useMemo(() => {
     const map = new Map<number, { id: number; name: string; count: number }>()
     for (const w of warehouses) {
@@ -140,104 +128,29 @@ export function BulkRecalcDialog({
     setSelectedIds(new Set())
   }
 
-  // Запуск массового пересчёта. Стартуем все одновременно (Promise.all),
-  // не дожидаясь завершения предыдущего — каждый склад уходит в свой
-  // фон-тред на сервере, ничего друг другу не мешают.
   const handleStart = async () => {
     if (selectedIds.size === 0) return
+    const selected = warehouses.filter((w) => selectedIds.has(w.id))
+    onOpenChange(false) // закрываем фазу selection, контекст откроет прогресс
+    await ctx.start(selected)
+  }
 
-    setPhase("running")
-    setProgress(
-      Array.from(selectedIds).reduce<Record<number, RecalculateData | null>>(
-        (acc, id) => {
-          acc[id] = null
-          return acc
-        },
-        {},
-      ),
-    )
-    setStartErrors({})
-
-    // Запускаем пересчёты параллельно
-    const results = await Promise.all(
-      Array.from(selectedIds).map(async (id) => {
-        const r = await recalculateWarehouse(id)
-        return { id, result: r }
-      }),
-    )
-
-    // Раскладываем результаты: где есть data — кладём в progress,
-    // где ошибка — в startErrors. Если все провалились — поллинга не будет.
-    const newProgress: Record<number, RecalculateData | null> = {}
-    const newErrors: Record<number, string> = {}
-    for (const { id, result } of results) {
-      if (result.success && result.data) {
-        newProgress[id] = result.data
-      } else {
-        newErrors[id] = result.message || "Не удалось запустить пересчёт"
-      }
+  // Закрытие модалки в зависимости от текущей фазы:
+  //  - Если показываем selection (не запущен пересчёт) — просто закрываем диалог
+  //  - Если показываем progress и не allDone — пересчёт остаётся, состояние
+  //    тоже остаётся, но плавающую кнопку НЕ показываем (пользователь явно
+  //    закрыл, не свернул). По описанию — это поведение «как сейчас» —
+  //    окно закрывается, и в фоне продолжает работать без видимой иконки.
+  //    Чтобы не «терять» процесс, используем dismiss() — это ок, на сервере
+  //    треды доработают и сами обновят БД.
+  //  - Если allDone — dismiss (полная очистка)
+  const handleClose = () => {
+    if (showProgress) {
+      ctx.dismiss()
     }
-    setProgress((prev) => ({ ...prev, ...newProgress }))
-    setStartErrors(newErrors)
-
-    // Стартуем общий таймер polling'а если хоть один пересчёт реально запустился
-    const ids = Object.keys(newProgress).map(Number)
-    if (ids.length === 0) return
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-    pollTimerRef.current = setInterval(async () => {
-      // Опрашиваем только те склады которые ещё не завершились/не сломались
-      const stillRunningIds = ids.filter((id) => {
-        const cur = progress[id] || newProgress[id]
-        return cur && cur.status === "running"
-      })
-
-      // Внимание: closure над progress — на момент interval'а используется
-      // зафиксированный snapshot. Чтобы получать актуальный — читаем через
-      // setProgress(callback) ниже.
-      const updates = await Promise.all(
-        ids.map(async (id) => {
-          const r = await getRecalculateStatus(id)
-          return { id, data: r.data || null }
-        }),
-      )
-
-      let anyRunning = false
-      setProgress((prev) => {
-        const next = { ...prev }
-        for (const { id, data } of updates) {
-          if (data) next[id] = data
-          if (data?.status === "running") anyRunning = true
-        }
-        return next
-      })
-
-      if (!anyRunning) {
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-        toast({
-          title: "Массовый пересчёт завершён",
-          description: `${ids.length} склад(ов) обработано`,
-        })
-      }
-    }, POLL_INTERVAL_MS)
+    onOpenChange(false)
   }
 
-  const allDone = useMemo(() => {
-    if (phase !== "running") return false
-    const ids = Object.keys(progress).map(Number)
-    if (ids.length === 0) return false
-    return ids.every((id) => {
-      const s = progress[id]
-      return s && (s.status === "done" || s.status === "error")
-    })
-  }, [phase, progress])
-
-  const stop = () => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-    pollTimerRef.current = null
-  }
-
-  // Форматирование даты для карточек прогресса
   const fmtDate = (iso: string | null | undefined): string => {
     if (!iso) return "—"
     try {
@@ -247,20 +160,30 @@ export function BulkRecalcDialog({
     }
   }
 
-  const closeAll = () => {
-    stop()
+  const handleMinimize = () => {
     onOpenChange(false)
+    ctx.minimize()
+  }
+
+  const handleOk = () => {
+    onOpenChange(false)
+    ctx.dismiss()
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && closeAll()}>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(o) => {
+        if (!o) handleClose()
+      }}
+    >
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-3 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-brand-yellow" />
             Массовый пересчёт складов
           </DialogTitle>
-          {phase === "select" ? (
+          {!showProgress ? (
             <p className="text-sm text-gray-500">
               Выберите один или несколько складов. На каждом запустится отдельный
               пересчёт всех товаров (аналогично кнопке «Пересчитать всё» внутри
@@ -268,14 +191,22 @@ export function BulkRecalcDialog({
             </p>
           ) : (
             <p className="text-sm text-gray-500">
-              Пересчёт запущен на {Object.keys(progress).length} склад(ах).
-              Прогресс обновляется автоматически каждые 2 секунды.
+              {ctx.allDone ? (
+                <>Все пересчёты завершены — {ctx.completedCount} склад(ов).</>
+              ) : (
+                <>
+                  Пересчёт идёт на {ctx.totalCount} склад(ах). Прогресс
+                  обновляется автоматически каждые 2 секунды. Можно свернуть в
+                  плавающую кнопку и продолжить работу — пересчёт останется
+                  активным.
+                </>
+              )}
             </p>
           )}
         </DialogHeader>
 
-        {/* ───────── Шаг 1 — выбор складов ───────── */}
-        {phase === "select" && (
+        {/* ───────── Selection phase ───────── */}
+        {!showProgress && (
           <>
             <div className="px-6 flex-1 min-h-0 overflow-hidden flex flex-col gap-3">
               {loadingList ? (
@@ -304,7 +235,6 @@ export function BulkRecalcDialog({
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
-                    {/* Левая колонка — поставщики */}
                     <div className="border rounded-lg overflow-hidden flex flex-col">
                       <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600">
                         Поставщик
@@ -341,7 +271,6 @@ export function BulkRecalcDialog({
                       </div>
                     </div>
 
-                    {/* Правая колонка — склады выбранного поставщика */}
                     <div className="border rounded-lg overflow-hidden flex flex-col">
                       <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600 flex items-center justify-between">
                         <span>Склады</span>
@@ -391,7 +320,7 @@ export function BulkRecalcDialog({
             </div>
 
             <DialogFooter className="px-6 py-4 border-t bg-white flex-shrink-0">
-              <Button variant="outline" onClick={closeAll} className="rounded-lg">
+              <Button variant="outline" onClick={handleClose} className="rounded-lg">
                 Отмена
               </Button>
               <Button
@@ -406,20 +335,19 @@ export function BulkRecalcDialog({
           </>
         )}
 
-        {/* ───────── Шаг 2 — прогресс ───────── */}
-        {phase === "running" && (
+        {/* ───────── Progress phase ───────── */}
+        {showProgress && (
           <>
             <div className="px-6 flex-1 min-h-0 overflow-y-auto pb-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {Array.from(selectedIds).map((id) => {
-                  const w = warehouses.find((x) => x.id === id)
-                  const data = progress[id]
-                  const startError = startErrors[id]
+                {Object.values(ctx.warehouses).map((w) => {
+                  const data = ctx.progress[w.id]
+                  const startError = ctx.startErrors[w.id]
                   return (
                     <ProgressCard
-                      key={id}
-                      title={w?.name || `#${id}`}
-                      subtitle={w?.supplier_name || ""}
+                      key={w.id}
+                      title={w.name}
+                      subtitle={w.supplier_name}
                       data={data}
                       startError={startError}
                       fmtDate={fmtDate}
@@ -430,15 +358,34 @@ export function BulkRecalcDialog({
             </div>
 
             <DialogFooter className="px-6 py-4 border-t bg-white flex-shrink-0">
-              {!allDone && (
+              {!ctx.allDone && (
                 <span className="mr-auto text-sm text-gray-500 self-center inline-flex items-center gap-1.5">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Опрос статусов каждые 2 сек
+                  Опрос статусов каждые 2 сек ·{" "}
+                  <strong className="text-gray-700">
+                    {ctx.completedCount}/{ctx.totalCount}
+                  </strong>
                 </span>
               )}
-              <Button onClick={closeAll} className="rounded-lg" variant="outline">
-                {allDone ? "Закрыть" : "Свернуть (продолжит работать в фоне)"}
-              </Button>
+              {ctx.allDone ? (
+                <Button
+                  onClick={handleOk}
+                  className="rounded-lg bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  ОК
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleMinimize}
+                  variant="outline"
+                  className="rounded-lg"
+                  title="Свернуть в плавающую кнопку — пересчёт продолжится в фоне"
+                >
+                  <Minimize2 className="h-4 w-4 mr-1" />
+                  Свернуть
+                </Button>
+              )}
             </DialogFooter>
           </>
         )}
@@ -461,7 +408,6 @@ function ProgressCard({
   startError: string | undefined
   fmtDate: (iso: string | null | undefined) => string
 }) {
-  // Палитра рамки/бейджа в зависимости от статуса
   const statusBadge = (() => {
     if (startError) {
       return {
@@ -514,13 +460,19 @@ function ProgressCard({
   const Icon = statusBadge.Icon
   const isSpinning = !data || data.status === "running"
 
-  // Прогресс-бар: processed / total. Если total=0 — нечего считать.
   const total = data?.total || 0
   const processed = data?.processed || 0
   const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
 
   return (
-    <Card className={cn("rounded-xl p-3 border", statusBadge.cardClass)}>
+    <Card
+      className={cn(
+        "rounded-xl p-3 border transition-shadow",
+        // Лёгкая тень для ощущения «карточка приподнята», ярче на hover
+        "shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.14)]",
+        statusBadge.cardClass,
+      )}
+    >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-sm truncate">{title}</div>
@@ -543,7 +495,6 @@ function ProgressCard({
         </div>
       ) : data ? (
         <div className="space-y-1.5 text-[11px]">
-          {/* Прогресс-бар */}
           {total > 0 && (
             <div className="mb-2">
               <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
@@ -567,7 +518,6 @@ function ProgressCard({
           <Row
             label="Курс RUB"
             value={(() => {
-              // currency_rate приходит из бэка — может отсутствовать в типе
               const r = (data as any).currency_rate
               return typeof r === "number" ? r.toFixed(2) : "—"
             })()}
