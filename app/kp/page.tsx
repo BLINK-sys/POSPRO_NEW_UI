@@ -382,7 +382,7 @@ export default function KPPage() {
     kpItems, kpCount, removeItem, updateItemQuantity, updateItem, clearAll,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
-    kpHistory, historyLoading, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
+    kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
   } = useKP()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -397,7 +397,7 @@ export default function KPPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
   const [newTextPage, setNewTextPage] = useState(0)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [savingKP, setSavingKP] = useState(false)
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1139,7 +1139,7 @@ export default function KPPage() {
 
         <div className="flex-1" />
 
-        {/* Правая часть: Корп. расчётник + Сохранить + Выйти + Очистить */}
+        {/* Правая часть: Корп. расчётник + Сохранить + Выйти */}
         <div className="flex items-center gap-2">
           {kpCount > 0 && (
             <button
@@ -1176,43 +1176,49 @@ export default function KPPage() {
             </Button>
           )}
 
+          {/* «Выйти» очищает текущее КП и возвращает к списку истории.
+              Если есть несохранённые изменения (КП ни разу не сохраняли в
+              историю) — спрашиваем подтверждение, чтобы не потерять работу. */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push('/search')}
+            onClick={() => {
+              if (kpCount > 0 && !activeHistoryId) {
+                setShowExitConfirm(true)
+              } else {
+                clearAll()
+              }
+            }}
             className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50 rounded-full text-sm [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
           >
             <LogOut className="h-4 w-4 mr-1" />
             Выйти
           </Button>
-
-          <Button
-            variant="outline"
-            onClick={() => setShowClearConfirm(true)}
-            className="bg-white border-red-400 text-red-600 hover:bg-red-50 rounded-full text-sm [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
-            size="sm"
-          >
-            Очистить КП
-          </Button>
         </div>
       </div>
 
-      {/* Clear confirmation modal */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowClearConfirm(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-80 p-6 text-center" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-2">Очистить КП?</h3>
-            <p className="text-sm text-gray-500 mb-5">Все товары и настройки будут удалены из текущего КП.</p>
+      {/* Exit confirmation — показывается только когда есть несохранённое КП.
+          После подтверждения корзина очищается, и страница автоматически
+          рендерит экран с двумя колонками истории (kpItems.length === 0). */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowExitConfirm(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-96 p-6 text-center" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-2">Выйти без сохранения?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Текущее КП ещё не сохранено. Все товары и настройки будут потеряны —
+              их придётся собирать заново. Если хотите сохранить, нажмите «Отмена»
+              и затем «Сохранить КП».
+            </p>
             <div className="flex gap-3 justify-center">
-              <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(false)} className="rounded-full px-5">
+              <Button variant="outline" size="sm" onClick={() => setShowExitConfirm(false)} className="rounded-full px-5">
                 Отмена
               </Button>
               <Button
                 size="sm"
-                onClick={() => { clearAll(); setShowClearConfirm(false) }}
+                onClick={() => { clearAll(); setShowExitConfirm(false) }}
                 className="rounded-full px-5 bg-red-500 hover:bg-red-600 text-white"
               >
-                Очистить
+                Выйти без сохранения
               </Button>
             </div>
           </div>
