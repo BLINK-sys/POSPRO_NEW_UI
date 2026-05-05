@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
-import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator, Receipt, RefreshCw } from "lucide-react"
+import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator, Receipt, RefreshCw, Loader2 } from "lucide-react"
 import { useBulkRecalc } from "@/context/bulk-recalc-context"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -260,6 +260,11 @@ export function WarehousesManagement({
                     </Badge>
                   )}
                 </div>
+
+                {/* Статус последнего пересчёта — снимок из БД (warehouse.last_recalc).
+                    Тред пересчёта пишет это поле после каждого батча, поэтому
+                    данные актуальны без захода внутрь склада. */}
+                <RecalcStatusLine warehouse={warehouse} />
               </CardContent>
             </Card>
           ))}
@@ -394,6 +399,78 @@ export function WarehousesManagement({
       />
       {/* BulkRecalcDialog рендерится в root layout — открывается через
           ctx.openModal() из этой страницы или из плавающей кнопки. */}
+    </div>
+  )
+}
+
+
+/**
+ * Подпись со статусом последнего пересчёта склада. Источник — снимок
+ * warehouse.last_recalc из БД (записывается тредом пересчёта после
+ * каждого батча). Если в активном bulk-пересчёте этот склад тоже
+ * учитывается — берём более свежий статус из контекста, чтобы счётчики
+ * на карточке тикали в реальном времени.
+ */
+function RecalcStatusLine({ warehouse }: { warehouse: Warehouse }) {
+  const ctx = useBulkRecalc()
+  // Приоритет: live-данные из bulk-пересчёта если этот склад туда попал
+  const live = ctx.progress[warehouse.id]
+  const data = live || warehouse.last_recalc
+  if (!data) return null
+
+  const total = data.total || 0
+  const processed = data.processed || 0
+  const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
+
+  if (data.status === "running") {
+    return (
+      <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+        <div className="flex items-center justify-between text-xs">
+          <span className="inline-flex items-center gap-1 text-blue-700 font-medium">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Выполняется
+          </span>
+          <span className="text-gray-500 font-mono">
+            {processed.toLocaleString("ru-RU")} / {total.toLocaleString("ru-RU")} · {pct}%
+          </span>
+        </div>
+        <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // done / error — показываем дату завершения
+  const finishedIso = data.finished_at || data.started_at
+  const finishedStr = finishedIso
+    ? new Date(finishedIso).toLocaleString("ru-RU", {
+        timeZone: "Asia/Almaty",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—"
+
+  if (data.status === "error") {
+    return (
+      <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-red-600 inline-flex items-center gap-1">
+        <span className="font-medium">Ошибка пересчёта:</span>
+        <span className="text-gray-500">{finishedStr}</span>
+      </div>
+    )
+  }
+
+  // done
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500 flex items-center justify-between gap-2">
+      <span>Последний пересчёт:</span>
+      <span className="text-gray-700 font-medium">{finishedStr}</span>
     </div>
   )
 }

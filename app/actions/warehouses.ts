@@ -26,6 +26,26 @@ export interface WarehouseFormula {
   updated_at: string | null
 }
 
+// Снимок последнего пересчёта склада, хранится в JSONB-колонке warehouse.last_recalc.
+// Тред пересчёта пишет это поле после каждого батча, поэтому в БД всегда есть
+// актуальное состояние — карточки складов могут показывать «Выполняется N/M»
+// без захода внутрь склада.
+export interface WarehouseLastRecalc {
+  status: "running" | "done" | "error"
+  started_at?: string | null
+  finished_at?: string | null
+  total?: number
+  processed?: number
+  price_calculated?: number
+  delivery_calculated?: number
+  cost_no_margin_calculated?: number
+  zero_price?: number
+  error_count?: number
+  has_delivery_formula?: boolean
+  has_cost_formula?: boolean
+  currency_rate?: number
+}
+
 export interface Warehouse {
   id: number
   supplier_id: number
@@ -38,6 +58,9 @@ export interface Warehouse {
   // Работает ли склад с НДС. Default true. При false товары из этого
   // склада в корп.расчётнике добавляются с vatEnabled=false (см. KPItem).
   vat_enabled: boolean
+  // Снимок последнего пересчёта (или текущего бегущего). null если пересчёт
+  // ни разу не запускался на этом складе.
+  last_recalc?: WarehouseLastRecalc | null
   product_count?: number
   has_formula?: boolean
   variables?: WarehouseVariable[]
