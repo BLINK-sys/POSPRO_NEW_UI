@@ -19,6 +19,9 @@ export interface WarehouseFormula {
   warehouse_id: number
   formula: string
   delivery_formula: string | null
+  // Опциональная формула «Себестоимость без маржи». Используется только для
+  // отображения колонки в модалке «Остатки» товара, дальше нигде не учитывается.
+  cost_formula: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -267,7 +270,8 @@ export async function saveSingleVariable(
 export async function saveFormula(
   warehouseId: number,
   formula: string,
-  delivery_formula?: string
+  delivery_formula?: string,
+  cost_formula?: string,
 ): Promise<FormulaValidationResponse> {
   try {
     const token = await getToken()
@@ -277,7 +281,11 @@ export async function saveFormula(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ formula, delivery_formula: delivery_formula || null }),
+      body: JSON.stringify({
+        formula,
+        delivery_formula: delivery_formula || null,
+        cost_formula: cost_formula || null,
+      }),
     })
     const result = await res.json()
     if (!res.ok) {

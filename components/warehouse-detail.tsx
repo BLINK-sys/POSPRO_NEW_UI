@@ -161,6 +161,12 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
   const [deliveryFormulaText, setDeliveryFormulaText] = useState(
     initialWarehouse.formula?.delivery_formula || ""
   )
+  // Опциональная формула «Себестоимость без маржи». Используется только для
+  // отображения колонки в модалке «Остатки» товара. Может быть пустой —
+  // тогда колонка покажет «—».
+  const [costFormulaText, setCostFormulaText] = useState(
+    initialWarehouse.formula?.cost_formula || ""
+  )
   const [productsCount, setProductsCount] = useState(initialProductsCount)
   const [isPending, startTransition] = useTransition()
   const [isAddingProduct, setIsAddingProduct] = useState(false)
@@ -371,7 +377,12 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       return
     }
     startTransition(async () => {
-      const result = await saveFormula(warehouse.id, formulaText.trim(), deliveryFormulaText.trim() || undefined)
+      const result = await saveFormula(
+        warehouse.id,
+        formulaText.trim(),
+        deliveryFormulaText.trim() || undefined,
+        costFormulaText.trim() || undefined,
+      )
       if (result.success) {
         toast({ title: "Успех!", description: result.message })
       } else {
@@ -1021,6 +1032,28 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
               value={deliveryFormulaText}
               onChange={setDeliveryFormulaText}
               label="Доставка ="
+              builtinVariables={builtinVars.map((v) => ({ name: v.name, label: v.desc }))}
+              customVariables={variables
+                .filter((v) => v.name.trim())
+                .map((v) => ({ name: v.name, label: v.label || undefined }))}
+              disabled={isPending}
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-medium mb-2">
+              Формула «Себестоимость без маржи» (необязательно)
+            </h4>
+            <p className="text-xs text-gray-500 mb-2">
+              Используется только для отображения в модалке «Остатки» товара —
+              чтобы видеть сколько единица реально стоит без наценки. Принципы те же,
+              что у формулы цены: учитывает габариты, вес и переменные склада.
+              Если не задана — колонка «Себестоимость» в остатках будет пустой.
+            </p>
+            <FormulaBuilder
+              value={costFormulaText}
+              onChange={setCostFormulaText}
+              label="Себестоимость ="
               builtinVariables={builtinVars.map((v) => ({ name: v.name, label: v.desc }))}
               customVariables={variables
                 .filter((v) => v.name.trim())

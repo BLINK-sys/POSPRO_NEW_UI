@@ -43,9 +43,17 @@ export function ProductStocksDialog({ productId, productName, open, onOpenChange
 
   const totalQuantity = costs.reduce((sum, c) => sum + (c.quantity || 0), 0)
 
+  // Сумма «Себестоимость без маржи» считается только по строкам где она реально
+  // есть. NULL'ы пропускаются — иначе общая сумма получится заниженной.
+  const totalCost = costs.reduce(
+    (sum, c) => sum + (c.calculated_cost_no_margin ?? 0),
+    0,
+  )
+  const hasAnyCost = costs.some((c) => c.calculated_cost_no_margin != null)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackageOpen className="h-5 w-5" />
@@ -69,17 +77,33 @@ export function ProductStocksDialog({ productId, productName, open, onOpenChange
                 <TableRow>
                   <TableHead>Поставщик</TableHead>
                   <TableHead>Склад</TableHead>
+                  <TableHead
+                    className="text-right"
+                    title="Результат формулы «Себестоимость без маржи» из настроек склада. Прочерк = формула не задана или не пересчитывалась."
+                  >
+                    Себестоимость
+                  </TableHead>
                   <TableHead className="text-right">Кол-во</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {costs.map((c) => {
                   const inStock = (c.quantity ?? 0) > 0
+                  const cost = c.calculated_cost_no_margin
                   return (
                     <TableRow key={c.id}>
                       <TableCell className="text-sm">{c.supplier_name || "—"}</TableCell>
                       <TableCell className="text-sm font-medium">
                         {c.warehouse_name || `#${c.warehouse_id}`}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {cost != null ? (
+                          <span className="font-mono">
+                            {Math.round(cost).toLocaleString("ru-RU")} ₸
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <span
@@ -96,6 +120,15 @@ export function ProductStocksDialog({ productId, productName, open, onOpenChange
                 <TableRow className="border-t-2 font-medium">
                   <TableCell colSpan={2} className="text-sm text-right text-muted-foreground">
                     Всего
+                  </TableCell>
+                  <TableCell className="text-right text-sm">
+                    {hasAnyCost ? (
+                      <span className="font-mono font-semibold">
+                        {Math.round(totalCost).toLocaleString("ru-RU")} ₸
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="font-mono font-semibold">{totalQuantity}</span>

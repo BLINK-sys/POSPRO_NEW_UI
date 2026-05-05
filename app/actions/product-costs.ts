@@ -21,6 +21,9 @@ export interface ProductCost {
   quantity: number
   calculated_price: number | null
   calculated_delivery: number | null
+  // Себестоимость без маржи (результат WarehouseFormula.cost_formula).
+  // null = формула не настроена либо ещё не пересчитывалась.
+  calculated_cost_no_margin: number | null
   calculated_at: string | null
   created_at: string | null
   updated_at: string | null
