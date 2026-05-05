@@ -50,53 +50,70 @@ export async function getBrands(): Promise<Brand[]> {
 }
 
 export async function saveBrand(payload: Partial<Brand> & { id: number | string }): Promise<MetaActionState> {
-  const token = await getToken()
-  const { id, ...data } = payload
-  const url = `${API_BASE_URL}/meta/brands/${id}`
-
+  // ВСЁ оборачиваем в try/catch, включая getToken — иначе исключение
+  // "Not authorized" улетает выше action и в браузере выглядит как
+  // непонятный network-error на POST /admin/brands-and-statuses/.
   try {
+    let token: string
+    try {
+      token = await getToken()
+    } catch {
+      return { error: "Сессия истекла — войдите заново" }
+    }
+
+    const { id, ...data } = payload
+    const url = `${API_BASE_URL}/meta/brands/${id}`
+
     const res = await fetch(url, {
-      method: "PUT", // Всегда используем PUT
+      method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     })
-    const result = await res.json()
+    const result = await res.json().catch(() => ({}))
     if (!res.ok) {
-      return { error: result.message || "Ошибка сохранения бренда" }
+      return { error: result.message || result.error || `Ошибка сохранения бренда (HTTP ${res.status})` }
     }
     revalidatePath("/admin/brands-and-statuses")
     return { success: true, message: "Бренд сохранен.", brand: result }
-  } catch (e) {
-    return { error: "Ошибка сети." }
+  } catch (e: any) {
+    console.error("saveBrand failed:", e)
+    return { error: `Ошибка сети: ${e?.message || e}` }
   }
 }
 
 export async function uploadBrandImage(formData: FormData): Promise<{ url?: string; error?: string }> {
-  const token = await getToken()
-  const id = formData.get("id")
-  const file = formData.get("file")
-
-  if (!id || !file) {
-    return { error: "ID бренда и файл обязательны." }
-  }
-
   try {
+    let token: string
+    try {
+      token = await getToken()
+    } catch {
+      return { error: "Сессия истекла — войдите заново" }
+    }
+
+    const id = formData.get("id")
+    const file = formData.get("file")
+
+    if (!id || !file) {
+      return { error: "ID бренда и файл обязательны." }
+    }
+
     const res = await fetch(`${API_BASE_URL}/meta/brands/upload/${id}`, {
-      method: "POST", // Используем POST
-      headers: { Authorization: `Bearer ${token}` }, // Не указываем Content-Type, браузер сделает это сам для multipart/form-data
-      body: formData, // Передаем FormData напрямую
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
     })
 
     if (!res.ok) {
-      const err = await res.json()
-      return { error: err.message || "Ошибка загрузки изображения." }
+      const err = await res.json().catch(() => ({}))
+      return { error: err.message || err.error || `Ошибка загрузки изображения (HTTP ${res.status})` }
     }
 
     const result = await res.json()
     revalidatePath("/admin/brands-and-statuses")
-    return { url: result.url } // Возвращаем URL из ответа
-  } catch (e) {
-    return { error: "Ошибка сети при загрузке изображения." }
+    return { url: result.url }
+  } catch (e: any) {
+    console.error("uploadBrandImage failed:", e)
+    return { error: `Ошибка сети при загрузке: ${e?.message || e}` }
   }
 }
 
