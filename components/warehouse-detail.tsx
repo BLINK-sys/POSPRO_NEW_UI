@@ -320,7 +320,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
       if (result.success) {
         toast({ title: "Успех!", description: result.message })
         // Reload warehouse data to sync variable names with server
-        await _reloadWarehouse()
+        await reloadWarehouse()
       } else {
         toast({ variant: "destructive", title: "Ошибка", description: result.message })
       }
@@ -363,20 +363,23 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
     })
   }
 
-  const _reloadWarehouse = async () => {
+  // Перезагружает все клиентские стейты из свежих данных склада на сервере.
+  // Используется после операций которые меняют переменные/формулы за пределами
+  // обычных handle'ров (импорт/экспорт конфигурации). Если формулы у источника
+  // нет — чистим стейт, чтобы UI не показывал старое значение.
+  const reloadWarehouse = useCallback(async () => {
     try {
       const { getWarehouse } = await import("@/app/actions/warehouses")
       const updated = await getWarehouse(warehouse.id)
-      if (updated) {
-        setVariables(updated.variables || [])
-        if (updated.formula) {
-          setFormulaText(updated.formula.formula)
-        }
-      }
+      if (!updated) return
+      setVariables(updated.variables || [])
+      setFormulaText(updated.formula?.formula || "")
+      setDeliveryFormulaText(updated.formula?.delivery_formula || "")
+      setCostFormulaText(updated.formula?.cost_formula || "")
     } catch (e) {
-      // ignore
+      // ignore — UI просто останется в прежнем состоянии
     }
-  }
+  }, [warehouse.id])
 
   // ===== Formula =====
 
@@ -1346,6 +1349,7 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
         open={showImportConfig}
         onOpenChange={setShowImportConfig}
         targetWarehouse={warehouse}
+        onImportSuccess={reloadWarehouse}
       />
     </div>
   )
@@ -1684,10 +1688,14 @@ function ImportConfigDialog({
   open,
   onOpenChange,
   targetWarehouse,
+  onImportSuccess,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   targetWarehouse: Warehouse
+  // Зовётся после успешного импорта — чтобы родитель перерисовал
+  // переменные и формулы из свежих данных склада.
+  onImportSuccess?: () => void | Promise<void>
 }) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(false)
@@ -1696,7 +1704,6 @@ function ImportConfigDialog({
   const [confirmStep, setConfirmStep] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const { toast } = useToast()
-  const router = useRouter()
 
   useEffect(() => {
     if (!open) return
@@ -1754,9 +1761,13 @@ function ImportConfigDialog({
           title: "Конфигурация загружена",
           description: `Переменные и формулы взяты со склада «${selectedSourceWarehouse?.name}». Запустите «Пересчитать всё», чтобы цены обновились.`,
         })
+        // Сначала перерисовываем родителя со свежими данными, потом
+        // закрываем диалог — иначе можно увидеть старое значение в момент
+        // закрытия. await не блокирует UX надолго (один GET).
+        if (onImportSuccess) {
+          await onImportSuccess()
+        }
         onOpenChange(false)
-        // Перезагружаем страницу чтобы UI подтянул новые переменные/формулы
-        router.refresh()
       } else {
         toast({
           variant: "destructive",
