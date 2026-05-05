@@ -76,11 +76,16 @@ export interface RecalculateData {
   processed: number
   price_calculated: number
   delivery_calculated: number
+  // Сколько товаров получили calculated_cost_no_margin за этот пересчёт.
+  // Поле приходит только если cost_formula задана у склада.
+  cost_no_margin_calculated?: number
   zero_price: number
   zero_price_reasons: Array<{ name: string; reason: string }>
   error_count: number
   errors: string[]
   has_delivery_formula: boolean
+  // True если cost_formula задана. Помогает UI решить показывать ли счётчик.
+  has_cost_formula?: boolean
 }
 
 export interface RecalculateResponse {

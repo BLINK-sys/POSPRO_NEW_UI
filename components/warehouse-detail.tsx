@@ -434,11 +434,13 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
     processed: number
     price_calculated: number
     delivery_calculated: number
+    cost_no_margin_calculated?: number
     zero_price: number
     zero_price_reasons: Array<{ name: string; reason: string }>
     error_count: number
     errors: string[]
     has_delivery_formula: boolean
+    has_cost_formula?: boolean
   } | null>(null)
   const [isRecalculating, setIsRecalculating] = useState(false)
   const recalcTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1196,6 +1198,12 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   <>
                     <span className="text-gray-500">Доставка рассчитана:</span>
                     <span className="font-medium text-blue-600">{recalcResult.delivery_calculated}</span>
+                  </>
+                )}
+                {recalcResult.has_cost_formula && (
+                  <>
+                    <span className="text-gray-500">Себестоимость рассчитана:</span>
+                    <span className="font-medium text-purple-600">{recalcResult.cost_no_margin_calculated ?? 0}</span>
                   </>
                 )}
                 {recalcResult.zero_price > 0 && (
