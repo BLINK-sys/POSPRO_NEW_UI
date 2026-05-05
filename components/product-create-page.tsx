@@ -10,6 +10,7 @@ import {
   bulkAddCharacteristicsByKey,
   uploadProductImageFromUrl,
 } from "@/app/actions/products"
+import { markImportLogSaved } from "@/app/actions/ai-logs"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
@@ -117,6 +118,10 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
   const [importAccess, setImportAccess] = useState<boolean | null>(null)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importing, setImporting] = useState(false)
+  // ID лога импорта — приходит из диалога после успешного auto-fill.
+  // Используется при handleSave чтобы PATCH-нуть статус лога на 'saved'
+  // и связать с реально созданным product_id.
+  const [importLogId, setImportLogId] = useState<number | null>(null)
   useEffect(() => {
     let cancelled = false
     fetch("/api/product-import/access", { cache: "no-store" })
@@ -325,6 +330,13 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
     }
     setImporting(true)
 
+    // Запоминаем ID лога импорта — пометим как 'saved' после реального
+    // сохранения товара. data.import_log_id может быть null если бэк не
+    // смог записать лог (тихий fallback, основной флоу не страдает).
+    if (data.import_log_id) {
+      setImportLogId(data.import_log_id)
+    }
+
     if (data.name) setName(data.name)
     if (data.description) setDescription(data.description)
 
@@ -393,6 +405,14 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
       if (result.success) {
         setIsSaved(true)
         draftIdRef.current = null  // Prevent cleanup from deleting finalized product
+
+        // Если товар был создан из AI-импорта — обновляем лог: статус 'saved'
+        // + product_id + product_name. Fire-and-forget: ошибка PATCH не должна
+        // ломать основной флоу (товар уже создан).
+        if (importLogId && draftId) {
+          markImportLogSaved(importLogId, draftId, payload.name).catch(() => {})
+        }
+
         toast({ title: "Успех!", description: "Товар успешно создан." })
         router.push("/admin/catalog/products")
       } else {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, Wand2, MessageSquare, ShieldCheck, Check, AlertCircle } from "lucide-react"
+import { Loader2, Sparkles, Wand2, MessageSquare, ShieldCheck, Check, AlertCircle, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/context/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { AILogsTab } from "@/components/ai-logs-tab"
 
 const OWNER_EMAIL = "bocan.anton@mail.ru"
 
@@ -209,7 +210,7 @@ export default function AdminAIConsultantPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-brand-yellow/30">
           <Sparkles className="h-5 w-5 text-black" />
@@ -246,6 +247,13 @@ export default function AdminAIConsultantPage() {
           >
             <ShieldCheck className="h-4 w-4 flex-shrink-0" />
             Доступ к настройкам (этот раздел)
+          </TabsTrigger>
+          <TabsTrigger
+            value="logs"
+            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
+            <FileText className="h-4 w-4 flex-shrink-0" />
+            Логи (импорт + чат-консультант)
           </TabsTrigger>
         </TabsList>
 
@@ -351,6 +359,11 @@ export default function AdminAIConsultantPage() {
             allowedIds={settings.allowed_settings_admin_user_ids}
             onToggle={(id) => toggleListMember("allowed_settings_admin_user_ids", id)}
           />
+        </TabsContent>
+
+        {/* ─────────────  Логи  ───────────── */}
+        <TabsContent value="logs" className="space-y-6 mt-4">
+          <AILogsTab />
         </TabsContent>
       </Tabs>
 

@@ -55,6 +55,10 @@ export interface ImportedProductData {
   description: string
   image_urls: string[]
   characteristics: Array<{ key: string; value: string; unit: string }>
+  // ID лога импорта на бэке. Прокидывается дальше в форму создания товара,
+  // чтобы при сохранении мы могли PATCH-нуть лог в статус «saved» и связать
+  // с реально созданным product_id. null если бэк не смог записать лог.
+  import_log_id?: number | null
 }
 
 interface CharRow {
@@ -166,6 +170,9 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
         throw new Error(payload?.error || `HTTP ${resp.status}`)
       }
       const data = payload.data as ImportedProductData
+      // Бэк возвращает import_log_id отдельным полем — прицепляем его
+      // к data, чтобы дальше передать в форму создания товара.
+      data.import_log_id = payload.import_log_id ?? null
       pendingRef.current = data
 
       // Reset visible state to empty — animations will fill it in.
@@ -410,6 +417,9 @@ export function ProductImportFromUrlDialog({ open, onOpenChange, onImported }: P
             unit: c.unit.trim(),
           })),
         image_urls: images.filter((i) => i.enabled).map((i) => i.url),
+        // Прокидываем дальше в форму, чтобы при сохранении товара мы могли
+        // привязать import_log_id к product_id и пометить лог как saved.
+        import_log_id: pendingRef.current?.import_log_id ?? null,
       }
       await onImported(filtered)
       onOpenChange(false)

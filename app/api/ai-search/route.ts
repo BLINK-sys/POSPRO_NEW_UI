@@ -418,7 +418,7 @@ export async function POST(req: Request) {
     })
   }
 
-  let body: { messages?: ChatMessage[] }
+  let body: { messages?: ChatMessage[]; session_token?: string }
   try {
     body = await req.json()
   } catch {
@@ -435,6 +435,18 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/event-stream" },
     })
   }
+
+  // session_token идентифицирует чат-сессию для логирования. Фронт
+  // генерит его при первом сообщении и хранит в localStorage.
+  const sessionToken = (body.session_token || "").trim()
+
+  // JWT юзера — нужен бэку чтобы определить роль (guest/client/system/...).
+  // Cookie httpOnly, читаем здесь и пробрасываем в логирующий запрос.
+  const cookieJwt = (() => {
+    const cookieHeader = req.headers.get("cookie") || ""
+    const m = cookieHeader.match(/(?:^|;\s*)jwt-token=([^;]+)/)
+    return m ? decodeURIComponent(m[1]) : null
+  })()
 
   const baseMessages: any[] = inputMessages.map((m) => ({ role: m.role, content: m.content }))
 
@@ -505,6 +517,9 @@ export async function POST(req: Request) {
       let collectedLabel = ""
       let messages = [...baseMessages]
       const requestStart = Date.now()
+      // Накапливаем все text_delta'и assistant'а — после стрима зальём в лог.
+      // Хранится одной длинной строкой, как пользователь увидел в чате.
+      const assistantChunks: string[] = []
 
       try {
         for (let turn = 0; turn < MAX_TURNS; turn += 1) {
@@ -565,6 +580,7 @@ export async function POST(req: Request) {
             } else if (event.type === "content_block_delta") {
               const delta: any = event.delta
               if (delta?.type === "text_delta" && delta.text) {
+                assistantChunks.push(delta.text)
                 send({ type: "delta", text: delta.text })
               }
             }
@@ -612,6 +628,34 @@ export async function POST(req: Request) {
         console.log(`[ai-search] DONE total=${totalMs}ms ids=${collectedProductIds.length}`)
         send({ type: "done" })
         controller.close()
+
+        // Fire-and-forget логирование чата. Берём последнее USER-сообщение
+        // и собранный текст assistant'а — оба пишем одной парой в сессию.
+        // Если бэк недоступен или session_token пуст — тихо пропускаем,
+        // основная функциональность чата от логирования не зависит.
+        if (sessionToken) {
+          const lastUser = [...inputMessages].reverse().find((m) => m.role === "user")
+          const assistantText = assistantChunks.join("")
+          const messagesToLog: Array<{ role: "user" | "assistant"; content: string }> = []
+          if (lastUser?.content) messagesToLog.push({ role: "user", content: lastUser.content })
+          if (assistantText.trim()) messagesToLog.push({ role: "assistant", content: assistantText })
+          if (messagesToLog.length > 0) {
+            const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new-server.onrender.com"
+            fetch(`${apiBase}/api/ai-chat-logs/messages`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(cookieJwt ? { Authorization: `Bearer ${cookieJwt}` } : {}),
+              },
+              body: JSON.stringify({
+                session_token: sessionToken,
+                messages: messagesToLog,
+              }),
+            }).catch((e) => {
+              console.warn("[ai-chat-log] failed:", e?.message || e)
+            })
+          }
+        }
       }
     },
   })

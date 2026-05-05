@@ -56,6 +56,23 @@ export function AISearchChat({ onResults, initialMessages, onStateChange }: AISe
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  // Стабильный токен сессии чата — генерится при первом сообщении и
+  // персиститься в localStorage. Используется только для логирования
+  // на бэке (одна сессия = один UUID на всю переписку до очистки данных).
+  const sessionTokenRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const KEY = "pospro-ai-chat-session-token"
+    let token = window.localStorage.getItem(KEY)
+    if (!token) {
+      token = (crypto as any).randomUUID
+        ? (crypto as any).randomUUID()
+        : `s${Date.now()}-${Math.random().toString(36).slice(2)}`
+      window.localStorage.setItem(KEY, token)
+    }
+    sessionTokenRef.current = token
+  }, [])
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -90,7 +107,10 @@ export function AISearchChat({ onResults, initialMessages, onStateChange }: AISe
       const resp = await fetch("/api/ai-search", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          session_token: sessionTokenRef.current,
+        }),
         signal: ctrl.signal,
       })
 
