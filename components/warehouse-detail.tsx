@@ -11,6 +11,8 @@ import {
   recalculateWarehouse,
   getRecalculateStatus,
   calculatePreview,
+  copyWarehouseConfig,
+  getWarehouses,
 } from "@/app/actions/warehouses"
 import {
   type ProductCost,
@@ -61,6 +63,8 @@ import {
   X,
   Pencil,
   Eye,
+  Copy,
+  Loader2,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -185,6 +189,8 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
   const [previewDimensions, setPreviewDimensions] = useState("")
   const [expandedVars, setExpandedVars] = useState<Set<number>>(new Set())
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  // Модалка «Скопировать конфигурацию»
+  const [showCopyConfig, setShowCopyConfig] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -1009,6 +1015,17 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
                   Удалить
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCopyConfig(true)}
+                disabled={isPending}
+                className={cn("border-blue-400 text-blue-700 hover:bg-blue-50", SECONDARY_BTN)}
+                title="Скопировать переменные и все формулы (цена/доставка/себестоимость) на другой склад"
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Скопировать конфигурацию
+              </Button>
               <Button size="sm" onClick={handleSaveFormula} disabled={isPending} className={PRIMARY_BTN}>
                 <Save className="h-4 w-4 mr-1" />
                 Сохранить формулу
@@ -1300,6 +1317,333 @@ export function WarehouseDetail({ initialWarehouse, initialProductsCount }: Ware
         title={`Удалить себестоимость для "${deletingCost?.product_name}"?`}
         description="Рассчитанная цена для этого товара на этом складе будет удалена."
       />
+
+      <CopyConfigDialog
+        open={showCopyConfig}
+        onOpenChange={setShowCopyConfig}
+        sourceWarehouse={warehouse}
+      />
     </div>
+  )
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// CopyConfigDialog — модалка «Скопировать конфигурацию» с двумя колонками:
+//   слева — список поставщиков, справа — склады выбранного поставщика
+//   с чекбоксами. Источник (текущий склад) исключается из списка.
+//   Перед применением показывается короткая подтверждающая фраза с
+//   именами получателей и предупреждением о замене существующих данных.
+// ─────────────────────────────────────────────────────────────────────
+
+function CopyConfigDialog({
+  open,
+  onOpenChange,
+  sourceWarehouse,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  sourceWarehouse: Warehouse
+}) {
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null)
+  const [selectedTargets, setSelectedTargets] = useState<Set<number>>(new Set())
+  const [confirmStep, setConfirmStep] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const { toast } = useToast()
+
+  // Сбрасываем стейт каждый раз при открытии — чтобы не висели прошлые выборы
+  useEffect(() => {
+    if (!open) return
+    setSelectedSupplier(null)
+    setSelectedTargets(new Set())
+    setConfirmStep(false)
+    setLoading(true)
+    getWarehouses()
+      .then((all) => {
+        // Источник из списка исключаем — на самого себя копировать смысла нет
+        setWarehouses(all.filter((w) => w.id !== sourceWarehouse.id))
+      })
+      .finally(() => setLoading(false))
+  }, [open, sourceWarehouse.id])
+
+  // Группировка по supplier_id для левой колонки
+  const suppliers = React.useMemo(() => {
+    const map = new Map<number, { id: number; name: string; count: number }>()
+    for (const w of warehouses) {
+      const sid = w.supplier_id
+      const existing = map.get(sid)
+      if (existing) {
+        existing.count += 1
+      } else {
+        map.set(sid, {
+          id: sid,
+          name: w.supplier_name || `Поставщик #${sid}`,
+          count: 1,
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  }, [warehouses])
+
+  const supplierWarehouses = React.useMemo(
+    () =>
+      selectedSupplier
+        ? warehouses
+            .filter((w) => w.supplier_id === selectedSupplier)
+            .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+        : [],
+    [warehouses, selectedSupplier],
+  )
+
+  const toggleTarget = (id: number) => {
+    setSelectedTargets((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllForSupplier = () => {
+    setSelectedTargets((prev) => {
+      const next = new Set(prev)
+      const allSelected = supplierWarehouses.every((w) => next.has(w.id))
+      if (allSelected) {
+        for (const w of supplierWarehouses) next.delete(w.id)
+      } else {
+        for (const w of supplierWarehouses) next.add(w.id)
+      }
+      return next
+    })
+  }
+
+  const selectedTargetWarehouses = warehouses.filter((w) =>
+    selectedTargets.has(w.id),
+  )
+
+  const handleApply = async () => {
+    if (selectedTargets.size === 0) return
+    setSubmitting(true)
+    try {
+      const result = await copyWarehouseConfig(
+        sourceWarehouse.id,
+        Array.from(selectedTargets),
+      )
+      if (result.success) {
+        toast({
+          title: "Конфигурация скопирована",
+          description: result.message || `Применено к ${result.copied || 0} склад(ам)`,
+        })
+        onOpenChange(false)
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Не удалось скопировать",
+          description: result.message,
+        })
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Copy className="h-5 w-5 text-blue-600" />
+            Скопировать конфигурацию
+          </DialogTitle>
+          <p className="text-sm text-gray-500">
+            Источник: <strong>{sourceWarehouse.name}</strong>. На выбранные склады
+            будут скопированы все переменные и все формулы (цена / доставка /
+            себестоимость).
+          </p>
+        </DialogHeader>
+
+        {/* Шаг 1 — выбор получателей */}
+        {!confirmStep ? (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 min-h-[280px]">
+                {/* Левая колонка — поставщики */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600">
+                    Поставщик
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {suppliers.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        Нет других складов
+                      </p>
+                    ) : (
+                      suppliers.map((s) => {
+                        const isActive = s.id === selectedSupplier
+                        const selectedHere = warehouses
+                          .filter((w) => w.supplier_id === s.id)
+                          .filter((w) => selectedTargets.has(w.id)).length
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setSelectedSupplier(s.id)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between gap-2",
+                              isActive
+                                ? "bg-blue-50 text-blue-900 border-l-2 border-blue-500"
+                                : "hover:bg-gray-50 border-l-2 border-transparent",
+                            )}
+                          >
+                            <span className="truncate">{s.name}</span>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {selectedHere > 0 && (
+                                <span className="text-blue-600 font-medium mr-1">
+                                  {selectedHere}/
+                                </span>
+                              )}
+                              {s.count}
+                            </span>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Правая колонка — склады выбранного поставщика */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-600 flex items-center justify-between">
+                    <span>Склады</span>
+                    {supplierWarehouses.length > 0 && (
+                      <button
+                        onClick={toggleAllForSupplier}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        {supplierWarehouses.every((w) => selectedTargets.has(w.id))
+                          ? "Снять все"
+                          : "Выбрать все"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {!selectedSupplier ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        Выберите поставщика слева
+                      </p>
+                    ) : supplierWarehouses.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">
+                        У этого поставщика нет других складов
+                      </p>
+                    ) : (
+                      supplierWarehouses.map((w) => {
+                        const checked = selectedTargets.has(w.id)
+                        return (
+                          <label
+                            key={w.id}
+                            className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleTarget(w.id)}
+                              className="h-4 w-4 accent-blue-600"
+                            />
+                            <span className="flex-1 truncate">{w.name}</span>
+                            {w.city && (
+                              <span className="text-xs text-gray-400">{w.city}</span>
+                            )}
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="mt-4">
+              <span className="mr-auto text-sm text-gray-500 self-center">
+                {selectedTargets.size > 0
+                  ? `Выбрано получателей: ${selectedTargets.size}`
+                  : "Выберите хотя бы один склад"}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+                className="rounded-lg"
+              >
+                Отмена
+              </Button>
+              <Button
+                onClick={() => setConfirmStep(true)}
+                disabled={selectedTargets.size === 0 || submitting}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Применить
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* Шаг 2 — подтверждение */
+          <div className="space-y-4">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm space-y-2">
+              <p>
+                Конфигурация будет применена со склада{" "}
+                <strong>«{sourceWarehouse.name}»</strong> на следующие склады:
+              </p>
+              <ul className="list-disc pl-5 text-gray-700 max-h-40 overflow-y-auto">
+                {selectedTargetWarehouses.map((w) => (
+                  <li key={w.id}>
+                    {w.name}
+                    {w.city ? ` · ${w.city}` : ""}
+                    <span className="text-xs text-gray-500"> · {w.supplier_name}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-orange-700 font-medium pt-1">
+                ⚠️ Текущие переменные и формулы на этих складах будут полностью
+                заменены. Цены товаров не пересчитаются автоматически — после
+                копирования запустите «Пересчитать всё» на каждом складе вручную.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmStep(false)}
+                disabled={submitting}
+                className="rounded-lg"
+              >
+                Назад
+              </Button>
+              <Button
+                onClick={handleApply}
+                disabled={submitting}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Применение...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-1" />
+                    Подтвердить и скопировать
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

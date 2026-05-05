@@ -392,6 +392,45 @@ export async function recalculateWarehouse(warehouseId: number): Promise<Recalcu
   }
 }
 
+// ============ Copy configuration ============
+
+export interface CopyConfigResponse {
+  success: boolean
+  message?: string
+  copied?: number
+  skipped?: Array<{ id: number; reason: string }>
+  source_id?: number
+  source_name?: string
+}
+
+export async function copyWarehouseConfig(
+  sourceId: number,
+  targetIds: number[],
+): Promise<CopyConfigResponse> {
+  try {
+    const token = await getToken()
+    const res = await fetch(
+      `${API_BASE_URL}/meta/warehouses/${sourceId}/copy-config`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ target_ids: targetIds }),
+      },
+    )
+    const result = await res.json()
+    if (!res.ok) {
+      return { success: false, message: result.message || "Ошибка копирования" }
+    }
+    return result as CopyConfigResponse
+  } catch (e) {
+    return { success: false, message: "Ошибка сети" }
+  }
+}
+
+
 export async function getRecalculateStatus(warehouseId: number): Promise<RecalculateResponse> {
   try {
     const token = await getToken()
