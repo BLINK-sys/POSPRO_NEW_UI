@@ -10,6 +10,7 @@ import { CatalogPanelProvider } from "@/context/catalog-panel-context"
 import { KPProvider } from "@/context/kp-context"
 import { BulkRecalcProvider } from "@/context/bulk-recalc-context"
 import { BulkRecalcFloatingButton } from "@/components/bulk-recalc-floating-button"
+import { BulkRecalcDialog } from "@/components/bulk-recalc-dialog"
 import { getProfile } from "./actions/auth"
 import { Toaster } from "@/components/ui/toaster"
 import ConditionalLayout from "./conditional-layout"
@@ -73,6 +74,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                   {/* Плавающая кнопка свёрнутого массового пересчёта.
                       Видна на любой странице если контекст в режиме minimized. */}
                   <BulkRecalcFloatingButton />
+                  {/* Сама модалка тоже глобальная — открывается через
+                      ctx.openModal() с любой страницы. Решает кейс:
+                      жмём floating-кнопку на не-страницах, она просит
+                      контекст открыть модалку, а её бы не было в DOM. */}
+                  <BulkRecalcDialog />
                   <Toaster />
                 </BulkRecalcProvider>
               </CatalogPanelProvider>

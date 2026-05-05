@@ -35,18 +35,13 @@ import { Loader2, RefreshCw, Check, AlertCircle, Minimize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 
-export function BulkRecalcDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+export function BulkRecalcDialog() {
   const ctx = useBulkRecalc()
-  // Открыта ли диалоговая часть. Снаружи open управляет фазой selection
-  // (т.е. кнопка «Массовый пересчёт» открывает диалог в режиме выбора).
-  // Контекст управляет открытием в режиме progress (через openModal).
-  const dialogOpen = open || ctx.isModalOpen
+  // Открытость управляется контекстом — модалка глобальная (рендерится в
+  // root layout), поэтому при клике на floating-кнопку или на «Массовый
+  // пересчёт» в списке складов вызывается ctx.openModal() и диалог
+  // открывается с любой страницы.
+  const dialogOpen = ctx.isModalOpen
 
   // Локальное состояние для фазы selection
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -131,28 +126,23 @@ export function BulkRecalcDialog({
   const handleStart = async () => {
     if (selectedIds.size === 0) return
     const selected = warehouses.filter((w) => selectedIds.has(w.id))
-    // Сначала запускаем пересчёт в контексте — он сразу выставит
-    // isModalOpen=true, поэтому диалог не закроется когда родитель
-    // переведёт `open` в false. Если поменять порядок — увидим закрытие
-    // диалога между этими двумя вызовами.
+    // ctx.start сразу выставляет isModalOpen=true и переводит phase в running.
+    // Диалог автоматически переключится на progress phase.
     await ctx.start(selected)
-    onOpenChange(false)
   }
 
-  // Закрытие модалки в зависимости от текущей фазы:
-  //  - Если показываем selection (не запущен пересчёт) — просто закрываем диалог
-  //  - Если показываем progress и не allDone — пересчёт остаётся, состояние
-  //    тоже остаётся, но плавающую кнопку НЕ показываем (пользователь явно
-  //    закрыл, не свернул). По описанию — это поведение «как сейчас» —
-  //    окно закрывается, и в фоне продолжает работать без видимой иконки.
-  //    Чтобы не «терять» процесс, используем dismiss() — это ок, на сервере
-  //    треды доработают и сами обновят БД.
-  //  - Если allDone — dismiss (полная очистка)
+  // Закрытие диалога:
+  //  - Selection-фаза (нет активного пересчёта) — просто закрываем
+  //  - Progress-фаза (есть пересчёт, юзер закрыл через X / Escape) —
+  //    dismiss(): треды на сервере доработают, но кнопка-кружок не появится.
+  //    «Свернуть» — отдельная кнопка, которая ставит isMinimized=true.
   const handleClose = () => {
     if (showProgress) {
       ctx.dismiss()
+    } else {
+      // selection-фаза — просто скрыть диалог через контекст
+      ctx.dismiss()
     }
-    onOpenChange(false)
   }
 
   const fmtDate = (iso: string | null | undefined): string => {
@@ -165,12 +155,10 @@ export function BulkRecalcDialog({
   }
 
   const handleMinimize = () => {
-    onOpenChange(false)
     ctx.minimize()
   }
 
   const handleOk = () => {
-    onOpenChange(false)
     ctx.dismiss()
   }
 
