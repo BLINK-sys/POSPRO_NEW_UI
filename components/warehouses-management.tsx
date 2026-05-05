@@ -29,9 +29,10 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
-import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator } from "lucide-react"
+import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator, Receipt } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
@@ -70,10 +71,11 @@ export function WarehousesManagement({
     city: "",
     address: "",
     currency_id: "",
+    vat_enabled: true,
   })
 
   const openCreate = () => {
-    setFormData({ supplier_id: "", name: "", city: "", address: "", currency_id: "" })
+    setFormData({ supplier_id: "", name: "", city: "", address: "", currency_id: "", vat_enabled: true })
     setIsCreating(true)
   }
 
@@ -84,6 +86,9 @@ export function WarehousesManagement({
       city: warehouse.city || "",
       address: warehouse.address || "",
       currency_id: String(warehouse.currency_id),
+      // Старые склады в БД могут вернуть undefined (если запрос ещё кешированный) —
+      // защитно дефолтим на true, чтобы не «выключить» НДС случайно.
+      vat_enabled: warehouse.vat_enabled !== false,
     })
     setEditingWarehouse(warehouse)
   }
@@ -105,6 +110,7 @@ export function WarehousesManagement({
         city: formData.city.trim() || undefined,
         address: formData.address.trim() || undefined,
         currency_id: Number(formData.currency_id),
+        vat_enabled: formData.vat_enabled,
       }
 
       const result = editingWarehouse
@@ -227,6 +233,15 @@ export function WarehousesManagement({
                       Формула
                     </Badge>
                   )}
+                  {warehouse.vat_enabled === false && (
+                    <Badge
+                      className="flex items-center gap-1 bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100"
+                      title="Товары из этого склада попадают в корп.расчётник без НДС"
+                    >
+                      <Receipt className="h-3 w-3" />
+                      Без НДС
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -318,6 +333,22 @@ export function WarehousesManagement({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 px-3 py-3 rounded-xl border border-gray-200 bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+              <div className="min-w-0">
+                <Label className="font-medium cursor-pointer text-sm">Работает с НДС</Label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Если выключить — товары из этого склада попадают в корп.расчётник
+                  без НДС: колонки Себестоимости считаются «как есть», и эти строки
+                  не участвуют в сумме «Без НДС себестоимости» при подсчёте налогов.
+                  Контрактная сторона всегда с НДС (16%).
+                </p>
+              </div>
+              <Switch
+                checked={formData.vat_enabled}
+                onCheckedChange={(v) => setFormData({ ...formData, vat_enabled: v })}
+                disabled={isPending}
+              />
             </div>
           </div>
           <DialogFooter>

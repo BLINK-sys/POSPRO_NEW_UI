@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
@@ -910,73 +910,132 @@ export default function KPPage() {
 
   // ── Empty state ───────────────────────────────
   if (kpItems.length === 0) {
+    // Делим историю на две группы: жёлтые сохранённые vs зелёные подписанные.
+    const savedKps = kpHistory.filter(e => !e.signed_at)
+    const signedKps = kpHistory.filter(e => !!e.signed_at)
+    const hasAnyHistory = kpHistory.length > 0
+
+    const renderEntry = (entry: typeof kpHistory[number], isSigned: boolean) => (
+      <div
+        key={entry.id}
+        className={
+          "flex items-center justify-between p-3 rounded-lg border transition-colors group " +
+          (isSigned
+            ? "bg-green-50 border-green-200 hover:border-green-500 hover:bg-green-100"
+            : "bg-yellow-50 border-yellow-200 hover:border-yellow-500 hover:bg-yellow-100")
+        }
+      >
+        <button
+          className="flex-1 text-left min-w-0 text-black"
+          disabled={loadingHistoryId === entry.id}
+          onClick={async () => {
+            setLoadingHistoryId(entry.id)
+            const result = await loadFromHistory(entry.id)
+            if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
+            if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
+            setLoadingHistoryId(null)
+          }}
+        >
+          <div className="font-medium truncate flex items-center gap-2">
+            {entry.name}
+            {isSigned && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-200 text-green-900 border border-green-300">
+                Подписан
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-gray-700 flex items-center gap-3 mt-0.5">
+            <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
+          </div>
+        </button>
+        {loadingHistoryId === entry.id ? (
+          <Loader2 className="h-4 w-4 animate-spin text-gray-400 ml-3 shrink-0" />
+        ) : (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              await deleteFromHistory(entry.id)
+            }}
+            className="ml-3 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Удалить из истории"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    )
+
     return (
       <div className="container mx-auto py-8">
-        <div className="flex items-center gap-2 mb-6">
-          <FileText className="h-6 w-6" />
-          <h1 className="text-2xl font-bold">Коммерческое предложение</h1>
-        </div>
-        <Card>
-          <CardContent className="p-8 text-center">
-            <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h2 className="text-xl font-semibold mb-2">Список КП пуст</h2>
-            <p className="text-gray-600 mb-4">Добавьте товары из поиска для создания коммерческого предложения</p>
-            <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black">
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <FileText className="h-6 w-6" />
+            <h1 className="text-2xl font-bold">Коммерческое предложение</h1>
+          </div>
+          {/* Когда есть история — большая карточка пустого состояния не нужна,
+              но нужен короткий доступ к поиску чтобы начать новое КП. */}
+          {hasAnyHistory && (
+            <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black rounded-full">
               <Link href="/search"><Search className="h-4 w-4 mr-2" />Найти товары</Link>
             </Button>
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
-        {/* История КП */}
-        {kpHistory.length > 0 && (
-          <Card className="mt-6">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <History className="h-5 w-5 text-gray-500" />
-                <h2 className="text-lg font-semibold">Ранее сформированные КП</h2>
-              </div>
-              <div className="space-y-2">
-                {kpHistory.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 transition-colors group"
-                  >
-                    <button
-                      className="flex-1 text-left min-w-0"
-                      disabled={loadingHistoryId === entry.id}
-                      onClick={async () => {
-                        setLoadingHistoryId(entry.id)
-                        const result = await loadFromHistory(entry.id)
-                        if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
-                        if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
-                        setLoadingHistoryId(null)
-                      }}
-                    >
-                      <div className="font-medium truncate">{entry.name}</div>
-                      <div className="text-sm text-gray-500 flex items-center gap-3 mt-0.5">
-                        <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
-                      </div>
-                    </button>
-                    {loadingHistoryId === entry.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400 ml-3 shrink-0" />
-                    ) : (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          await deleteFromHistory(entry.id)
-                        }}
-                        className="ml-3 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Удалить из истории"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+        {/* Большая пустая карточка только если истории нет вообще. */}
+        {!hasAnyHistory && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+              <h2 className="text-xl font-semibold mb-2">Список КП пуст</h2>
+              <p className="text-gray-600 mb-4">Добавьте товары из поиска для создания коммерческого предложения</p>
+              <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black">
+                <Link href="/search"><Search className="h-4 w-4 mr-2" />Найти товары</Link>
+              </Button>
             </CardContent>
           </Card>
+        )}
+
+        {/* Две колонки: жёлтые сохранённые + зелёные подписанные. На мобильных
+            стекаются (но в мобилке этот раздел не используется по факту). */}
+        {hasAnyHistory && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Жёлтая колонка — сохранённые КП */}
+            <Card className="border-yellow-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <History className="h-5 w-5 text-yellow-600" />
+                  <h2 className="text-lg font-semibold">Ранее сформированные КП</h2>
+                  <span className="text-sm text-gray-500">({savedKps.length})</span>
+                </div>
+                {savedKps.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">Сохранённых КП пока нет</p>
+                ) : (
+                  <div className="space-y-2">
+                    {savedKps.map((entry) => renderEntry(entry, false))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Зелёная колонка — подписанные контракты */}
+            <Card className="border-green-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileSignature className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Подписанные контракты</h2>
+                  <span className="text-sm text-gray-500">({signedKps.length})</span>
+                </div>
+                {signedKps.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">Подписанных контрактов нет</p>
+                ) : (
+                  <div className="space-y-2">
+                    {signedKps.map((entry) => renderEntry(entry, true))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     )

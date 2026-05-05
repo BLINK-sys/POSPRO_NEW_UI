@@ -15,6 +15,8 @@ export interface ProductCost {
   warehouse_name?: string | null
   supplier_name?: string | null
   currency_code?: string | null
+  // Работает ли исходный склад с НДС. Бэк отдаёт это поле (default true).
+  vat_enabled?: boolean
   cost_price: number
   quantity: number
   calculated_price: number | null

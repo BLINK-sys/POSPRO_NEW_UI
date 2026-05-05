@@ -13,6 +13,10 @@ export interface WarehousePriceOption {
   calculated_price: number | null
   calculated_delivery: number | null
   currency_code: string // e.g. 'RUB', 'KZT', 'USD'
+  // Работает ли склад с НДС. Прокидывается в корп.расчётник: при false
+  // строка получает vatEnabled=false, и колонки Себестоимости считаются
+  // «как есть» без НДС-разделения. Контрактная сторона всегда с НДС (16%).
+  vat_enabled?: boolean
 }
 
 export interface KPItem {
@@ -32,6 +36,10 @@ export interface KPItem {
   warehousePrices?: WarehousePriceOption[]
   selectedWarehouseId?: number | null
   addedAt: number
+  // True если строка была добавлена в подписанный контракт (после signed_at).
+  // Такие строки сразу замораживаются: их цена и курс взяты на момент
+  // добавления и больше не пересчитываются автоматически.
+  addedAfterSign?: boolean
 }
 
 // --- Settings types ---
@@ -161,6 +169,9 @@ export interface KPHistoryEntry {
   id: number
   name: string
   total_amount: number
+  // ISO-дата подписания контракта. null/undefined = просто сохранённое КП
+  // (жёлтая карточка). Заполнено = подписанный контракт (зелёная карточка).
+  signed_at?: string | null
   created_at: string
 }
 
@@ -194,10 +205,18 @@ interface KPContextType {
   kpHistory: KPHistoryEntry[]
   historyLoading: boolean
   activeHistoryId: number | null
+  // signed_at активного КП (если оно загружено из истории и подписано).
+  // Используется UI чтобы решать, можно ли менять автомиксующиеся настройки
+  // и показывать ли пометку «Добавлен после подписания» у новых строк.
+  activeSignedAt: string | null
   fetchHistory: () => Promise<void>
   saveToHistory: (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }, calculatorData?: any) => Promise<boolean>
-  loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any }>
+  loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any; signedAt?: string | null }>
   deleteFromHistory: (id: number) => Promise<boolean>
+  // Подписать активное КП. Возвращает true если успех. Сервер ставит
+  // signed_at = текущий timestamp и активный кп переходит в режим
+  // «подписанный» — правки автоматически не валятся, сохраняем снимок.
+  signActiveContract: () => Promise<boolean>
 }
 
 const KP_STORAGE_KEY = "kp-items"
@@ -213,6 +232,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [kpHistory, setKpHistory] = useState<KPHistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
+  const [activeSignedAt, setActiveSignedAt] = useState<string | null>(null)
   const [calculatorData, setCalculatorData] = useState<any | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
@@ -334,12 +354,16 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const addItem = useCallback((item: Omit<KPItem, 'kpId' | 'quantity' | 'addedAt'>): string => {
     if (!isSystemUser) return ''
     const kpId = `kp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    // Если активное КП — подписанный контракт, помечаем новую строку
+    // флагом addedAfterSign. Это даёт UI визуально отличать «дополнительные»
+    // строки и сразу их фиксировать как часть снимка (текущие цены/курс).
+    const addedAfterSign = activeSignedAt ? true : undefined
     setKpItems(prev => {
       toast({ title: 'Добавлено в КП', description: `${item.name} добавлен в КП` })
-      return [...prev, { ...item, kpId, quantity: 1, addedAt: Date.now() }]
+      return [...prev, { ...item, kpId, quantity: 1, addedAt: Date.now(), addedAfterSign }]
     })
     return kpId
-  }, [isSystemUser, toast])
+  }, [isSystemUser, toast, activeSignedAt])
 
   const removeItem = useCallback((kpId: string) => {
     setKpItems(prev => prev.filter(item => item.kpId !== kpId))
@@ -354,7 +378,12 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setKpItems(prev => prev.map(item => item.kpId === kpId ? { ...item, ...updates } : item))
   }, [])
 
-  const clearAll = useCallback(() => { setKpItems([]); setActiveHistoryId(null); setCalculatorData(null) }, [])
+  const clearAll = useCallback(() => {
+    setKpItems([])
+    setActiveHistoryId(null)
+    setActiveSignedAt(null)
+    setCalculatorData(null)
+  }, [])
 
   const isInKP = useCallback((productId: number) => {
     return kpItems.some(item => item.id === productId)
@@ -509,13 +538,13 @@ export function KPProvider({ children }: { children: ReactNode }) {
     return false
   }, [isSystemUser, kpItems, kpSettings, calculatorData, activeHistoryId, fetchHistory])
 
-  const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any }> => {
+  const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any; signedAt?: string | null }> => {
     if (!isSystemUser) return { success: false }
     try {
       const resp = await fetch(`/api/kp-history/${id}`)
       const data = await resp.json()
       if (data.success && data.data) {
-        const { items, settings, calculator_data } = data.data
+        const { items, settings, calculator_data, signed_at } = data.data
         if (Array.isArray(items)) {
           const migrated = items.map((item: any, idx: number) => ({
             ...item,
@@ -533,13 +562,47 @@ export function KPProvider({ children }: { children: ReactNode }) {
         }
         setCalculatorData(calculator_data || null)
         setActiveHistoryId(id)
-        return { success: true, positions, calculatorData: calculator_data }
+        setActiveSignedAt(signed_at || null)
+        return { success: true, positions, calculatorData: calculator_data, signedAt: signed_at || null }
       }
     } catch (e) {
       console.error('Ошибка загрузки КП из истории:', e)
     }
     return { success: false }
   }, [isSystemUser])
+
+  const signActiveContract = useCallback(async (): Promise<boolean> => {
+    if (!isSystemUser || !activeHistoryId) return false
+    try {
+      const resp = await fetch(`/api/kp-history/${activeHistoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signed_at: 'now' }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        // Сервер ставит signed_at = now. Подтянем свежий объект, чтобы
+        // получить точный timestamp и обновить и активное, и список.
+        try {
+          const refresh = await fetch(`/api/kp-history/${activeHistoryId}`)
+          const fresh = await refresh.json()
+          if (fresh.success && fresh.data?.signed_at) {
+            setActiveSignedAt(fresh.data.signed_at)
+          } else {
+            // Fallback — клиентское время. Сервер всё равно правильное хранит.
+            setActiveSignedAt(new Date().toISOString())
+          }
+        } catch {
+          setActiveSignedAt(new Date().toISOString())
+        }
+        await fetchHistory()
+        return true
+      }
+    } catch (e) {
+      console.error('Ошибка подписания контракта:', e)
+    }
+    return false
+  }, [isSystemUser, activeHistoryId, fetchHistory])
 
   const deleteFromHistory = useCallback(async (id: number): Promise<boolean> => {
     if (!isSystemUser) return false
@@ -569,7 +632,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     calculatorData, setCalculatorData,
-    kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
+    kpHistory, historyLoading, activeHistoryId, activeSignedAt, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory, signActiveContract,
   }
 
   return (

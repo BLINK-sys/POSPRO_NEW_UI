@@ -4,13 +4,21 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Trash2, Plus, ArrowLeft, Check } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, WarehousePriceOption } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/hooks/use-toast'
 import { getCurrencies, refreshRates } from '@/app/actions/currencies'
 import { Save, Loader2 as Loader2Icon, HelpCircle, X as XIcon } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 // ── Format: round up to nearest 100, no decimals ──
 function fmt(value: number): string {
   return Math.ceil(value).toLocaleString('ru-RU')
@@ -122,13 +130,22 @@ interface CalcItem {
   quantity: number
   costPrice: number        // raw cost in original currency (without VAT)
   currencyCode: string     // 'RUB', 'KZT', 'USD', etc.
-  costPriceKzt: number     // cost converted to KZT, INCLUDES per-item VAT
-  vatRate: number          // per-item VAT rate (%). Default 16; 0 = no VAT
+  costPriceKzt: number     // cost converted to KZT. INCLUDES VAT iff vatEnabled.
+  // Работает ли строка с НДС. Источник — warehouse.vat_enabled на момент
+  // добавления товара. После добавления значение «прилипает» к строке —
+  // изменения склада не пересчитывают уже сохранённые строки.
+  // Контрактная сторона ВСЕГДА считается с 16% НДС (см. CONTRACT_VAT_RATE),
+  // этот флаг влияет только на колонки Себестоимости и на учёт строки в
+  // сумме «Без НДС себестоимости» при подсчёте налогов.
+  vatEnabled: boolean
   deliveryPerUnit: number  // manual input
   costPerUnitOverride: number | null    // manual override for cost per unit
   contractPerUnitOverride: number | null // manual override for contract price per unit
   supplierName: string
   warehouseName: string
+  // Был ли товар добавлен в подписанный контракт. Если да — показываем
+  // «после подписания» бейдж и не пересчитываем автоматически (часть снимка).
+  addedAfterSign?: boolean
   // Editable text fields
   paymentDate: string
   deliveryTerms: string
@@ -136,7 +153,21 @@ interface CalcItem {
   note: string
 }
 
+// Контрактная сторона у нас ВСЕГДА с НДС 16% — это глобальное правило,
+// не зависит от настроек склада. Если/когда понадобится менять — выносим
+// в настройки. Себестоимость завязана на warehouse.vat_enabled (см. CalcItem.vatEnabled).
+const CONTRACT_VAT_RATE = 16
 const DEFAULT_VAT_RATE = 16
+
+// Преобразует устаревшее поле vatRate (число 0|16) из ранее сохранённых
+// КП в булевый vatEnabled. Используется при загрузке из localStorage / kp_history.
+function migrateVatField(item: any): boolean {
+  if (typeof item?.vatEnabled === 'boolean') return item.vatEnabled
+  // Старые записи: vatRate > 0 ⇒ с НДС
+  if (typeof item?.vatRate === 'number') return item.vatRate > 0
+  // Совсем старые без поля — дефолтим на «с НДС» (текущее поведение до этой задачи)
+  return true
+}
 
 interface ExpenseItem {
   id: string
@@ -145,7 +176,7 @@ interface ExpenseItem {
 }
 
 // ── Helpers ──────────────────────────────────────
-function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_RATE): CalcItem[] {
+function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
   return kpItems.map(item => {
     const selectedWp = item.warehousePrices?.find(
       wp => wp.warehouse_id === item.selectedWarehouseId
@@ -154,8 +185,10 @@ function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_
     const costPrice = selectedWp?.cost_price || 0
     const currencyCode = selectedWp?.currency_code || 'KZT'
     const calculatedDelivery = Math.ceil(selectedWp?.calculated_delivery || 0)
-    const vatRate = defaultVatRate
-    const vatMul = 1 + vatRate / 100
+    // НДС-флаг наследуется от склада. selectedWp может быть undefined
+    // (товар без выбранного склада) — тогда дефолт «с НДС».
+    const vatEnabled = selectedWp?.vat_enabled !== false
+    const vatMul = vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
 
     return {
       kpId: item.kpId,
@@ -168,7 +201,7 @@ function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_
       // For KZT we apply VAT immediately. For non-KZT this happens in
       // handleApplyRates after the FX rate is set.
       costPriceKzt: currencyCode === 'KZT' ? costPrice * vatMul : 0,
-      vatRate,
+      vatEnabled,
       deliveryPerUnit: calculatedDelivery,
       costPerUnitOverride: null,
       contractPerUnitOverride: null,
@@ -178,6 +211,7 @@ function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_
       deliveryTerms: '',
       paymentTerms: '',
       note: '',
+      addedAfterSign: item.addedAfterSign,
     }
   })
 }
@@ -185,7 +219,7 @@ function buildCalcItems(kpItems: KPItem[], defaultVatRate: number = DEFAULT_VAT_
 // ══════════════════════════════════════════════════
 export default function CalculatorPage() {
   const { user } = useAuth()
-  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, saveToHistory, updateItem: updateKpItem } = useKP()
+  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, activeSignedAt, saveToHistory, updateItem: updateKpItem, signActiveContract } = useKP()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -197,18 +231,26 @@ export default function CalculatorPage() {
   const [ratesApplied, setRatesApplied] = useState(false)
   const [expenses, setExpenses] = useState<ExpenseItem[]>([])
   const [saving, setSaving] = useState(false)
+  const [signing, setSigning] = useState(false)
+  const [showSignConfirm, setShowSignConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+
+  // Активный КП подписан → весь UI знает что мы в режиме «снимок».
+  // Подписать можно только сохранённое КП (нужен activeHistoryId).
+  const isSigned = !!activeSignedAt
 
   // Init: load from saved calculatorData or build from KP items
   // Also merge in any new KP items not yet in calculator
   useEffect(() => {
     const isFromHistory = !!calculatorData?.items
 
-    const globalVat = calculatorData?.vatRate ?? DEFAULT_VAT_RATE
-
     if (isFromHistory) {
-      // Restore saved state — keep saved currency rates
-      const savedItems: CalcItem[] = calculatorData.items
+      // Restore saved state — keep saved currency rates.
+      // Старые сохранённые items имели поле vatRate (число) — конвертируем в vatEnabled.
+      const savedItems: CalcItem[] = calculatorData.items.map((raw: any) => ({
+        ...raw,
+        vatEnabled: migrateVatField(raw),
+      }))
       if (calculatorData.vatRate !== undefined) setVatRate(calculatorData.vatRate)
       if (calculatorData.currencyRates) setCurrencyRates(calculatorData.currencyRates)
       if (calculatorData.ratesApplied !== undefined) setRatesApplied(calculatorData.ratesApplied)
@@ -220,10 +262,10 @@ export default function CalculatorPage() {
       const newItems = kpItems
         .filter(kpItem => !savedKpIds.has(kpItem.kpId))
         .map(kpItem => {
-          const item = buildCalcItems([kpItem], globalVat)[0]
+          const item = buildCalcItems([kpItem])[0]
           if (item.currencyCode !== 'KZT' && savedRates[item.currencyCode]) {
-            // costPriceKzt = supplier × rate × (1 + vat/100)
-            item.costPriceKzt = item.costPrice * savedRates[item.currencyCode] * (1 + (item.vatRate ?? globalVat) / 100)
+            const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
+            item.costPriceKzt = item.costPrice * savedRates[item.currencyCode] * vatMul
           }
           return item
         })
@@ -236,20 +278,13 @@ export default function CalculatorPage() {
           const updates: Partial<CalcItem> = {}
           if (kpItem.quantity !== i.quantity) updates.quantity = kpItem.quantity
           if (kpItem.name !== i.name) updates.name = kpItem.name
-          // Migration: items saved before per-item VAT existed have no vatRate
-          // and their costPriceKzt was stored without VAT. Apply VAT now so the
-          // updated formula stays consistent with the pre-existing values.
-          if (i.vatRate === undefined) {
-            updates.vatRate = globalVat
-            updates.costPriceKzt = i.costPriceKzt * (1 + globalVat / 100)
-          }
           return Object.keys(updates).length > 0 ? { ...i, ...updates } : i
         })
 
       setItems([...filtered, ...newItems])
     } else if (kpItems.length > 0) {
       // New calculator — build items and load rates from currency catalog
-      const newItems = buildCalcItems(kpItems, globalVat)
+      const newItems = buildCalcItems(kpItems)
       setItems(newItems)
 
       // Detect foreign currencies and fetch rates from catalog
@@ -273,7 +308,7 @@ export default function CalculatorPage() {
           if (Object.keys(rates).length > 0) {
             setCurrencyRates(rates)
             setItems(prev => prev.map(item => {
-              const vatMul = 1 + (item.vatRate ?? DEFAULT_VAT_RATE) / 100
+              const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
               if (item.currencyCode === 'KZT') return { ...item, costPriceKzt: item.costPrice * vatMul }
               const rate = rates[item.currencyCode] || 0
               return { ...item, costPriceKzt: item.costPrice * rate * vatMul }
@@ -333,10 +368,11 @@ export default function CalculatorPage() {
     return Array.from(codes).sort()
   }, [items])
 
-  // Apply currency rates (and per-item VAT to get final costPriceKzt)
+  // Apply currency rates. Per-item VAT (vatEnabled) determines whether
+  // costPriceKzt gets multiplied by 1.16 or stays «как есть».
   const handleApplyRates = useCallback(() => {
     setItems(prev => prev.map(item => {
-      const vatMul = 1 + (item.vatRate ?? DEFAULT_VAT_RATE) / 100
+      const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
       if (item.currencyCode === 'KZT') {
         return { ...item, costPriceKzt: item.costPrice * vatMul }
       }
@@ -345,24 +381,6 @@ export default function CalculatorPage() {
     }))
     setRatesApplied(true)
   }, [currencyRates])
-
-  // Toggle per-item VAT on/off. ON  → vatRate = DEFAULT_VAT_RATE (16%),
-  //                            OFF → vatRate = 0. Re-applies to costPriceKzt so
-  // Себестоимость За ед. = supplier × rate × (1 + vatRate/100).
-  const toggleItemVat = useCallback((kpId: string, enabled: boolean) => {
-    const newVat = enabled ? DEFAULT_VAT_RATE : 0
-    setItems(prev => prev.map(item => {
-      if (item.kpId !== kpId) return item
-      const oldVat = item.vatRate ?? DEFAULT_VAT_RATE
-      if (oldVat === newVat) return item
-      const baseKzt = item.costPriceKzt / (1 + oldVat / 100)
-      return {
-        ...item,
-        vatRate: newVat,
-        costPriceKzt: baseKzt * (1 + newVat / 100),
-      }
-    }))
-  }, [])
 
   // Update single item field
   const updateItem = useCallback((kpId: string, field: keyof CalcItem, value: any) => {
@@ -385,32 +403,39 @@ export default function CalculatorPage() {
   }, [])
 
   // ── Calculations ───────────────────────────────
-  // The global vatRate is used only as a default for newly-added items;
-  // each row carries its own item.vatRate which drives all VAT math.
+  // Контрактная сторона ВСЕГДА с 16% НДС (CONTRACT_VAT_RATE).
+  // Сторона себестоимости — с НДС если item.vatEnabled, иначе «как есть».
+  // Это даёт менеджеру возможность отдельно управлять налогом со склада
+  // (например импорт без НДС), не ломая контракт с клиентом.
 
   const calcRow = useCallback((item: CalcItem) => {
     const delivery = item.deliveryPerUnit
-    const itemVatMul = (item.vatRate ?? DEFAULT_VAT_RATE) / 100
+    const costVatMul = item.vatEnabled ? CONTRACT_VAT_RATE / 100 : 0
+    const contractVatMul = CONTRACT_VAT_RATE / 100  // всегда 16%
 
-    // Себестоимость (override or auto). costPriceKzt already includes VAT.
+    // Себестоимость (override or auto).
+    // costPriceKzt уже включает НДС iff item.vatEnabled — см. buildCalcItems.
     const costPerUnit = item.costPerUnitOverride !== null ? item.costPerUnitOverride : item.costPriceKzt
     const costTotal = costPerUnit * item.quantity
-    const costNoVat = costPerUnit / (1 + itemVatMul)
+    // При vatEnabled=false costVatMul=0 → costNoVat == costPerUnit, costVat == 0
+    const costNoVat = costPerUnit / (1 + costVatMul)
     const costVat = costPerUnit - costNoVat
     const costTotalNoVat = costNoVat * item.quantity
     const costTotalVat = costVat * item.quantity
 
-    // Сумма контракта (override or auto)
+    // Сумма контракта (override or auto). Контракт всегда с 16%.
     let contractPerUnit: number
     let contractNoVat: number
     let contractVat: number
     if (item.contractPerUnitOverride !== null) {
       contractPerUnit = item.contractPerUnitOverride
-      contractNoVat = contractPerUnit / (1 + itemVatMul)
+      contractNoVat = contractPerUnit / (1 + contractVatMul)
       contractVat = contractPerUnit - contractNoVat
     } else {
-      contractNoVat = costPerUnit + delivery
-      contractVat = contractNoVat * itemVatMul
+      // База контракта = «без НДС себестоимости» + доставка. Так контракт
+      // всегда с 16% независимо от того с НДС или без склад.
+      contractNoVat = costNoVat + delivery
+      contractVat = contractNoVat * contractVatMul
       contractPerUnit = contractNoVat + contractVat
     }
     const contractTotal = contractPerUnit * item.quantity
@@ -419,16 +444,16 @@ export default function CalculatorPage() {
     const costChanged = item.costPerUnitOverride !== null
     const origCostPerUnit = item.costPriceKzt
     const origCostTotal = origCostPerUnit * item.quantity
-    const origCostNoVat = origCostPerUnit / (1 + itemVatMul)
+    const origCostNoVat = origCostPerUnit / (1 + costVatMul)
     const origCostVat = origCostPerUnit - origCostNoVat
 
     // Пересчёт контракта на основе оригинальной себестоимости (для сравнения)
-    let origContractNoVat = origCostPerUnit + delivery
-    let origContractVat = origContractNoVat * itemVatMul
+    let origContractNoVat = origCostNoVat + delivery
+    let origContractVat = origContractNoVat * contractVatMul
     let origContractPerUnit = origContractNoVat + origContractVat
     if (item.contractPerUnitOverride !== null) {
       origContractPerUnit = item.contractPerUnitOverride
-      origContractNoVat = origContractPerUnit / (1 + itemVatMul)
+      origContractNoVat = origContractPerUnit / (1 + contractVatMul)
       origContractVat = origContractPerUnit - origContractNoVat
     }
     const origContractTotal = origContractPerUnit * item.quantity
@@ -456,24 +481,40 @@ export default function CalculatorPage() {
   const totals = useMemo(() => {
     let contractTotalSum = 0
     let contractVatSum = 0
+    let contractNoVatSum = 0      // ← новое: «Без НДС контракта»
     let costTotalSum = 0
     let costVatSum = 0
+    let costNoVatSumTaxable = 0   // ← новое: «Без НДС себестоимости» БЕЗ учёта VAT-off строк
     let deliveryTotalSum = 0
 
     items.forEach(item => {
       const r = calcRow(item)
       contractTotalSum += r.contractTotal
       contractVatSum += r.contractVat * item.quantity
+      contractNoVatSum += r.contractNoVat * item.quantity
       costTotalSum += r.costTotal
       costVatSum += r.costVat * item.quantity
+      // Task 4: VAT-off строки НЕ участвуют в costNoVatSumTaxable.
+      // Их «Без НДС себестоимости» равен Итого, но они не участвуют в /5
+      // компоненте налогов (Task 3).
+      if (item.vatEnabled) {
+        costNoVatSumTaxable += r.costTotalNoVat
+      }
       deliveryTotalSum += (item.deliveryPerUnit || 0) * item.quantity
     })
 
     const expensesTotal = expenses.reduce((sum, e) => sum + (e.amount || 0), 0)
-    // Налоги = (НДС контракта − НДС себестоимости) + (((Итого контракта − Итого себестоимости) − Итого доставка) / 5)
-    const taxes = (contractVatSum - costVatSum) + ((contractTotalSum - costTotalSum - deliveryTotalSum) / 5)
+    // Task 3 — новая формула:
+    // Налоги = (НДС контракта − НДС себестоимости)
+    //        + (((Без НДС контракта − Без НДС себестоимости) − Итого доставка) / 5)
+    // Где «Без НДС себестоимости» НЕ включает VAT-off строки (Task 4).
+    const taxes = (contractVatSum - costVatSum)
+      + ((contractNoVatSum - costNoVatSumTaxable - deliveryTotalSum) / 5)
 
-    return { contractTotalSum, costTotalSum, expensesTotal, taxes, deliveryTotalSum }
+    return {
+      contractTotalSum, costTotalSum, expensesTotal, taxes, deliveryTotalSum,
+      contractNoVatSum, costNoVatSumTaxable, contractVatSum, costVatSum,
+    }
   }, [items, expenses, calcRow])
 
   // Push current "Сумма контракта за ед." for every row back into the KP
@@ -493,6 +534,34 @@ export default function CalculatorPage() {
     router.push('/kp')
   }, [syncCalcPricesToKp, router])
 
+  // Подписать контракт. UX:
+  //  1. Если КП ещё не сохранён (нет activeHistoryId) — сначала сохраним,
+  //     потому что подписание привязывается к записи в истории.
+  //  2. Перед подписанием — модалка подтверждения (deal-breaker action).
+  //  3. После подписания — refresh activeSignedAt, чат показывает «Подписан».
+  const handleConfirmSign = useCallback(async () => {
+    setSigning(true)
+    try {
+      // Сначала сохраним свежий снимок в историю — чтобы серверная запись
+      // содержала ровно те данные, которые видит юзер сейчас.
+      const data = buildSaveData()
+      const ok = await saveToHistory(undefined, data)
+      if (!ok) {
+        toast({ title: 'Не удалось сохранить КП', description: 'Подписание отменено', variant: 'destructive' })
+        return
+      }
+      const signed = await signActiveContract()
+      if (signed) {
+        toast({ title: 'Контракт подписан', description: 'КП заморожено. Все данные сохранены как снимок.' })
+        setShowSignConfirm(false)
+      } else {
+        toast({ title: 'Не удалось подписать', description: 'Попробуйте ещё раз', variant: 'destructive' })
+      }
+    } finally {
+      setSigning(false)
+    }
+  }, [buildSaveData, saveToHistory, signActiveContract, toast])
+
   if (!isSystemUser) return null
 
   return (
@@ -503,7 +572,32 @@ export default function CalculatorPage() {
           <Button variant="outline" size="sm" onClick={handleBackToKp} className="rounded-full border-black [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
             <ArrowLeft className="h-4 w-4 mr-1" /> Назад к КП
           </Button>
-          <h1 className="text-lg font-bold flex-1">Корпоративный расчётник</h1>
+          <h1 className="text-lg font-bold flex-1 flex items-center gap-2">
+            Корпоративный расчётник
+            {isSigned && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                title={`Контракт подписан ${new Date(activeSignedAt!).toLocaleString('ru-RU')}. Все данные зафиксированы.`}
+              >
+                <Lock className="h-3 w-3" />
+                Контракт подписан
+              </span>
+            )}
+          </h1>
+          {/* Кнопка «Контракт подписан» — слева от «Сохранить». Доступна
+              когда КП уже сохранён в историю (есть activeHistoryId) и ещё
+              не подписан. После подписания превращается в read-only пометку. */}
+          {!isSigned && activeHistoryId && items.length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => setShowSignConfirm(true)}
+              className="rounded-full bg-green-600 hover:bg-green-700 text-white [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+              title="Зафиксировать снимок данных и пометить КП как подписанный контракт"
+            >
+              <FileSignature className="h-4 w-4 mr-1" />
+              Контракт подписан
+            </Button>
+          )}
           <Button size="sm" onClick={handleSave} disabled={saving} className="rounded-full bg-white hover:bg-yellow-50 text-black border border-yellow-400 [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
             {saving ? <Loader2Icon className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
             Сохранить
@@ -591,7 +685,19 @@ export default function CalculatorPage() {
                 <React.Fragment key={item.kpId}>
                 <tr className="hover:bg-gray-50">
                   <td className="border px-1 py-1 text-center text-gray-500">{idx + 1}</td>
-                  <td className="border px-1 py-1 font-medium break-words">{item.name}</td>
+                  <td className="border px-1 py-1 font-medium break-words">
+                    <div className="flex items-start gap-1.5">
+                      <span className="flex-1 min-w-0">{item.name}</span>
+                      {item.addedAfterSign && (
+                        <span
+                          className="shrink-0 inline-flex items-center text-[8px] px-1 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap"
+                          title="Эта позиция добавлена после подписания контракта. Цены и курс зафиксированы на момент добавления."
+                        >
+                          + после подписания
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="border px-1 py-1 text-center">{item.quantity}</td>
 
                   {/* Сумма контракта — Цена за ед. EDITABLE */}
@@ -632,16 +738,16 @@ export default function CalculatorPage() {
                   <td className="border px-1 py-1 text-center bg-green-50/30">{hasCost ? fmt(r.costTotalNoVat) : '—'}</td>
                   <td className="border px-1 py-1 bg-green-50/30">
                     <div className="flex items-center justify-center gap-1.5">
-                      <span className="text-[10px] text-gray-700">{hasCost ? fmt(r.costTotalVat) : '—'}</span>
-                      <input
-                        type="checkbox"
-                        checked={(item.vatRate ?? DEFAULT_VAT_RATE) > 0}
-                        onChange={e => toggleItemVat(item.kpId, e.target.checked)}
-                        title={(item.vatRate ?? DEFAULT_VAT_RATE) > 0
-                          ? `НДС включён (${item.vatRate ?? DEFAULT_VAT_RATE}%) — снимите, чтобы выключить`
-                          : "НДС отключён — включите, чтобы добавить 16%"}
-                        className="w-3.5 h-3.5 accent-green-600 cursor-pointer"
-                      />
+                      {item.vatEnabled ? (
+                        <span className="text-[10px] text-gray-700">{hasCost ? fmt(r.costTotalVat) : '—'}</span>
+                      ) : (
+                        <span
+                          className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap"
+                          title="Склад работает без НДС — НДС не начисляется на себестоимость, и эта строка не участвует в сумме «Без НДС себестоимости» при подсчёте налогов. Контракт всегда с 16% НДС."
+                        >
+                          без НДС
+                        </span>
+                      )}
                     </div>
                   </td>
 
@@ -870,6 +976,55 @@ export default function CalculatorPage() {
           </div>
         </div>
       )}
+
+      {/* Модалка подтверждения подписания контракта. Действие необратимо
+          в обычном UI (без специальной кнопки «разподписать»), поэтому
+          явное подтверждение обязательно. */}
+      <Dialog open={showSignConfirm} onOpenChange={(o) => !o && !signing && setShowSignConfirm(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5 text-green-700" />
+              Подтвердите подписание контракта
+            </DialogTitle>
+            <DialogDescription className="pt-2 space-y-2">
+              <span className="block">
+                После подписания КП будет <strong>заморожено</strong>: все цены, курсы валют,
+                количества и настройки расчётника фиксируются как снимок на момент подписания.
+              </span>
+              <span className="block">
+                Изменения товаров, цен и складов в основном магазине больше <strong>не будут</strong>
+                автоматически попадать в это КП.
+              </span>
+              <span className="block">
+                Вы по-прежнему сможете править строки вручную и добавлять новые товары
+                (новые товары будут помечены как добавленные после подписания).
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowSignConfirm(false)}
+              disabled={signing}
+              className="rounded-full"
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleConfirmSign}
+              disabled={signing}
+              className="rounded-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              {signing ? (
+                <><Loader2Icon className="h-4 w-4 mr-1 animate-spin" /> Подписание...</>
+              ) : (
+                <><FileSignature className="h-4 w-4 mr-1" /> Подписать</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -96,6 +96,9 @@ export function AddToKPButton({
             calculated_price: c.calculated_price,
             calculated_delivery: c.calculated_delivery || null,
             currency_code: c.currency_code || 'KZT',
+            // Старые бэки до миграции warehouse.vat_enabled не возвращают это
+            // поле — дефолтим на true (склад с НДС, текущее поведение).
+            vat_enabled: c.vat_enabled !== false,
           }))
       }
 

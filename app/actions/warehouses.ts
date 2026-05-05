@@ -32,6 +32,9 @@ export interface Warehouse {
   address: string | null
   currency_id: number
   currency: Currency | null
+  // Работает ли склад с НДС. Default true. При false товары из этого
+  // склада в корп.расчётнике добавляются с vatEnabled=false (см. KPItem).
+  vat_enabled: boolean
   product_count?: number
   has_formula?: boolean
   variables?: WarehouseVariable[]
@@ -130,7 +133,14 @@ export async function getWarehouse(id: number): Promise<Warehouse | null> {
 }
 
 export async function createWarehouse(
-  data: { supplier_id: number; name: string; city?: string; address?: string; currency_id: number }
+  data: {
+    supplier_id: number
+    name: string
+    city?: string
+    address?: string
+    currency_id: number
+    vat_enabled?: boolean
+  }
 ): Promise<WarehouseActionResponse> {
   try {
     const token = await getToken()
@@ -155,7 +165,13 @@ export async function createWarehouse(
 
 export async function updateWarehouse(
   id: number,
-  data: Partial<{ name: string; city: string; address: string; currency_id: number }>
+  data: Partial<{
+    name: string
+    city: string
+    address: string
+    currency_id: number
+    vat_enabled: boolean
+  }>
 ): Promise<WarehouseActionResponse> {
   try {
     const token = await getToken()
