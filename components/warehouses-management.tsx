@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import {
   type Warehouse,
   createWarehouse,
@@ -66,6 +66,25 @@ export function WarehousesManagement({
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
   const router = useRouter()
+
+  // Зеркалим прогресс из bulk-контекста в локальный warehouse.last_recalc.
+  // Зачем: после ctx.dismiss() контекст очищается, и карточки падают на
+  // last_recalc из initialWarehouses — это СНИМОК на момент загрузки
+  // страницы. Если на тот момент был running-статус (например, предыдущий
+  // пересчёт не закончился до клика «ОК»), карточка зависнет с прогрессом.
+  // Решение: при каждом обновлении ctx.progress переписываем last_recalc
+  // в локальном стейте — к моменту dismiss там уже лежит финальный 'done'.
+  useEffect(() => {
+    const updates = bulkRecalc.progress
+    const ids = Object.keys(updates)
+    if (ids.length === 0) return
+    setWarehouses((prev) =>
+      prev.map((w) => {
+        const fresh = updates[w.id]
+        return fresh ? { ...w, last_recalc: fresh } : w
+      }),
+    )
+  }, [bulkRecalc.progress])
 
   const [formData, setFormData] = useState({
     supplier_id: "",
