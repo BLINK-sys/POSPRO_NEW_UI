@@ -32,7 +32,8 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
-import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator, Receipt } from "lucide-react"
+import { Pencil, Trash2, Plus, MapPin, Coins, Package, Calculator, Receipt, RefreshCw } from "lucide-react"
+import { BulkRecalcDialog } from "@/components/bulk-recalc-dialog"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
@@ -61,6 +62,7 @@ export function WarehousesManagement({
   const [isCreating, setIsCreating] = useState(false)
   const [deletingWarehouse, setDeletingWarehouse] = useState<Warehouse | null>(null)
   const [filterSupplierId, setFilterSupplierId] = useState<string>("all")
+  const [showBulkRecalc, setShowBulkRecalc] = useState(false)
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
   const router = useRouter()
@@ -168,10 +170,25 @@ export function WarehousesManagement({
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={openCreate} className={cn("flex items-center gap-2", PRIMARY_BTN)}>
-          <Plus className="h-4 w-4" />
-          Добавить склад
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Массовый пересчёт открывает модалку с двухколоночным выбором,
+              затем показывает сетку прогресс-карточек по выбранным складам.
+              Стартует все пересчёты параллельно — на сервере каждый в своём
+              фон-треде, друг другу не мешают. */}
+          <Button
+            variant="outline"
+            onClick={() => setShowBulkRecalc(true)}
+            className={cn("flex items-center gap-2 border-blue-400 text-blue-700 hover:bg-blue-50", SECONDARY_BTN)}
+            title="Запустить пересчёт сразу на нескольких складах с общей панелью прогресса"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Массовый пересчёт
+          </Button>
+          <Button onClick={openCreate} className={cn("flex items-center gap-2", PRIMARY_BTN)}>
+            <Plus className="h-4 w-4" />
+            Добавить склад
+          </Button>
+        </div>
       </div>
 
       {filteredWarehouses.length > 0 ? (
@@ -375,6 +392,9 @@ export function WarehousesManagement({
         title={`Удалить склад "${deletingWarehouse?.name}"?`}
         description="Все формулы и себестоимости товаров на этом складе будут удалены. Это действие необратимо."
       />
+
+      {/* Массовый пересчёт */}
+      <BulkRecalcDialog open={showBulkRecalc} onOpenChange={setShowBulkRecalc} />
     </div>
   )
 }
