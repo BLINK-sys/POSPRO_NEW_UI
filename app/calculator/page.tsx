@@ -219,7 +219,7 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
 // ══════════════════════════════════════════════════
 export default function CalculatorPage() {
   const { user } = useAuth()
-  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, activeSignedAt, saveToHistory, updateItem: updateKpItem, signActiveContract } = useKP()
+  const { kpItems, calculatorData, setCalculatorData, activeHistoryId, activeSignedAt, activeAccessLevel, saveToHistory, updateItem: updateKpItem, signActiveContract } = useKP()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -238,6 +238,9 @@ export default function CalculatorPage() {
   // Активный КП подписан → весь UI знает что мы в режиме «снимок».
   // Подписать можно только сохранённое КП (нужен activeHistoryId).
   const isSigned = !!activeSignedAt
+  // Только просмотр — расшарили с уровнем 'view'. Скрываем «Сохранить»,
+  // «Контракт подписан» и любые другие записывающие действия.
+  const isViewOnly = activeAccessLevel === "view"
 
   // Init: load from saved calculatorData or build from KP items
   // Also merge in any new KP items not yet in calculator
@@ -583,11 +586,17 @@ export default function CalculatorPage() {
                 Контракт подписан
               </span>
             )}
+            {isViewOnly && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300">
+                Только просмотр
+              </span>
+            )}
           </h1>
           {/* Кнопка «Контракт подписан» — слева от «Сохранить». Доступна
               когда КП уже сохранён в историю (есть activeHistoryId) и ещё
-              не подписан. После подписания превращается в read-only пометку. */}
-          {!isSigned && activeHistoryId && items.length > 0 && (
+              не подписан. После подписания превращается в read-only пометку.
+              Скрыта при view-only — у такого юзера нет права писать. */}
+          {!isSigned && !isViewOnly && activeHistoryId && items.length > 0 && (
             <Button
               size="sm"
               onClick={() => setShowSignConfirm(true)}
@@ -598,10 +607,12 @@ export default function CalculatorPage() {
               Контракт подписан
             </Button>
           )}
-          <Button size="sm" onClick={handleSave} disabled={saving} className="rounded-full bg-white hover:bg-yellow-50 text-black border border-yellow-400 [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
-            {saving ? <Loader2Icon className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-            Сохранить
-          </Button>
+          {!isViewOnly && (
+            <Button size="sm" onClick={handleSave} disabled={saving} className="rounded-full bg-white hover:bg-yellow-50 text-black border border-yellow-400 [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
+              {saving ? <Loader2Icon className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+              Сохранить
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowHelp(true)} className="rounded-full bg-white hover:bg-blue-50 text-black border border-blue-400 [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]">
             <HelpCircle className="h-4 w-4 mr-1" />
             Справка

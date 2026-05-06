@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users } from 'lucide-react'
+import { KpShareDialog } from '@/components/kp-share-dialog'
+import { getKpShareTargets, type KpShareTarget } from '@/app/actions/kp-share'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
@@ -383,6 +385,7 @@ export default function KPPage() {
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
+    activeAccessLevel, isSuperAdmin, historyFilter, setHistoryFilter,
   } = useKP()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -399,6 +402,10 @@ export default function KPPage() {
   const [newTextPage, setNewTextPage] = useState(0)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [savingKP, setSavingKP] = useState(false)
+  // KP sharing UI
+  const [shareDialog, setShareDialog] = useState<{ id: number; name: string } | null>(null)
+  // Список системных пользователей для фильтра «По пользователю» (только super-admin)
+  const [shareTargets, setShareTargets] = useState<KpShareTarget[]>([])
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logoUploadRef = useRef<HTMLInputElement>(null)
@@ -415,6 +422,14 @@ export default function KPPage() {
   useEffect(() => {
     if (user && !isSystemUser) router.push('/')
   }, [user, isSystemUser, router])
+
+  // Список юзеров для фильтра «По пользователю» — нужен только super-admin'у.
+  // Грузим один раз когда понимаем что юзер super-admin.
+  useEffect(() => {
+    if (!isSuperAdmin) return
+    if (shareTargets.length > 0) return
+    getKpShareTargets().then(setShareTargets)
+  }, [isSuperAdmin, shareTargets.length])
 
   // ── Calculate scale ───────────────────────────
   useEffect(() => {
@@ -915,56 +930,103 @@ export default function KPPage() {
     const signedKps = kpHistory.filter(e => !!e.signed_at)
     const hasAnyHistory = kpHistory.length > 0
 
-    const renderEntry = (entry: typeof kpHistory[number], isSigned: boolean) => (
-      <div
-        key={entry.id}
-        className={
-          "flex items-center justify-between p-3 rounded-lg border transition-colors group " +
-          (isSigned
-            ? "bg-green-50 border-green-200 hover:border-green-500 hover:bg-green-100"
-            : "bg-yellow-50 border-yellow-200 hover:border-yellow-500 hover:bg-yellow-100")
-        }
-      >
-        <button
-          className="flex-1 text-left min-w-0 text-black"
-          disabled={loadingHistoryId === entry.id}
-          onClick={async () => {
-            setLoadingHistoryId(entry.id)
-            const result = await loadFromHistory(entry.id)
-            if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
-            if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
-            setLoadingHistoryId(null)
-          }}
+    const renderEntry = (entry: typeof kpHistory[number], isSigned: boolean) => {
+      // Я владелец КП если backend вернул user_id == моего id (или поле не
+      // заполнено — старый формат, считаем что моё). access_level отдаётся
+      // бэком, для своих он 'owner'.
+      const isMine = !entry.user_id || entry.user_id === user?.id
+      const isView = entry.access_level === "view"
+      const sharedByName = entry.shared_by?.full_name || entry.shared_by?.email
+      return (
+        <div
+          key={entry.id}
+          className={
+            "flex items-center justify-between p-3 rounded-lg border transition-colors group " +
+            (isSigned
+              ? "bg-green-50 border-green-200 hover:border-green-500 hover:bg-green-100"
+              : "bg-yellow-50 border-yellow-200 hover:border-yellow-500 hover:bg-yellow-100")
+          }
         >
-          <div className="font-medium truncate flex items-center gap-2">
-            {entry.name}
-            {isSigned && (
-              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-200 text-green-900 border border-green-300">
-                Подписан
-              </span>
+          <button
+            className="flex-1 text-left min-w-0 text-black"
+            disabled={loadingHistoryId === entry.id}
+            onClick={async () => {
+              setLoadingHistoryId(entry.id)
+              const result = await loadFromHistory(entry.id)
+              if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
+              if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
+              setLoadingHistoryId(null)
+            }}
+          >
+            <div className="font-medium truncate flex items-center gap-1.5 flex-wrap">
+              {entry.name}
+              {isSigned && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-200 text-green-900 border border-green-300">
+                  Подписан
+                </span>
+              )}
+              {!isMine && sharedByName && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200"
+                  title={`Поделено · от ${sharedByName}`}
+                >
+                  <Users className="h-2.5 w-2.5" />
+                  от {sharedByName}
+                </span>
+              )}
+              {!isMine && isView && (
+                <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                  только просмотр
+                </span>
+              )}
+            </div>
+            <div className="text-sm text-gray-700 flex items-center gap-3 mt-0.5">
+              <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
+            </div>
+          </button>
+
+          <div className="ml-3 shrink-0 flex items-center gap-1">
+            {loadingHistoryId === entry.id && (
+              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            )}
+            {/* «Поделиться» — доступна владельцу или super-admin'у */}
+            {(isMine || isSuperAdmin) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShareDialog({ id: entry.id, name: entry.name })
+                }}
+                className="text-gray-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Поделиться"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+            )}
+            {/* «Удалить» — только владельцу (даже super-admin не может удалить чужое) */}
+            {isMine && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  await deleteFromHistory(entry.id)
+                }}
+                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Удалить из истории"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             )}
           </div>
-          <div className="text-sm text-gray-700 flex items-center gap-3 mt-0.5">
-            <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-            <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
-          </div>
-        </button>
-        {loadingHistoryId === entry.id ? (
-          <Loader2 className="h-4 w-4 animate-spin text-gray-400 ml-3 shrink-0" />
-        ) : (
-          <button
-            onClick={async (e) => {
-              e.stopPropagation()
-              await deleteFromHistory(entry.id)
-            }}
-            className="ml-3 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Удалить из истории"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    )
+        </div>
+      )
+    }
+
+    // Текущий выбор фильтра как строка для Select. Для kind='user' кодируем
+    // как `user:<id>` — иначе один Select не покрывает оба случая.
+    const filterValue =
+      historyFilter.kind === "mine" ? "mine" :
+      historyFilter.kind === "shared" ? "shared" :
+      `user:${historyFilter.userId}`
 
     return (
       <div className="container mx-auto py-8">
@@ -973,13 +1035,53 @@ export default function KPPage() {
             <FileText className="h-6 w-6" />
             <h1 className="text-2xl font-bold">Коммерческое предложение</h1>
           </div>
-          {/* Когда есть история — большая карточка пустого состояния не нужна,
-              но нужен короткий доступ к поиску чтобы начать новое КП. */}
-          {hasAnyHistory && (
-            <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black rounded-full">
-              <Link href="/search"><Search className="h-4 w-4 mr-2" />Найти товары</Link>
-            </Button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Фильтр истории — Только мои / Только расшаренные / По пользователю.
+                Последний пункт виден только super-admin'ам. */}
+            {hasAnyHistory && (
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <Select
+                  value={filterValue}
+                  onValueChange={(v) => {
+                    if (v === "mine") setHistoryFilter({ kind: "mine" })
+                    else if (v === "shared") setHistoryFilter({ kind: "shared" })
+                    else if (v.startsWith("user:")) {
+                      const uid = parseInt(v.slice(5), 10)
+                      if (Number.isFinite(uid)) setHistoryFilter({ kind: "user", userId: uid })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[220px] rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mine">Только мои</SelectItem>
+                    <SelectItem value="shared">Только расшаренные</SelectItem>
+                    {isSuperAdmin && shareTargets.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-gray-400">
+                          По пользователю
+                        </div>
+                        {shareTargets.map((u) => (
+                          <SelectItem key={u.id} value={`user:${u.id}`}>
+                            {u.full_name || u.email}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {/* Когда есть история — большая карточка пустого состояния не нужна,
+                но нужен короткий доступ к поиску чтобы начать новое КП. */}
+            {hasAnyHistory && (
+              <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black rounded-full">
+                <Link href="/search"><Search className="h-4 w-4 mr-2" />Найти товары</Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Большая пустая карточка только если истории нет вообще. */}
@@ -1036,6 +1138,23 @@ export default function KPPage() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Модалка шаринга — открывается с любой карточки. После закрытия
+            обновим историю чтобы новый шар был учтён в видимости (не критично
+            для текущего юзера, но если изменили чужой — пригодится). */}
+        {shareDialog && (
+          <KpShareDialog
+            open={!!shareDialog}
+            onOpenChange={(o) => {
+              if (!o) {
+                setShareDialog(null)
+                fetchHistory()
+              }
+            }}
+            kpId={shareDialog.id}
+            kpName={shareDialog.name}
+          />
         )}
       </div>
     )
@@ -1151,7 +1270,17 @@ export default function KPPage() {
             </button>
           )}
 
-          {kpCount > 0 && (
+          {/* «Сохранить КП» прячем при view-доступе — у юзера нет права
+              писать. Также показываем заметную плашку «Только просмотр» —
+              менеджер сразу понимает что это чужое КП. */}
+          {kpCount > 0 && activeAccessLevel === "view" && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full bg-gray-100 text-gray-600 border border-gray-300">
+              <Users className="h-4 w-4" />
+              Только просмотр
+            </span>
+          )}
+
+          {kpCount > 0 && activeAccessLevel !== "view" && (
             <Button
               variant="outline"
               size="sm"
@@ -1945,6 +2074,22 @@ export default function KPPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Модалка шаринга в основном (не-empty) состоянии — например когда
+          КП открыт и мы хотим поделиться им из шапки calculator/page. */}
+      {shareDialog && (
+        <KpShareDialog
+          open={!!shareDialog}
+          onOpenChange={(o) => {
+            if (!o) {
+              setShareDialog(null)
+              fetchHistory()
+            }
+          }}
+          kpId={shareDialog.id}
+          kpName={shareDialog.name}
+        />
       )}
     </div>
   )

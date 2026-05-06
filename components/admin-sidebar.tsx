@@ -17,6 +17,7 @@ import {
   BookOpen,
   HardDrive,
   Sparkles,
+  Share2,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -100,6 +101,25 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
       })
       .catch(() => {
         if (!cancelled) setAiSettingsAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.email])
+
+  // «Управление КП» — гейт только для is_owner (только владелец системы
+  // может править список super-admin'ов). Granted super-admin'ы тоже видят
+  // КП всех юзеров, но раздел управления — нет, для упрощения.
+  const [kpManagementAccess, setKpManagementAccess] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/admin/kp-super-admin-access/check", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setKpManagementAccess(Boolean(d?.is_owner))
+      })
+      .catch(() => {
+        if (!cancelled) setKpManagementAccess(false)
       })
     return () => {
       cancelled = true
@@ -225,6 +245,15 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               icon={Sparkles}
               label="AI настройки"
               active={isActive("/admin/ai-consultant")}
+            />
+          )}
+
+          {kpManagementAccess && (
+            <NavItem
+              href="/admin/kp-management"
+              icon={Share2}
+              label="Управление КП"
+              active={isActive("/admin/kp-management")}
             />
           )}
 

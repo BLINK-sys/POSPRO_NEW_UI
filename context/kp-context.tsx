@@ -165,6 +165,8 @@ function mergeWithDefaults(parsed: any): KPSettings {
 }
 
 // --- History types ---
+export type KPAccessLevel = "owner" | "edit" | "view"
+
 export interface KPHistoryEntry {
   id: number
   name: string
@@ -173,7 +175,20 @@ export interface KPHistoryEntry {
   // (жёлтая карточка). Заполнено = подписанный контракт (зелёная карточка).
   signed_at?: string | null
   created_at: string
+  // Уровень доступа текущего юзера к этому КП. 'owner' — он создал, 'edit' —
+  // расшарили с правом редактирования или он super-admin, 'view' — только просмотр.
+  access_level?: KPAccessLevel
+  // Если viewer не владелец — id владельца + денормализованные данные для UI
+  user_id?: number
+  shared_by_user_id?: number
+  shared_by?: { id: number; email: string; full_name: string } | null
 }
+
+// Фильтр для списка истории — управляется UI выпадушкой над колонками.
+export type KPHistoryFilter =
+  | { kind: "mine" }
+  | { kind: "shared" }
+  | { kind: "user"; userId: number }
 
 // --- Context type ---
 interface KPContextType {
@@ -209,6 +224,15 @@ interface KPContextType {
   // Используется UI чтобы решать, можно ли менять автомиксующиеся настройки
   // и показывать ли пометку «Добавлен после подписания» у новых строк.
   activeSignedAt: string | null
+  // access_level активного КП — нужно UI чтобы спрятать/серить кнопки
+  // «Сохранить»/«Подписать»/«Удалить» если у viewer'а только просмотр.
+  activeAccessLevel: KPAccessLevel
+  // Является ли текущий юзер super-admin'ом (владелец + грантованные).
+  // True = видит фильтр «По пользователю» + раздел /admin/kp-management.
+  isSuperAdmin: boolean
+  // Текущий фильтр истории. По умолчанию kind='mine'.
+  historyFilter: KPHistoryFilter
+  setHistoryFilter: (f: KPHistoryFilter) => void
   fetchHistory: () => Promise<void>
   saveToHistory: (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }, calculatorData?: any) => Promise<boolean>
   loadFromHistory: (id: number) => Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any; signedAt?: string | null }>
@@ -233,6 +257,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null)
   const [activeSignedAt, setActiveSignedAt] = useState<string | null>(null)
+  const [activeAccessLevel, setActiveAccessLevel] = useState<KPAccessLevel>("owner")
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState<KPHistoryFilter>({ kind: "mine" })
   const [calculatorData, setCalculatorData] = useState<any | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
@@ -382,6 +409,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setKpItems([])
     setActiveHistoryId(null)
     setActiveSignedAt(null)
+    setActiveAccessLevel("owner")
     setCalculatorData(null)
   }, [])
 
@@ -473,17 +501,31 @@ export function KPProvider({ children }: { children: ReactNode }) {
     if (!isSystemUser) return
     setHistoryLoading(true)
     try {
-      const resp = await fetch('/api/kp-history')
+      // Маппим внутренний filter-объект на query string бэка
+      const params = new URLSearchParams()
+      if (historyFilter.kind === "mine") params.set("filter", "mine")
+      else if (historyFilter.kind === "shared") params.set("filter", "shared")
+      else if (historyFilter.kind === "user") {
+        params.set("filter", "user")
+        params.set("user_id", String(historyFilter.userId))
+      }
+      const qs = params.toString()
+      const resp = await fetch(`/api/kp-history${qs ? `?${qs}` : ""}`)
       const data = await resp.json()
       if (data.success && Array.isArray(data.history)) {
         setKpHistory(data.history)
+        // Бэк сообщает super-admin статус — UI на этом основывает наличие
+        // фильтра «По пользователю» и пункта в админ-сайдбаре.
+        if (typeof data.is_super_admin === "boolean") {
+          setIsSuperAdmin(data.is_super_admin)
+        }
       }
     } catch (e) {
       console.error('Ошибка загрузки истории КП:', e)
     } finally {
       setHistoryLoading(false)
     }
-  }, [isSystemUser])
+  }, [isSystemUser, historyFilter])
 
   const saveToHistory = useCallback(async (positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }, calcData?: any): Promise<boolean> => {
     if (!isSystemUser || kpItems.length === 0) return false
@@ -544,7 +586,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
       const resp = await fetch(`/api/kp-history/${id}`)
       const data = await resp.json()
       if (data.success && data.data) {
-        const { items, settings, calculator_data, signed_at } = data.data
+        const { items, settings, calculator_data, signed_at, access_level } = data.data
         if (Array.isArray(items)) {
           const migrated = items.map((item: any, idx: number) => ({
             ...item,
@@ -563,6 +605,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
         setCalculatorData(calculator_data || null)
         setActiveHistoryId(id)
         setActiveSignedAt(signed_at || null)
+        // Уровень доступа viewer'а к этому КП — определяет можно ли менять
+        // и сохранять. Бэк отдаёт 'owner'/'edit'/'view'.
+        setActiveAccessLevel((access_level as KPAccessLevel) || 'view')
         return { success: true, positions, calculatorData: calculator_data, signedAt: signed_at || null }
       }
     } catch (e) {
@@ -619,7 +664,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
     return false
   }, [isSystemUser])
 
-  // Загружаем историю при первом входе
+  // Загружаем историю при первом входе И при смене фильтра.
+  // fetchHistory сам читает historyFilter, useCallback с ним в deps —
+  // меняем фильтр → ссылка fetchHistory обновляется → useEffect срабатывает.
   useEffect(() => {
     if (isLoaded && isSystemUser) {
       fetchHistory()
@@ -632,7 +679,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     calculatorData, setCalculatorData,
-    kpHistory, historyLoading, activeHistoryId, activeSignedAt, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory, signActiveContract,
+    kpHistory, historyLoading, activeHistoryId, activeSignedAt,
+    activeAccessLevel, isSuperAdmin, historyFilter, setHistoryFilter,
+    fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory, signActiveContract,
   }
 
   return (

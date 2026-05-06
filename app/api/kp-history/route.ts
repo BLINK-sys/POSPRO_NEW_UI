@@ -4,7 +4,7 @@ import { getApiUrl } from '@/lib/api-address'
 
 const BACKEND_ENDPOINT = '/api/kp-history'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const token = cookies().get('jwt-token')?.value
 
   if (!token) {
@@ -12,7 +12,11 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(getApiUrl(BACKEND_ENDPOINT), {
+    // Пробрасываем фильтры на бэк: ?filter=mine|shared|user&user_id=N
+    const search = new URL(request.url).search
+    const url = getApiUrl(BACKEND_ENDPOINT) + (search || '')
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
