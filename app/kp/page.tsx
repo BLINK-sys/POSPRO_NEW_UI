@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react'
+import { useEffect, useRef, useState, useCallback, useLayoutEffect, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,9 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users, User, Info, Building2 } from 'lucide-react'
 import { KpShareDialog } from '@/components/kp-share-dialog'
+import { KpClientPickerDialog } from '@/components/kp-client-picker-dialog'
 import { getKpShareTargets, type KpShareTarget } from '@/app/actions/kp-share'
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
@@ -385,7 +388,8 @@ export default function KPPage() {
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
-    activeAccessLevel, isSuperAdmin, historyFilter, setHistoryFilter,
+    activeAccessLevel, isSuperAdmin, hasOtherVisible, historyFilter, setHistoryFilter,
+    activeClient, setActiveClient,
   } = useKP()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -404,8 +408,41 @@ export default function KPPage() {
   const [savingKP, setSavingKP] = useState(false)
   // KP sharing UI
   const [shareDialog, setShareDialog] = useState<{ id: number; name: string } | null>(null)
+  // Модалка адресной книги клиентов. activeClient (из контекста) живёт
+  // независимо — она остаётся выбранной даже когда модалка закрыта.
+  const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  // Локальный фильтр карточек по клиенту. "all" = не фильтруем, число = id
+  // конкретного клиента. Применяется поверх historyFilter (mine/shared/all).
+  const [clientFilter, setClientFilter] = useState<number | "all">("all")
+
+  // Уникальные клиенты, которые встречаются в текущем списке КП. Строится из
+  // денормализованного `entry.client` (бэк уже отдаёт его в short=True), без
+  // отдельного запроса в /api/kp-clients. Список зависит от текущего фильтра
+  // (mine/shared/all) — показываем только тех, кто реально виден.
+  const clientOptions = useMemo(() => {
+    const map = new Map<number, { id: number; display_name: string }>()
+    for (const entry of kpHistory) {
+      if (entry.client && !map.has(entry.client.id)) {
+        map.set(entry.client.id, { id: entry.client.id, display_name: entry.client.display_name })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.display_name.localeCompare(b.display_name, 'ru'))
+  }, [kpHistory])
+
+  // Если выбранный клиент пропал из списка (после смены mine/shared/all
+  // или удаления привязки) — сбрасываем фильтр в "all", чтобы юзер не
+  // увидел пустые колонки и не путался.
+  useEffect(() => {
+    if (clientFilter !== "all" && !clientOptions.some((c) => c.id === clientFilter)) {
+      setClientFilter("all")
+    }
+  }, [clientFilter, clientOptions])
   // Список системных пользователей для фильтра «По пользователю» (только super-admin)
   const [shareTargets, setShareTargets] = useState<KpShareTarget[]>([])
+  // Подтверждение удаления карточки КП — без явной модалки можно случайно
+  // снести подписанный контракт. Храним id+имя удаляемой записи.
+  const [deletingKp, setDeletingKp] = useState<{ id: number; name: string } | null>(null)
+  const [deletingInProgress, setDeletingInProgress] = useState(false)
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logoUploadRef = useRef<HTMLInputElement>(null)
@@ -926,8 +963,13 @@ export default function KPPage() {
   // ── Empty state ───────────────────────────────
   if (kpItems.length === 0) {
     // Делим историю на две группы: жёлтые сохранённые vs зелёные подписанные.
-    const savedKps = kpHistory.filter(e => !e.signed_at)
-    const signedKps = kpHistory.filter(e => !!e.signed_at)
+    // Применяем клиентский фильтр поверх — он чисто на стороне клиента, без
+    // запроса на бэк (данные уже в kpHistory с денормализованным client).
+    const filteredHistory = clientFilter === "all"
+      ? kpHistory
+      : kpHistory.filter((e) => e.client_id === clientFilter)
+    const savedKps = filteredHistory.filter(e => !e.signed_at)
+    const signedKps = filteredHistory.filter(e => !!e.signed_at)
     const hasAnyHistory = kpHistory.length > 0
 
     const renderEntry = (entry: typeof kpHistory[number], isSigned: boolean) => {
@@ -937,14 +979,19 @@ export default function KPPage() {
       const isMine = !entry.user_id || entry.user_id === user?.id
       const isView = entry.access_level === "view"
       const sharedByName = entry.shared_by?.full_name || entry.shared_by?.email
+      // Объёмная карточка: чёткая рамка + лёгкая тень + сильнее на hover.
+      // Цветовая палитра разная для подписанных и сохранённых, но шейдоу
+      // одинаковый — карточки должны выглядеть как одна сетка.
+      const cardClass = isSigned
+        ? "bg-green-50 border-green-300 hover:border-green-500 hover:bg-green-100"
+        : "bg-yellow-50 border-yellow-300 hover:border-yellow-500 hover:bg-yellow-100"
       return (
         <div
           key={entry.id}
           className={
-            "flex items-center justify-between p-3 rounded-lg border transition-colors group " +
-            (isSigned
-              ? "bg-green-50 border-green-200 hover:border-green-500 hover:bg-green-100"
-              : "bg-yellow-50 border-yellow-200 hover:border-yellow-500 hover:bg-yellow-100")
+            "flex items-center justify-between p-4 rounded-xl border-2 transition-all " +
+            "shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.14)] " +
+            cardClass
           }
         >
           <button
@@ -984,33 +1031,45 @@ export default function KPPage() {
               <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
               <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
             </div>
+            {/* Денормализованное название клиента из бэка (short=True). Показываем
+                как отдельную строку — длинные ТОО'шки занимают всю ширину. */}
+            {entry.client && (
+              <div className="mt-1.5 inline-flex items-center gap-1 text-xs text-gray-700 bg-white/70 border border-gray-200 rounded-full px-2 py-0.5 max-w-full">
+                {entry.client.organization_type === "individual" ? (
+                  <User className="h-3 w-3 shrink-0 text-gray-500" />
+                ) : (
+                  <Building2 className="h-3 w-3 shrink-0 text-gray-500" />
+                )}
+                <span className="truncate">{entry.client.display_name}</span>
+              </div>
+            )}
           </button>
 
-          <div className="ml-3 shrink-0 flex items-center gap-1">
+          <div className="ml-3 shrink-0 flex items-center gap-2">
             {loadingHistoryId === entry.id && (
-              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             )}
-            {/* «Поделиться» — доступна владельцу или super-admin'у */}
+            {/* Кнопки всегда видимы (без opacity-0/group-hover), увеличены —
+                клик попадает легче, юзер сразу видит что доступно. */}
             {(isMine || isSuperAdmin) && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   setShareDialog({ id: entry.id, name: entry.name })
                 }}
-                className="text-gray-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-9 w-9 rounded-full bg-white border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700 transition-colors flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
                 title="Поделиться"
               >
                 <Share2 className="h-4 w-4" />
               </button>
             )}
-            {/* «Удалить» — только владельцу (даже super-admin не может удалить чужое) */}
             {isMine && (
               <button
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation()
-                  await deleteFromHistory(entry.id)
+                  setDeletingKp({ id: entry.id, name: entry.name })
                 }}
-                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-9 w-9 rounded-full bg-white border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-500 hover:text-red-600 transition-colors flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
                 title="Удалить из истории"
               >
                 <Trash2 className="h-4 w-4" />
@@ -1026,7 +1085,25 @@ export default function KPPage() {
     const filterValue =
       historyFilter.kind === "mine" ? "mine" :
       historyFilter.kind === "shared" ? "shared" :
+      historyFilter.kind === "all" ? "all" :
       `user:${historyFilter.userId}`
+
+    // Большая «Список КП пуст» карточка появляется только когда юзер
+    // на default-фильтре и у него нет НИЧЕГО — ни своих КП, ни доступных
+    // через шаринг/super-admin. Если хоть что-то есть (например ему
+    // что-то расшарили) — показываем колонки и фильтр, чтобы он мог
+    // переключиться на «Только расшаренные» и увидеть документы.
+    //
+    // Дополнительно: пока историю догружаем (после смены фильтра) — НЕ
+    // показываем онбординг, иначе видно мерцание «карточка/колонки/карточка»
+    // при каждом переключении (kpHistory кратко становится пустым между
+    // setHistoryFilter и завершением fetch'а).
+    const showEmptyOnboarding =
+      !hasAnyHistory &&
+      historyFilter.kind === "mine" &&
+      !hasOtherVisible &&
+      !historyLoading
+    const showHeaderControls = !showEmptyOnboarding
 
     return (
       <div className="container mx-auto py-8">
@@ -1038,7 +1115,7 @@ export default function KPPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* Фильтр истории — Только мои / Только расшаренные / По пользователю.
                 Последний пункт виден только super-admin'ам. */}
-            {hasAnyHistory && (
+            {showHeaderControls && (
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-gray-500" />
                 <Select
@@ -1046,18 +1123,24 @@ export default function KPPage() {
                   onValueChange={(v) => {
                     if (v === "mine") setHistoryFilter({ kind: "mine" })
                     else if (v === "shared") setHistoryFilter({ kind: "shared" })
+                    else if (v === "all") setHistoryFilter({ kind: "all" })
                     else if (v.startsWith("user:")) {
                       const uid = parseInt(v.slice(5), 10)
                       if (Number.isFinite(uid)) setHistoryFilter({ kind: "user", userId: uid })
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[220px] rounded-full">
+                  <SelectTrigger className="w-[240px] rounded-full focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mine">Только мои</SelectItem>
                     <SelectItem value="shared">Только расшаренные</SelectItem>
+                    {/* «Все документы» и «По пользователю» — привилегия
+                        super-admin'а: видит всё, что есть в системе. */}
+                    {isSuperAdmin && (
+                      <SelectItem value="all">Все документы</SelectItem>
+                    )}
                     {isSuperAdmin && shareTargets.length > 0 && (
                       <>
                         <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-gray-400">
@@ -1072,20 +1155,45 @@ export default function KPPage() {
                     )}
                   </SelectContent>
                 </Select>
+                {/* Фильтр по клиенту. Опции строятся из текущей выборки kpHistory
+                    (с учётом mine/shared/all), поэтому всегда консистентны.
+                    Прячем целиком если ни одна карточка не привязана к клиенту. */}
+                {clientOptions.length > 0 && (
+                  <Select
+                    value={clientFilter === "all" ? "all" : `client:${clientFilter}`}
+                    onValueChange={(v) => {
+                      if (v === "all") setClientFilter("all")
+                      else if (v.startsWith("client:")) {
+                        const cid = parseInt(v.slice(7), 10)
+                        if (Number.isFinite(cid)) setClientFilter(cid)
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[260px] rounded-full focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                      <SelectValue placeholder="Все клиенты" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Все клиенты</SelectItem>
+                      <div className="px-2 py-1 text-[11px] uppercase tracking-wide text-gray-400">
+                        Клиенты
+                      </div>
+                      {clientOptions.map((c) => (
+                        <SelectItem key={c.id} value={`client:${c.id}`}>
+                          {c.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-            )}
-            {/* Когда есть история — большая карточка пустого состояния не нужна,
-                но нужен короткий доступ к поиску чтобы начать новое КП. */}
-            {hasAnyHistory && (
-              <Button asChild className="bg-brand-yellow hover:bg-yellow-500 text-black rounded-full">
-                <Link href="/search"><Search className="h-4 w-4 mr-2" />Найти товары</Link>
-              </Button>
             )}
           </div>
         </div>
 
-        {/* Большая пустая карточка только если истории нет вообще. */}
-        {!hasAnyHistory && (
+        {/* Большая «онбординг»-карточка ТОЛЬКО когда юзер на default-фильтре
+            и его собственная история пуста. Пустой результат под другими
+            фильтрами не считается — там просто покажем колонки. */}
+        {showEmptyOnboarding && (
           <Card>
             <CardContent className="p-8 text-center">
               <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
@@ -1098,9 +1206,11 @@ export default function KPPage() {
           </Card>
         )}
 
-        {/* Две колонки: жёлтые сохранённые + зелёные подписанные. На мобильных
-            стекаются (но в мобилке этот раздел не используется по факту). */}
-        {hasAnyHistory && (
+        {/* Две колонки: жёлтые сохранённые + зелёные подписанные. Показываем
+            всегда кроме первого онбординг-экрана. Если конкретный фильтр
+            ничего не нашёл — колонки покажут свой собственный empty-state
+            («Сохранённых КП пока нет» / «Подписанных контрактов нет»). */}
+        {!showEmptyOnboarding && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Жёлтая колонка — сохранённые КП */}
             <Card className="border-yellow-200">
@@ -1156,6 +1266,25 @@ export default function KPPage() {
             kpName={shareDialog.name}
           />
         )}
+
+        {/* Подтверждение удаления — раньше клик по корзине удалял мгновенно,
+            что страшно особенно для подписанных контрактов. Теперь два шага. */}
+        <DeleteConfirmationDialog
+          open={!!deletingKp}
+          onOpenChange={(o) => { if (!o && !deletingInProgress) setDeletingKp(null) }}
+          onConfirm={async () => {
+            if (!deletingKp) return
+            setDeletingInProgress(true)
+            try {
+              await deleteFromHistory(deletingKp.id)
+            } finally {
+              setDeletingInProgress(false)
+              setDeletingKp(null)
+            }
+          }}
+          title={`Удалить КП «${deletingKp?.name}»?`}
+          description="Запись будет полностью удалена из истории. Действие необратимо. Все доступы, выданные другим пользователям, тоже пропадут."
+        />
       </div>
     )
   }
@@ -1661,6 +1790,109 @@ export default function KPPage() {
                 <p className="text-[10px] text-gray-400 mt-0.5">Имя файла: {kpName || 'КП'}_{new Date().toLocaleDateString('ru-RU').replace(/\./g, '-')}</p>
               </div>
 
+              {/* Client (адресная книга) */}
+              <div>
+                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Клиент</Label>
+                {!activeClient ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setClientPickerOpen(true)}
+                    className="mt-1 w-full justify-start gap-2 text-sm font-normal"
+                  >
+                    <User className="h-3.5 w-3.5 text-gray-400" />
+                    Выбрать клиента
+                  </Button>
+                ) : (
+                  <div className="mt-1 flex items-center gap-1.5 p-2 border border-yellow-200 bg-yellow-50 rounded-md">
+                    {activeClient.organization_type === "individual" ? (
+                      <User className="h-4 w-4 text-yellow-700 shrink-0" />
+                    ) : (
+                      <Building2 className="h-4 w-4 text-yellow-700 shrink-0" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setClientPickerOpen(true)}
+                      className="flex-1 text-left text-sm font-medium text-gray-900 truncate hover:underline"
+                      title="Изменить клиента"
+                    >
+                      {activeClient.display_name}
+                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-gray-500 hover:text-gray-900">
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-3 space-y-1.5 text-xs" align="end">
+                        <div className="font-semibold text-sm text-gray-900 pb-1.5 border-b">
+                          {activeClient.display_name}
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-gray-500">Тип:</span>
+                          <span className="font-medium text-gray-800">
+                            {activeClient.organization_type === "too" && "ТОО"}
+                            {activeClient.organization_type === "ip" && "ИП"}
+                            {activeClient.organization_type === "individual" && "Физ.лицо"}
+                          </span>
+                        </div>
+                        {activeClient.organization_name && activeClient.organization_type !== "individual" && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">Организация:</span>
+                            <span className="font-medium text-gray-800 text-right">{activeClient.organization_name}</span>
+                          </div>
+                        )}
+                        {activeClient.full_name && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">ФИО:</span>
+                            <span className="font-medium text-gray-800 text-right">{activeClient.full_name}</span>
+                          </div>
+                        )}
+                        {activeClient.bin && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">БИН:</span>
+                            <span className="font-medium text-gray-800">{activeClient.bin}</span>
+                          </div>
+                        )}
+                        {activeClient.iin && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">ИИН:</span>
+                            <span className="font-medium text-gray-800">{activeClient.iin}</span>
+                          </div>
+                        )}
+                        {activeClient.phone && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">Телефон:</span>
+                            <span className="font-medium text-gray-800">{activeClient.phone}</span>
+                          </div>
+                        )}
+                        {activeClient.whatsapp && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-500">WhatsApp:</span>
+                            <span className="font-medium text-gray-800">{activeClient.whatsapp}</span>
+                          </div>
+                        )}
+                        {activeClient.note && (
+                          <div className="pt-1.5 border-t">
+                            <div className="text-gray-500 mb-0.5">Заметка:</div>
+                            <div className="text-gray-700 whitespace-pre-wrap">{activeClient.note}</div>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setActiveClient(null)}
+                      className="h-6 w-6 shrink-0 text-gray-400 hover:text-red-600"
+                      title="Убрать клиента"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {/* Title */}
               <div>
                 <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Заголовок документа</Label>
@@ -2091,6 +2323,27 @@ export default function KPPage() {
           kpName={shareDialog.name}
         />
       )}
+
+      {/* Адресная книга клиентов. Сюда же — создание/правка нового. */}
+      <KpClientPickerDialog
+        open={clientPickerOpen}
+        onOpenChange={setClientPickerOpen}
+        selectedClientId={activeClient?.id ?? null}
+        onPicked={(c) => {
+          setActiveClient({
+            id: c.id,
+            organization_type: c.organization_type,
+            display_name: c.display_name,
+            organization_name: c.organization_name,
+            full_name: c.full_name,
+            bin: c.bin,
+            iin: c.iin,
+            phone: c.phone,
+            whatsapp: c.whatsapp,
+            note: c.note,
+          })
+        }}
+      />
     </div>
   )
 }

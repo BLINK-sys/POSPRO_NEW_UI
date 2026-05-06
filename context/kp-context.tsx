@@ -164,6 +164,15 @@ function mergeWithDefaults(parsed: any): KPSettings {
   return merged
 }
 
+// --- Client types (адресная книга КП) ---
+// Минимальный объект для денормализованного отображения в списке/чипе.
+// Полные данные грузим отдельно через getKpClient(id).
+export interface KPClientStub {
+  id: number
+  organization_type: "too" | "ip" | "individual"
+  display_name: string
+}
+
 // --- History types ---
 export type KPAccessLevel = "owner" | "edit" | "view"
 
@@ -182,12 +191,34 @@ export interface KPHistoryEntry {
   user_id?: number
   shared_by_user_id?: number
   shared_by?: { id: number; email: string; full_name: string } | null
+  // Привязка к клиенту из адресной книги. Сам id + минимальный денорм
+  // для бейджа в списке. Полные данные подгружаются по запросу.
+  client_id?: number | null
+  client?: KPClientStub | null
+}
+
+// Дешёвый снимок клиента, который держим прямо в контексте чтобы не дёргать
+// /api/kp-clients/<id> каждый раз при перерисовке settings panel.
+// Полная форма редактирования всё равно тянет свежий объект через action.
+export interface KPClientSnapshot extends KPClientStub {
+  organization_name?: string | null
+  full_name?: string | null
+  bin?: string | null
+  iin?: string | null
+  phone?: string | null
+  whatsapp?: string | null
+  note?: string | null
 }
 
 // Фильтр для списка истории — управляется UI выпадушкой над колонками.
+//   mine    — только мои собственные (default)
+//   shared  — только реально расшаренные мне через KPShare
+//   all     — все КП всех пользователей (только super-admin/owner)
+//   user    — КП конкретного юзера (только super-admin/owner)
 export type KPHistoryFilter =
   | { kind: "mine" }
   | { kind: "shared" }
+  | { kind: "all" }
   | { kind: "user"; userId: number }
 
 // --- Context type ---
@@ -230,6 +261,10 @@ interface KPContextType {
   // Является ли текущий юзер super-admin'ом (владелец + грантованные).
   // True = видит фильтр «По пользователю» + раздел /admin/kp-management.
   isSuperAdmin: boolean
+  // True если юзеру есть что увидеть кроме своих собственных КП:
+  // расшаренные ему ИЛИ (для super-admin) хоть один чужой в системе.
+  // UI на этом решает показывать ли онбординг-карточку.
+  hasOtherVisible: boolean
   // Текущий фильтр истории. По умолчанию kind='mine'.
   historyFilter: KPHistoryFilter
   setHistoryFilter: (f: KPHistoryFilter) => void
@@ -241,6 +276,11 @@ interface KPContextType {
   // signed_at = текущий timestamp и активный кп переходит в режим
   // «подписанный» — правки автоматически не валятся, сохраняем снимок.
   signActiveContract: () => Promise<boolean>
+  // --- Адресная книга КП: текущий выбранный клиент ---
+  // Хранится в контексте, чтобы быть доступным settings-панели и пройти
+  // через сохранение/загрузку КП. null = клиент не выбран (старое поведение).
+  activeClient: KPClientSnapshot | null
+  setActiveClient: (client: KPClientSnapshot | null) => void
 }
 
 const KP_STORAGE_KEY = "kp-items"
@@ -259,8 +299,10 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const [activeSignedAt, setActiveSignedAt] = useState<string | null>(null)
   const [activeAccessLevel, setActiveAccessLevel] = useState<KPAccessLevel>("owner")
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [hasOtherVisible, setHasOtherVisible] = useState(false)
   const [historyFilter, setHistoryFilter] = useState<KPHistoryFilter>({ kind: "mine" })
   const [calculatorData, setCalculatorData] = useState<any | null>(null)
+  const [activeClient, setActiveClient] = useState<KPClientSnapshot | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -411,6 +453,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setActiveSignedAt(null)
     setActiveAccessLevel("owner")
     setCalculatorData(null)
+    setActiveClient(null)
   }, [])
 
   const isInKP = useCallback((productId: number) => {
@@ -505,6 +548,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
       const params = new URLSearchParams()
       if (historyFilter.kind === "mine") params.set("filter", "mine")
       else if (historyFilter.kind === "shared") params.set("filter", "shared")
+      else if (historyFilter.kind === "all") params.set("filter", "all")
       else if (historyFilter.kind === "user") {
         params.set("filter", "user")
         params.set("user_id", String(historyFilter.userId))
@@ -518,6 +562,11 @@ export function KPProvider({ children }: { children: ReactNode }) {
         // фильтра «По пользователю» и пункта в админ-сайдбаре.
         if (typeof data.is_super_admin === "boolean") {
           setIsSuperAdmin(data.is_super_admin)
+        }
+        // Есть ли у юзера хоть один доступный чужой КП (расшаренный или
+        // системный для super-admin'а). Решает показывать ли онбординг.
+        if (typeof data.has_other_visible === "boolean") {
+          setHasOtherVisible(data.has_other_visible)
         }
       }
     } catch (e) {
@@ -541,6 +590,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
         items: kpItems,
         settings: settingsWithPositions,
         total_amount: totalAmount,
+        // Привязка к клиенту из адресной книги. Бэк сам валидирует id и
+        // тихо обнуляет если клиент удалён или не существует.
+        client_id: activeClient?.id ?? null,
       }
       // Include calculator data if provided
       if (calcData !== undefined) {
@@ -578,7 +630,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
       console.error('Ошибка сохранения КП в историю:', e)
     }
     return false
-  }, [isSystemUser, kpItems, kpSettings, calculatorData, activeHistoryId, fetchHistory])
+  }, [isSystemUser, kpItems, kpSettings, calculatorData, activeClient, activeHistoryId, fetchHistory])
 
   const loadFromHistory = useCallback(async (id: number): Promise<{ success: boolean; positions?: { logoPos?: { x: number; y: number }; managerPos?: { x: number; y: number } }; calculatorData?: any; signedAt?: string | null }> => {
     if (!isSystemUser) return { success: false }
@@ -586,7 +638,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
       const resp = await fetch(`/api/kp-history/${id}`)
       const data = await resp.json()
       if (data.success && data.data) {
-        const { items, settings, calculator_data, signed_at, access_level } = data.data
+        const { items, settings, calculator_data, signed_at, access_level, client } = data.data
         if (Array.isArray(items)) {
           const migrated = items.map((item: any, idx: number) => ({
             ...item,
@@ -608,6 +660,10 @@ export function KPProvider({ children }: { children: ReactNode }) {
         // Уровень доступа viewer'а к этому КП — определяет можно ли менять
         // и сохранять. Бэк отдаёт 'owner'/'edit'/'view'.
         setActiveAccessLevel((access_level as KPAccessLevel) || 'view')
+        // Привязанный клиент. Бэк отдаёт денормализованный stub
+        // {id, organization_type, display_name}; при редактировании в
+        // settings-панели подтягиваем полный объект через getKpClient.
+        setActiveClient(client ? { ...client } : null)
         return { success: true, positions, calculatorData: calculator_data, signedAt: signed_at || null }
       }
     } catch (e) {
@@ -680,8 +736,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
     addTextElement, updateTextElement, removeTextElement,
     calculatorData, setCalculatorData,
     kpHistory, historyLoading, activeHistoryId, activeSignedAt,
-    activeAccessLevel, isSuperAdmin, historyFilter, setHistoryFilter,
+    activeAccessLevel, isSuperAdmin, hasOtherVisible, historyFilter, setHistoryFilter,
     fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory, signActiveContract,
+    activeClient, setActiveClient,
   }
 
   return (
