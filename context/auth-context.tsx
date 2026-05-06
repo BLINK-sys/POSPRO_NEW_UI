@@ -63,8 +63,25 @@ export function AuthProvider({
   // когда access всё-таки протух (clock-skew, pause/sleep вкладки и т.п.) —
   // тогда сначала пробуем refresh, и только если он тоже не прошёл —
   // вылогиниваем.
+  //
+  // Immediate-refresh на маунте — критичная защита от случая «закрыл
+  // вкладку вечером, открыл утром». initialUser приходит из getProfile
+  // (читает user-data cookie без валидации JWT), так что страница
+  // рендерится как «залогинен» даже если access уже протух. Без этого
+  // первые клики после открытия словят 401: reactiveCheck тикнет только
+  // через 2 мин.
   useEffect(() => {
     if (!user) return
+
+    let cancelled = false
+    ;(async () => {
+      const valid = await checkTokenValid()
+      if (cancelled) return
+      if (valid) return
+      const refreshed = await refreshAccessToken()
+      if (cancelled) return
+      if (!refreshed) setUser(null)
+    })()
 
     const proactiveRefresh = setInterval(async () => {
       const ok = await refreshAccessToken()
@@ -80,6 +97,7 @@ export function AuthProvider({
     }, 2 * 60 * 1000)
 
     return () => {
+      cancelled = true
       clearInterval(proactiveRefresh)
       clearInterval(reactiveCheck)
     }

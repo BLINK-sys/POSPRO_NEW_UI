@@ -478,6 +478,11 @@ export async function ensureClientToken(): Promise<boolean> {
 
 // Lightweight token validity check — pings /auth/profile to verify token is still accepted
 export async function checkTokenValid(): Promise<boolean> {
+  // Просто проверяем валидность access-токена. Cookies НЕ чистим: если
+  // refresh-токен ещё жив, вызывающий код тут же сделает refreshAccessToken()
+  // и продлит сессию. Удаление user-data здесь раньше ломало этот флоу —
+  // refresh успевал, но user-data уже не было, и при следующем SSR
+  // getProfile возвращал null → пустая страница «не авторизован».
   try {
     const token = cookies().get("jwt-token")?.value
     if (!token) return false
@@ -490,8 +495,6 @@ export async function checkTokenValid(): Promise<boolean> {
 
     // Only treat 401/403 as invalid token — server errors (500, 502) or timeouts are transient
     if (response.status === 401 || response.status === 403) {
-      cookies().delete("jwt-token")
-      cookies().delete("user-data")
       return false
     }
 
