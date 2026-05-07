@@ -303,21 +303,52 @@ export async function refreshAccessToken(): Promise<boolean> {
   }
 }
 
+// Декодирует exp claim JWT без верификации подписи (стандартный JOSE base64url
+// в payload). Возвращает true если до истечения < skewSec секунд. Это нужно
+// чтобы отлавливать «cookie живёт, но JWT внутри уже мёртв»: cookie max-age
+// 7 дней, а JWT exp — 30 мин. Без проверки SSR возвращал кешированного
+// юзера и страница рендерилась как «залогинен», а первая же API-запрос
+// валился с 401 → шапка перерисовывалась на гостя.
+function isJwtExpired(token: string, skewSec = 10): boolean {
+  try {
+    const payloadPart = token.split(".")[1]
+    if (!payloadPart) return true
+    // base64url → base64
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/")
+    const padded = base64 + "===".slice((base64.length + 3) % 4)
+    const json = Buffer.from(padded, "base64").toString("utf8")
+    const payload = JSON.parse(json)
+    if (typeof payload.exp !== "number") return true
+    const nowSec = Math.floor(Date.now() / 1000)
+    return payload.exp - skewSec <= nowSec
+  } catch {
+    return true
+  }
+}
+
 export async function getProfile(): Promise<User | null> {
   try {
     let token = cookies().get("jwt-token")?.value
     const userData = cookies().get("user-data")?.value
     const refreshToken = cookies().get("jwt-refresh-token")?.value
 
-    // Access-токен пропал (старая destructive checkTokenValid удаляла,
-    // или 7-дневный max-age cookie всё-таки кончился), но refresh ещё
-    // живёт 30 дней. Пробуем обменять прямо здесь — иначе SSR вернёт
-    // null, страница отрендерится как «не авторизован», а клиентский
-    // immediate-refresh не сработает, т.к. ему нужен ненулевой user.
-    if (!token && refreshToken) {
+    // Access протух (по локальному exp) или его вообще нет в cookies —
+    // пробуем рефреш. Это покрывает оба сценария:
+    //   * cookie кончилась (старый код её удалял на 401)
+    //   * cookie жива, но JWT exp внутри уже прошёл — самый частый кейс,
+    //     потому что cookie max-age 7д, а JWT exp 30 мин
+    if ((!token || isJwtExpired(token)) && refreshToken) {
       const refreshed = await refreshAccessToken()
       if (refreshed) {
         token = cookies().get("jwt-token")?.value
+      } else {
+        // Refresh тоже мёртв — сессия закончилась. Чистим cookies, чтобы
+        // SSR/CSR на гостевой шапке совпали и не было «моргания».
+        cookies().delete("jwt-token")
+        cookies().delete("jwt-token-client")
+        cookies().delete("jwt-refresh-token")
+        cookies().delete("user-data")
+        return null
       }
     }
 
