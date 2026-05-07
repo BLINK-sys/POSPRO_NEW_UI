@@ -50,8 +50,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const response = NextResponse.next()
-
   // ── Авто-рефреш access-токена ────────────────────────────────────────
   // Когда RootLayout (Server Component) зовёт getProfile() (server action),
   // вызовы cookies().set() из action молча теряются — Next.js не флашит
@@ -59,8 +57,17 @@ export async function middleware(request: NextRequest) {
   // умеет ставить cookies через response.cookies.set, и заодно пробрасывает
   // их вниз через request.cookies.set, чтобы getProfile увидел свежий токен
   // в этом же рендере.
+  //
+  // КЛЮЧЕВОЙ нюанс: чтобы downstream cookies() в Server Components увидел
+  // мутации request.cookies в этом же рендере, нужно создать NextResponse
+  // через `next({ request: { headers } })` — иначе изменения проявятся
+  // только на СЛЕДУЮЩИЙ запрос (юзер видит «надо два раза перезагрузить»).
   const accessToken = request.cookies.get('jwt-token')?.value
   const refreshToken = request.cookies.get('jwt-refresh-token')?.value
+
+  let refreshResult: 'ok' | 'dead' | null = null
+  let newAccess: string | null = null
+  let newRefresh: string | null = null
 
   if (refreshToken && (!accessToken || isJwtExpired(accessToken))) {
     try {
@@ -71,30 +78,47 @@ export async function middleware(request: NextRequest) {
       if (res.ok) {
         const data = await res.json()
         if (data.token) {
-          // 1) В response — чтобы браузер сохранил Set-Cookie
-          response.cookies.set('jwt-token', data.token, { ...COOKIE_OPTS_HTTP, maxAge: ACCESS_MAX_AGE })
-          response.cookies.set('jwt-token-client', data.token, { ...COOKIE_OPTS_CLIENT, maxAge: ACCESS_MAX_AGE })
-          if (data.refresh_token) {
-            response.cookies.set('jwt-refresh-token', data.refresh_token, { ...COOKIE_OPTS_HTTP, maxAge: REFRESH_MAX_AGE })
-          }
-          // 2) В request — чтобы getProfile увидел новые токены прямо сейчас
-          request.cookies.set('jwt-token', data.token)
-          request.cookies.set('jwt-token-client', data.token)
-          if (data.refresh_token) {
-            request.cookies.set('jwt-refresh-token', data.refresh_token)
-          }
+          newAccess = data.token as string
+          newRefresh = (data.refresh_token as string) || null
+          refreshResult = 'ok'
+          // Прокидываем токены на request, чтобы getProfile прочитал их
+          // через cookies() в этом же рендере
+          request.cookies.set('jwt-token', newAccess)
+          request.cookies.set('jwt-token-client', newAccess)
+          if (newRefresh) request.cookies.set('jwt-refresh-token', newRefresh)
         }
       } else {
-        // Refresh мёртв — чистим всю auth-куку, чтобы SSR гарантированно
-        // отрендерил гостя без моргания.
-        response.cookies.delete('jwt-token')
-        response.cookies.delete('jwt-token-client')
-        response.cookies.delete('jwt-refresh-token')
-        response.cookies.delete('user-data')
+        refreshResult = 'dead'
+        // На request убираем мёртвые токены, чтобы getProfile сразу
+        // вернул null и шапка отрендерилась как гостевая
+        request.cookies.delete('jwt-token')
+        request.cookies.delete('jwt-token-client')
+        request.cookies.delete('jwt-refresh-token')
+        request.cookies.delete('user-data')
       }
     } catch {
-      // Network error — оставляем cookies, попробуем при следующем запросе
+      // Network error — оставляем как было, попробуем на следующем запросе
     }
+  }
+
+  // Создаём response с пробросом модифицированных request.headers —
+  // без этого мутации request.cookies НЕ дойдут до Server Components.
+  const response = NextResponse.next({
+    request: { headers: request.headers },
+  })
+
+  // А теперь Set-Cookie на response, чтобы браузер сохранил новую пару
+  if (refreshResult === 'ok' && newAccess) {
+    response.cookies.set('jwt-token', newAccess, { ...COOKIE_OPTS_HTTP, maxAge: ACCESS_MAX_AGE })
+    response.cookies.set('jwt-token-client', newAccess, { ...COOKIE_OPTS_CLIENT, maxAge: ACCESS_MAX_AGE })
+    if (newRefresh) {
+      response.cookies.set('jwt-refresh-token', newRefresh, { ...COOKIE_OPTS_HTTP, maxAge: REFRESH_MAX_AGE })
+    }
+  } else if (refreshResult === 'dead') {
+    response.cookies.delete('jwt-token')
+    response.cookies.delete('jwt-token-client')
+    response.cookies.delete('jwt-refresh-token')
+    response.cookies.delete('user-data')
   }
 
   // ── Трекинг визитов (как было) ───────────────────────────────────────
