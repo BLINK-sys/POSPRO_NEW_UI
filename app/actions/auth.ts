@@ -305,14 +305,27 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 export async function getProfile(): Promise<User | null> {
   try {
-    const token = cookies().get("jwt-token")?.value
+    let token = cookies().get("jwt-token")?.value
     const userData = cookies().get("user-data")?.value
+    const refreshToken = cookies().get("jwt-refresh-token")?.value
+
+    // Access-токен пропал (старая destructive checkTokenValid удаляла,
+    // или 7-дневный max-age cookie всё-таки кончился), но refresh ещё
+    // живёт 30 дней. Пробуем обменять прямо здесь — иначе SSR вернёт
+    // null, страница отрендерится как «не авторизован», а клиентский
+    // immediate-refresh не сработает, т.к. ему нужен ненулевой user.
+    if (!token && refreshToken) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) {
+        token = cookies().get("jwt-token")?.value
+      }
+    }
 
     if (!token) {
       return null
     }
 
-    // Сначала пытаемся получить данные из cookies
+    // Сначала пытаемся получить данные из cookies (быстрый путь)
     if (userData) {
       try {
         return JSON.parse(userData)
@@ -322,15 +335,27 @@ export async function getProfile(): Promise<User | null> {
     }
 
     // Если данных в cookies нет, запрашиваем полный профиль из /api/profile
-    console.log("Fetching profile from:", getApiUrl(API_ENDPOINTS.PROFILE.GET))
-
-    const response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
+    let response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     })
+
+    // Access протух (например клок-скью между Next.js и Flask, или access
+    // живёт уже 30+ мин). Refresh ещё жив — обменяем и повторим.
+    if ((response.status === 401 || response.status === 403) && refreshToken) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) {
+        const newToken = cookies().get("jwt-token")?.value
+        if (newToken) {
+          response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
+            method: "GET",
+            headers: { Authorization: `Bearer ${newToken}` },
+            cache: "no-store",
+          })
+        }
+      }
+    }
 
     const data = await handleApiResponse(response, "Ошибка получения профиля")
     const user = mapApiProfileToUser(data)
