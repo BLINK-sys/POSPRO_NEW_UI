@@ -254,10 +254,21 @@ export async function logoutAction() {
  * Возвращает true если обновили, false если refresh-токен невалиден/просрочен —
  * вызывающий код в этом случае должен сделать логаут.
  */
-export async function refreshAccessToken(): Promise<boolean> {
+/**
+ * Внутренний хелпер. Делает обмен refresh-токена на новую пару, ставит
+ * cookies И возвращает свежий access-токен напрямую. Это нужно потому что
+ * Next.js cookies().get() после cookies().set() в одной и той же server
+ * action не всегда видит обновление — gotcha с пропагацией мутаций. Чтобы
+ * вызывающий код не зависел от этого поведения, отдаём токен явно.
+ *
+ * Не экспортируется, потому что Next.js разрешает экспортировать только
+ * async функции из файлов с "use server" — но возвращать нужно не примитив,
+ * и проще держать это внутренним.
+ */
+async function refreshAccessTokenAndGet(): Promise<string | null> {
   try {
     const refreshToken = cookies().get("jwt-refresh-token")?.value
-    if (!refreshToken) return false
+    if (!refreshToken) return null
 
     const res = await fetch(getApiUrl("/auth/refresh"), {
       method: "POST",
@@ -266,11 +277,11 @@ export async function refreshAccessToken(): Promise<boolean> {
 
     if (!res.ok) {
       // Refresh-токен просрочен / отозван — сессия закончилась
-      return false
+      return null
     }
 
     const data = await res.json()
-    if (!data.token) return false
+    if (!data.token) return null
 
     // Обновляем access cookie. Cookie max-age сохраняем большим (7 дней)
     // чтобы переживать перезагрузки браузера; реальный TTL внутри JWT — 30 мин.
@@ -296,11 +307,19 @@ export async function refreshAccessToken(): Promise<boolean> {
       })
     }
 
-    return true
+    return data.token as string
   } catch (e) {
-    console.error("refreshAccessToken error:", e)
-    return false
+    console.error("refreshAccessTokenAndGet error:", e)
+    return null
   }
+}
+
+export async function refreshAccessToken(): Promise<boolean> {
+  // Внешний контракт boolean сохраняем — auth-context.tsx использует
+  // ok/false для решения о setUser(null). Сам токен серверный код берёт
+  // из cookies (что после refresh уже валидно для следующего запроса).
+  const token = await refreshAccessTokenAndGet()
+  return token !== null
 }
 
 // Декодирует exp claim JWT без верификации подписи (стандартный JOSE base64url
@@ -338,9 +357,12 @@ export async function getProfile(): Promise<User | null> {
     //   * cookie жива, но JWT exp внутри уже прошёл — самый частый кейс,
     //     потому что cookie max-age 7д, а JWT exp 30 мин
     if ((!token || isJwtExpired(token)) && refreshToken) {
-      const refreshed = await refreshAccessToken()
-      if (refreshed) {
-        token = cookies().get("jwt-token")?.value
+      // Берём токен напрямую из ответа /auth/refresh, не полагаясь на
+      // re-чтение cookies в той же server action — там Next.js может
+      // вернуть устаревшее значение.
+      const fresh = await refreshAccessTokenAndGet()
+      if (fresh) {
+        token = fresh
       } else {
         // Refresh тоже мёртв — сессия закончилась. Чистим cookies, чтобы
         // SSR/CSR на гостевой шапке совпали и не было «моргания».
@@ -375,16 +397,13 @@ export async function getProfile(): Promise<User | null> {
     // Access протух (например клок-скью между Next.js и Flask, или access
     // живёт уже 30+ мин). Refresh ещё жив — обменяем и повторим.
     if ((response.status === 401 || response.status === 403) && refreshToken) {
-      const refreshed = await refreshAccessToken()
-      if (refreshed) {
-        const newToken = cookies().get("jwt-token")?.value
-        if (newToken) {
-          response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
-            method: "GET",
-            headers: { Authorization: `Bearer ${newToken}` },
-            cache: "no-store",
-          })
-        }
+      const newToken = await refreshAccessTokenAndGet()
+      if (newToken) {
+        response = await fetch(getApiUrl(API_ENDPOINTS.PROFILE.GET), {
+          method: "GET",
+          headers: { Authorization: `Bearer ${newToken}` },
+          cache: "no-store",
+        })
       }
     }
 
