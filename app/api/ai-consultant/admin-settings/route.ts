@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { revalidateTag } from "next/cache"
 import { getApiUrl } from "@/lib/api-address"
 
 // Owner-only endpoint. Flask enforces the bocan.anton@mail.ru check and
@@ -45,6 +46,10 @@ export async function PUT(request: NextRequest) {
       body: JSON.stringify(body),
     })
     const data = await response.json()
+    if (response.ok) {
+      // Настройки доступа к AI поменялись — сбрасываем кэш гостевой проверки
+      revalidateTag("ai-access")
+    }
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error("Error proxying AI consultant settings PUT:", error)

@@ -1,7 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { API_BASE_URL } from "@/lib/api-address"
 
 export interface Brand {
@@ -74,6 +74,8 @@ export async function saveBrand(payload: Partial<Brand> & { id: number | string 
       return { error: result.message || result.error || `Ошибка сохранения бренда (HTTP ${res.status})` }
     }
     revalidatePath("/admin/brands-and-statuses")
+    revalidateTag('brands')
+    revalidateTag('homepage')
     return { success: true, message: "Бренд сохранен.", brand: result }
   } catch (e: any) {
     console.error("saveBrand failed:", e)
@@ -110,6 +112,8 @@ export async function uploadBrandImage(formData: FormData): Promise<{ url?: stri
 
     const result = await res.json()
     revalidatePath("/admin/brands-and-statuses")
+    revalidateTag('brands')
+    revalidateTag('homepage')
     return { url: result.url }
   } catch (e: any) {
     console.error("uploadBrandImage failed:", e)
@@ -129,6 +133,8 @@ export async function deleteBrand(id: number): Promise<Omit<MetaActionState, "br
       return { error: err.message || "Ошибка удаления бренда" }
     }
     revalidatePath("/admin/brands-and-statuses")
+    revalidateTag('brands')
+    revalidateTag('homepage')
     return { success: true, message: "Бренд удален." }
   } catch (e) {
     return { error: "Ошибка сети." }

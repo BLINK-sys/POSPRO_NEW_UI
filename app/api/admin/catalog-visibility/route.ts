@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { revalidateTag } from 'next/cache'
 import { getApiUrl } from '@/lib/api-address'
 
 export async function GET() {
@@ -42,6 +43,9 @@ export async function PUT(request: NextRequest) {
       body: JSON.stringify(body),
     })
     const data = await response.json()
+    if (response.ok) {
+      revalidateTag('catalog-visibility')
+    }
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error('Error updating catalog visibility:', error)

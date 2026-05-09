@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
+import { revalidateTag } from "next/cache"
 import { API_BASE_URL } from "@/lib/api-address"
 
 export interface Category {
@@ -115,6 +116,8 @@ export async function saveCategory(formData: FormData): Promise<CategoryActionSt
     if (!res.ok) {
       return { error: result.message || "Ошибка сохранения категории" }
     }
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: "Данные категории сохранены.", category: result }
   } catch (e) {
     return { error: "Ошибка сети." }
@@ -131,6 +134,8 @@ export async function uploadCategoryImage(categoryId: number, formData: FormData
     })
     const result = await res.json()
     if (!res.ok) return { error: result.message || "Ошибка загрузки изображения" }
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: "Изображение загружено." }
   } catch (e) {
     return { error: "Ошибка сети при загрузке изображения." }
@@ -148,6 +153,8 @@ export async function deleteCategoryImage(categoryId: number): Promise<CategoryA
       const err = await res.json()
       return { error: err.message || "Ошибка удаления изображения" }
     }
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: "Изображение удалено." }
   } catch (e) {
     return { error: "Ошибка сети при удалении изображения." }
@@ -174,6 +181,8 @@ export async function setCategoryImageUrl(category: Category, imageUrl: string):
       const err = await res.json()
       return { error: err.message || "Ошибка установки URL изображения" }
     }
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: "URL изображения установлен." }
   } catch (e) {
     return { error: "Ошибка сети при установке URL." }
@@ -192,6 +201,8 @@ export async function reorderCategories(orders: { id: number; order: number }[])
       const err = await res.json()
       return { error: err.message || "Ошибка изменения порядка" }
     }
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: "Порядок сохранен." }
   } catch (e) {
     return { error: "Ошибка сети." }
@@ -210,6 +221,8 @@ export async function deleteCategory(id: number): Promise<CategoryActionState> {
       return { error: err.error || err.message || "Ошибка удаления категории" }
     }
     const data = await res.json().catch(() => ({}))
+    revalidateTag('categories')
+    revalidateTag('homepage')
     return { success: true, message: data.message || "Категория удалена." }
   } catch (e) {
     console.error("Error deleting category:", e)
@@ -259,6 +272,9 @@ export async function updateCategoryShowInMenu(
       const err = await res.json()
       return { error: err.message || "Ошибка обновления статуса отображения в меню" }
     }
+
+    revalidateTag('categories')
+    revalidateTag('homepage')
 
     // PUT endpoint возвращает обновленную категорию
     const updatedCategory = await res.json()

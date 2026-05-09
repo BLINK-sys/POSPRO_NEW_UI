@@ -68,16 +68,6 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     }
   }, [block.type, block.carusel, block.items])
 
-  // Отладочная информация
-  console.log("Rendering block:", {
-    id: block.id,
-    type: block.type,
-    title: block.title,
-    itemsCount: block.items?.length || 0,
-    items: block.items
-  })
-
-
   // Функция для извлечения уникальных категорий из товаров
   const getUniqueCategories = (products: ProductData[]): CategoryData[] => {
     if (!products || products.length === 0) return []

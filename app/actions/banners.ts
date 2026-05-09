@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 
 import { API_BASE_URL } from "@/lib/api-address"
 const API_URL = `${API_BASE_URL}/api/admin/banners`
@@ -55,6 +55,7 @@ export async function saveBanner(
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return {
       success: true,
       message: result.message || `Баннер ${id ? "обновлён" : "создан"}`,
@@ -73,6 +74,7 @@ export async function deleteBanner(id: number): Promise<{ success: boolean; mess
       throw new Error(result.message || "Failed to delete banner")
     }
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Баннер удалён" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }
@@ -92,6 +94,7 @@ export async function reorderBanners(
       const result = await response.json()
       throw new Error(result.message || "Failed to reorder banners")
     }
+    revalidateTag('homepage')
     return { success: true, message: "Порядок баннеров обновлён" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }
@@ -117,6 +120,7 @@ export async function uploadBannerImage(
       throw new Error(result.message || "Failed to upload image")
     }
 
+    revalidateTag('homepage')
     return {
       success: true,
       url: result.url,
@@ -143,6 +147,7 @@ export async function deleteBannerImage(
       throw new Error(result.message || "Failed to delete image")
     }
 
+    revalidateTag('homepage')
     return {
       success: true,
       message: result.message || "Изображение удалено",

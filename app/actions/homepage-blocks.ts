@@ -1,7 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { getApiUrl } from "@/lib/api-address"
 import { API_ENDPOINTS } from "@/lib/api-endpoints"
 import { 
@@ -88,6 +88,7 @@ export async function createHomepageBlock(
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Блок успешно создан!" }
   } catch (error) {
     console.error("Error creating homepage block:", error)
@@ -140,6 +141,7 @@ export async function updateHomepageBlock(
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Блок успешно обновлен!" }
   } catch (error) {
     console.error("Error updating homepage block:", error)
@@ -174,6 +176,7 @@ export async function deleteHomepageBlock(blockId: number): Promise<ActionState>
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Блок успешно удален!" }
   } catch (error) {
     console.error("Error deleting homepage block:", error)
@@ -208,6 +211,7 @@ export async function toggleHomepageBlock(blockId: number): Promise<ActionState>
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Статус блока изменен!" }
   } catch (error) {
     console.error("Error toggling homepage block:", error)
@@ -243,6 +247,7 @@ export async function reorderHomepageBlocks(blocks: { id: number; order: number 
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Порядок блоков обновлен!" }
   } catch (error) {
     console.error("Error reordering homepage blocks:", error)
@@ -281,6 +286,7 @@ export async function reorderHomepageBlockItems(
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Порядок элементов блока обновлен!" }
   } catch (error) {
     console.error("Error reordering homepage block items:", error)

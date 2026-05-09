@@ -1,7 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { API_BASE_URL } from "@/lib/api-address"
 
 export interface FooterSettings {
@@ -67,6 +67,7 @@ export async function saveFooterSettings(settings: FooterSettings): Promise<Foot
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('footer')
     return {
       success: true,
       message: result.message || "Настройки подвала сохранены",
@@ -96,6 +97,7 @@ export async function createFooterSettings(settings: FooterSettings): Promise<Fo
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('footer')
     return {
       success: true,
       message: result.message || "Настройки подвала созданы",

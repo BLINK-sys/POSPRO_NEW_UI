@@ -1,7 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { getApiUrl } from "@/lib/api-address"
 import { API_ENDPOINTS } from "@/lib/api-endpoints"
 
@@ -86,6 +86,7 @@ export async function saveSmallBanner(
     }
 
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return {
       success: true,
       message: result.message || `Карточка ${id ? "обновлена" : "создана"}`,
@@ -116,6 +117,7 @@ export async function deleteSmallBanner(id: number): Promise<{ success: boolean;
       throw new Error(result.message || "Failed to delete small banner")
     }
     revalidatePath("/admin/pages")
+    revalidateTag('homepage')
     return { success: true, message: "Карточка удалена" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }
@@ -145,6 +147,7 @@ export async function reorderSmallBanners(
       const result = await response.json()
       throw new Error(result.message || "Failed to reorder small banners")
     }
+    revalidateTag('homepage')
     return { success: true, message: "Порядок карточек обновлён" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }
@@ -179,6 +182,7 @@ export async function uploadSmallBannerImage(
       throw new Error(result.message || "Failed to upload image")
     }
 
+    revalidateTag('homepage')
     return { success: true, url: result.url, message: "Изображение загружено" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }
@@ -210,6 +214,7 @@ export async function deleteSmallBannerImage(
       throw new Error(result.message || "Failed to delete image")
     }
 
+    revalidateTag('homepage')
     return { success: true, message: "Изображение удалено" }
   } catch (error: any) {
     return { success: false, message: "Ошибка", error: error.message }

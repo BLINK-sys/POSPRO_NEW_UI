@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
+import { revalidateTag } from "next/cache"
 import { getApiUrl } from "@/lib/api-address"
 import { API_ENDPOINTS } from "@/lib/api-endpoints"
 
@@ -294,6 +295,7 @@ export async function createProductDraft(data?: Partial<Product>): Promise<{ suc
     }
 
     const result = await response.json()
+    revalidateTag('homepage')
     return {
       success: true,
       id: result.id,
@@ -336,6 +338,7 @@ export async function updateProduct(id: number, data: Partial<Product>): Promise
     }
 
     const product = await response.json()
+    revalidateTag('homepage')
     return {
       success: true,
       product
@@ -377,6 +380,7 @@ export async function finalizeProduct(id: number, data: Partial<Product>): Promi
     }
 
     const product = await response.json()
+    revalidateTag('homepage')
     return {
       success: true,
       product
@@ -425,6 +429,7 @@ export async function deleteProductDraft(id: number): Promise<{ success: boolean
     }
 
     console.log("Delete draft successful")
+    revalidateTag('homepage')
     return { success: true }
   } catch (error) {
     console.error("Error deleting product draft:", error)
@@ -457,6 +462,8 @@ export async function deleteProduct(id: number): Promise<void> {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }
+
+    revalidateTag('homepage')
   } catch (error) {
     console.error("Error deleting product:", error)
     throw new Error("Ошибка удаления товара")

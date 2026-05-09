@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
+import { unstable_cache } from "next/cache"
 import { getApiUrl } from "@/lib/api-address"
 
 // Get optional auth headers for system users to see hidden items
@@ -13,6 +14,20 @@ async function getOptionalAuthHeaders(): Promise<Record<string, string>> {
     }
   } catch {}
   return {}
+}
+
+// Проверяет залогинен ли юзер. unstable_cache не может жить внутри функций,
+// читающих cookies — поэтому для авторизованных идём в анкэшированный путь
+// (админу важно видеть свежие данные сразу), а для анонимного трафика (90%+
+// в т.ч. боты) отдаём из кэша. Кэш инвалидируется через revalidateTag в
+// админских actions сразу после успешного PUT/POST/DELETE.
+async function hasAuthToken(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    return Boolean(cookieStore.get("jwt-token")?.value)
+  } catch {
+    return false
+  }
 }
 
 // Типы данных
@@ -147,100 +162,111 @@ export interface AllBrandsData {
   products_count?: number
 }
 
+async function fetchHomepageDataRaw(authHeader: string | null): Promise<PublicHomepageData> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (authHeader) headers.Authorization = authHeader
+
+  const response = await fetch(getApiUrl("/api/public/homepage"), {
+    method: "GET",
+    headers,
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  const data = await response.json()
+
+  // Обрабатываем блоки с товарами для добавления статусов наличия.
+  // Используем PUBLIC-версию (без cookies) — иначе unstable_cache ломается
+  // на чтении cookies() и каждый рендер бьёт в Flask.
+  const processedBlocks = await Promise.all(
+    data.blocks.map(async (block: any) => {
+      if (block.type === 'product' || block.type === 'products') {
+        const productsWithStatuses = await Promise.all(
+          block.items.map(async (product: any) => {
+            const availabilityStatus = await fetchAvailabilityStatusPublic(product.quantity, product.supplier_id)
+            return {
+              ...product,
+              brand_info: product.brand || product.brand_info,
+              brand_id: product.brand_id || product.brand?.id,
+              availability_status: availabilityStatus,
+            }
+          })
+        )
+        return { ...block, items: productsWithStatuses }
+      }
+      return block
+    })
+  )
+
+  return { ...data, blocks: processedBlocks }
+}
+
+const fetchHomepageDataCached = unstable_cache(
+  () => fetchHomepageDataRaw(null),
+  ["homepage-anon"],
+  { tags: ["homepage"], revalidate: 3600 }
+)
+
 // Получить данные главной страницы
 export async function getHomepageData(): Promise<PublicHomepageData> {
   try {
-    const response = await fetch(getApiUrl("/api/public/homepage"), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        ...await getOptionalAuthHeaders(),
-      },
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (await hasAuthToken()) {
+      const headers = await getOptionalAuthHeaders()
+      return fetchHomepageDataRaw(headers.Authorization || null)
     }
-
-    const data = await response.json()
-    console.log("Raw API response:", data)
-    
-    // Обрабатываем блоки с товарами для добавления статусов наличия
-    const processedBlocks = await Promise.all(
-      data.blocks.map(async (block: any) => {
-        if (block.type === 'product' || block.type === 'products') {
-          // Получаем статусы наличия для товаров в блоке
-          const productsWithStatuses = await Promise.all(
-            block.items.map(async (product: any) => {
-              const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
-              return {
-                ...product,
-                // Преобразуем brand в brand_info для совместимости
-                brand_info: product.brand || product.brand_info,
-                brand_id: product.brand_id || product.brand?.id,
-                availability_status: availabilityStatus
-              }
-            })
-          )
-          return {
-            ...block,
-            items: productsWithStatuses
-          }
-        }
-        return block
-      })
-    )
-    
-    return {
-      ...data,
-      blocks: processedBlocks
-    }
+    return fetchHomepageDataCached()
   } catch (error) {
     console.error("Error fetching homepage data:", error)
     throw new Error("Ошибка получения данных главной страницы")
   }
 }
 
+// Внутренняя реализация без кэша. authHeader пробрасывается отдельным
+// аргументом, чтобы можно было закэшировать ОТДЕЛЬНО анонимный путь
+// (без токена) и не закэшировать админский (свежие данные).
+async function fetchCatalogCategoriesRaw(authHeader: string | null): Promise<CategoryData[]> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (authHeader) headers.Authorization = authHeader
+
+  const response = await fetch(getApiUrl("/api/public/catalog/categories"), {
+    method: "GET",
+    headers,
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  const categories = await response.json()
+  const transformCategory = (cat: any): CategoryData => ({
+    id: cat.id,
+    name: cat.name,
+    slug: cat.slug,
+    image_url: cat.image_url,
+    description: cat.description,
+    parent_id: cat.parent_id,
+    children: cat.children ? cat.children.map(transformCategory) : [],
+    product_count: typeof cat.product_count === "number" ? cat.product_count : undefined,
+    direct_product_count: typeof cat.direct_product_count === "number" ? cat.direct_product_count : undefined,
+  })
+  return categories.map(transformCategory)
+}
+
+// Кэшированная версия для анонимных юзеров — ключ один общий, инвалидация
+// по тегу 'categories'. TTL 1 час как safety net (если revalidateTag где-то
+// забыт, через час сам подтянется).
+const fetchCatalogCategoriesCached = unstable_cache(
+  () => fetchCatalogCategoriesRaw(null),
+  ["catalog-categories-anon"],
+  { tags: ["categories"], revalidate: 3600 }
+)
+
 // Получить все категории для каталога (только с show_in_menu=True)
 export async function getCatalogCategories(): Promise<CategoryData[]> {
   try {
-    const response = await fetch(getApiUrl("/api/public/catalog/categories"), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        ...await getOptionalAuthHeaders(),
-      },
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (await hasAuthToken()) {
+      const headers = await getOptionalAuthHeaders()
+      return fetchCatalogCategoriesRaw(headers.Authorization || null)
     }
-
-    // Сервер уже возвращает иерархическую структуру
-    const categories = await response.json()
-    
-    // Преобразуем в формат CategoryData
-    const transformCategory = (cat: any): CategoryData => ({
-      id: cat.id,
-      name: cat.name,
-      slug: cat.slug,
-      image_url: cat.image_url,
-      description: cat.description,
-      parent_id: cat.parent_id,
-      children: cat.children ? cat.children.map(transformCategory) : [],
-      product_count: typeof cat.product_count === "number" ? cat.product_count : undefined,
-      direct_product_count: typeof cat.direct_product_count === "number" ? cat.direct_product_count : undefined,
-    })
-
-    return categories.map(transformCategory)
+    return fetchCatalogCategoriesCached()
   } catch (error) {
     console.error("Error fetching categories:", error)
     throw new Error("Ошибка получения категорий")
@@ -336,23 +362,28 @@ export async function getCategoryData(
   }
 }
 
+// Footer-настройки одинаковы для всех ролей — кэшируем безусловно.
+async function fetchFooterSettingsRaw(): Promise<FooterSettings> {
+  const response = await fetch(getApiUrl("/api/footer-settings"), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  return await response.json()
+}
+
+const fetchFooterSettingsCached = unstable_cache(
+  fetchFooterSettingsRaw,
+  ["footer-settings"],
+  { tags: ["footer"], revalidate: 3600 }
+)
+
 // Получить настройки футера
 export async function getFooterSettings(): Promise<FooterSettings> {
   try {
-    const response = await fetch(getApiUrl("/api/footer-settings"), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...await getOptionalAuthHeaders(),
-      },
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    return await response.json()
+    return await fetchFooterSettingsCached()
   } catch (error) {
     console.error("Error fetching footer settings:", error)
     // Возвращаем дефолтные значения при ошибке
@@ -691,7 +722,32 @@ export interface ProductAvailabilityStatus {
   active: boolean
 }
 
-// Функция для получения статуса наличия по количеству товара
+// Внутренний вариант без cookies — используется внутри unstable_cache
+// (cookies() внутри cached-функции ломает кэш). Эндпоинт публичный, статус
+// зависит только от quantity + supplier_id, роль юзера не влияет.
+async function fetchAvailabilityStatusPublic(
+  quantity: number,
+  supplierId?: number | null
+): Promise<ProductAvailabilityStatus | null> {
+  try {
+    const params = new URLSearchParams()
+    if (supplierId) params.append('supplier_id', supplierId.toString())
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+    const response = await fetch(
+      `${getApiUrl('/api/product-availability-statuses/check')}/${quantity}${queryString}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    )
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.status || null
+  } catch (error) {
+    console.error('Error fetching product availability status (public):', error)
+    return null
+  }
+}
+
+// Публичная версия с опциональным auth — используется в путях вне кэша
+// (getCategoryData, getProductsByBrand и т.п. для авторизованных).
 export async function getProductAvailabilityStatus(quantity: number, supplierId?: number | null): Promise<ProductAvailabilityStatus | null> {
   try {
     const params = new URLSearchParams()
@@ -720,40 +776,47 @@ export async function getProductAvailabilityStatus(quantity: number, supplierId?
   }
 }
 
+async function fetchAllBrandsRaw(authHeader: string | null): Promise<AllBrandsData[]> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (authHeader) headers.Authorization = authHeader
+
+  const response = await fetch(getApiUrl("/meta/brands"), {
+    method: "GET",
+    headers,
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  const brands = await response.json()
+  return brands.map((brand: any) => ({
+    id: brand.id,
+    name: brand.name,
+    country: brand.country || '',
+    description: brand.description || '',
+    image_url: brand.image_url || '',
+    products_count: brand.products_count ?? brand.product_count ?? 0,
+  }))
+}
+
+const fetchAllBrandsCached = unstable_cache(
+  () => fetchAllBrandsRaw(null),
+  ["all-brands-anon"],
+  { tags: ["brands"], revalidate: 3600 }
+)
+
 // Получить все бренды
 export async function getAllBrands(): Promise<AllBrandsData[]> {
   try {
-    const response = await fetch(getApiUrl("/meta/brands"), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        ...await getOptionalAuthHeaders(),
-      },
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (await hasAuthToken()) {
+      const headers = await getOptionalAuthHeaders()
+      return fetchAllBrandsRaw(headers.Authorization || null)
     }
-
-    const brands = await response.json()
-    return brands.map((brand: any) => ({
-      id: brand.id,
-      name: brand.name,
-      country: brand.country || '',
-      description: brand.description || '',
-      image_url: brand.image_url || '',
-      products_count: brand.products_count ?? brand.product_count ?? 0
-    }))
+    return await fetchAllBrandsCached()
   } catch (error) {
     console.error("Error fetching all brands:", error)
-    // Возвращаем пустой массив вместо ошибки, чтобы не ломать страницу
     return []
   }
-} 
+}
 
 const normalizeProduct = (product: any): ProductData => {
   const status = product && typeof product.status === "object" ? product.status : undefined
