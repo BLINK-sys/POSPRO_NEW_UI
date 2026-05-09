@@ -37,6 +37,12 @@ const COOKIE_OPTS_CLIENT = {
 const ACCESS_MAX_AGE = 60 * 60 * 24 * 7   // 7 дней (cookie-уровень; JWT exp 30 мин)
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30 // 30 дней
 
+// Bot UA-pattern. Покрывает основные краулеры: Googlebot, Bingbot, Yandex,
+// PetalBot, Ahrefs, Amazonbot, CCBot, GPTBot и общие токены вроде "bot",
+// "crawl", "spider". Не идеален, но в обычных пределах — этого достаточно,
+// чтобы отсечь 70%+ автоматического трафика.
+const BOT_UA_PATTERN = /bot|crawl|spider|slurp|googlebot|petalbot|ahrefs|yandex|baidu|bingbot|duckduckbot|amazonbot|ccbot|gptbot|claudebot|facebookexternalhit|twitterbot|linkedinbot|telegrambot|discordbot|whatsapp|semrush|mj12bot/i
+
 export async function middleware(request: NextRequest) {
   // Внешний try/catch — defense-in-depth. Любая ошибка middleware = страница
   // отдаётся без авто-рефреша/трекинга, но не падает 500. Лучше тихая
@@ -51,6 +57,15 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/_next') ||
       pathname.includes('.')
     ) {
+      return NextResponse.next()
+    }
+
+    // ── Bot-фильтр ──────────────────────────────────────────────────────
+    // Боты не логинятся — refresh-логика им не нужна. И трекать их в
+    // site_visitors смысла нет, дашборд их всё равно фильтрует. Сразу
+    // отдаём страницу без побочных HTTP-вызовов в Flask.
+    const ua = request.headers.get('user-agent') || ''
+    if (BOT_UA_PATTERN.test(ua)) {
       return NextResponse.next()
     }
 
