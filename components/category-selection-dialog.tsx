@@ -1,14 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Search, ChevronRight, ChevronDown } from "lucide-react"
+import { Loader2, Search, ChevronRight, ChevronDown, Tag } from "lucide-react"
 import { getCatalogCategories } from "@/app/actions/public"
 import { CategoryData } from "@/app/actions/public"
+import { getImageUrl } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 
 interface CategorySelectionDialogProps {
@@ -72,14 +74,30 @@ function CategoryTreeItem({
           )}
         </button>
 
-        {/* Чекбокс выбора */}
+        {/* Чекбокс — onCheckedChange (а не onChange) — иначе шадсн-чекбокс
+            не реагировал на прямой клик, можно было выбирать только по тексту. */}
         <Checkbox
           checked={isSelected}
-          onChange={handleSelect}
+          onCheckedChange={handleSelect}
         />
 
+        {/* Картинка категории — небольшой превью 32x32 */}
+        <div className="relative h-8 w-8 rounded overflow-hidden bg-gray-50 shrink-0 flex items-center justify-center">
+          {category.image_url ? (
+            <Image
+              src={getImageUrl(category.image_url)}
+              alt={category.name}
+              fill
+              className="object-contain p-0.5"
+              sizes="32px"
+            />
+          ) : (
+            <Tag className="h-4 w-4 text-gray-300" />
+          )}
+        </div>
+
         {/* Название категории */}
-        <span 
+        <span
           className="flex-1 text-sm"
           onClick={handleSelect}
         >
@@ -190,9 +208,21 @@ export function CategorySelectionDialog({
     onCategoriesChange([])
   }
 
+  // Хелпер для поиска категории во всех уровнях вложенности
+  const findCategory = (cats: CategoryData[], id: number): CategoryData | null => {
+    for (const cat of cats) {
+      if (cat.id === id) return cat
+      if (cat.children && cat.children.length > 0) {
+        const found = findCategory(cat.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md h-[80vh] flex flex-col">
+      <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {multiple ? "Выберите категории" : "Выберите категорию"}
@@ -200,102 +230,116 @@ export function CategorySelectionDialog({
         </DialogHeader>
 
         <div className="flex-1 flex flex-col min-h-0 space-y-4">
-          {/* Поиск */}
-          <div className="relative flex-shrink-0">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Поиск категорий..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          {/* Двухколоночный layout — слева поиск+дерево, справа выбранные */}
+          <div className={multiple ? "flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4" : "flex-1 min-h-0"}>
 
-          {/* Кнопки управления */}
-          {multiple && (
-            <div className="flex gap-2 flex-shrink-0">
-              <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                Выбрать все
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleClearAll}>
-                Очистить
-              </Button>
-            </div>
-          )}
+            {/* Левая колонка — поиск, кнопки, дерево */}
+            <div className="flex flex-col min-h-0 space-y-3">
+              <div className="relative flex-shrink-0">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Поиск категорий..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+                />
+              </div>
 
-          {/* Список категорий */}
-          <div className="flex-1 min-h-0">
-            <ScrollArea className="h-full">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2">Загрузка категорий...</span>
-                </div>
-              ) : filteredCategories.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  {searchTerm ? "Категории не найдены" : "Категории не найдены"}
-                </div>
-              ) : (
-                <div className="space-y-2 p-1">
-                  {filteredCategories.map((category) => (
-                    <CategoryTreeItem
-                      key={category.id}
-                      category={category}
-                      level={0}
-                      selectedCategories={selectedCategories}
-                      onToggleCategory={handleCategoryToggle}
-                    />
-                  ))}
+              {multiple && (
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                    Выбрать все
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleClearAll}>
+                    Очистить
+                  </Button>
                 </div>
               )}
-            </ScrollArea>
-          </div>
 
-          {/* Выбранные категории */}
-          {multiple && selectedCategories.length > 0 && (
-            <div className="border-t pt-4 flex-shrink-0">
-              <h4 className="font-medium mb-2">Выбранные категории:</h4>
-              <div className="flex flex-wrap gap-1">
-                {selectedCategories.map((categoryId) => {
-                  // Функция для поиска категории во всех уровнях вложенности
-                  const findCategory = (cats: CategoryData[], id: number): CategoryData | null => {
-                    for (const cat of cats) {
-                      if (cat.id === id) return cat
-                      if (cat.children && cat.children.length > 0) {
-                        const found = findCategory(cat.children, id)
-                        if (found) return found
-                      }
-                    }
-                    return null
-                  }
-                  
-                  const category = findCategory(categories, categoryId)
-                  return category ? (
-                    <span
-                      key={categoryId}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
-                    >
-                      {category.name}
-                      <button
-                        onClick={() => handleCategoryToggle(categoryId)}
-                        className="ml-1 text-blue-600 hover:text-blue-800"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null
-                })}
+              <div className="flex-1 min-h-0 border rounded-md">
+                <ScrollArea className="h-full">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">Загрузка категорий...</span>
+                    </div>
+                  ) : filteredCategories.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      {searchTerm ? "Категории не найдены" : "Категории не найдены"}
+                    </div>
+                  ) : (
+                    <div className="space-y-1 p-1">
+                      {filteredCategories.map((category) => (
+                        <CategoryTreeItem
+                          key={category.id}
+                          category={category}
+                          level={0}
+                          selectedCategories={selectedCategories}
+                          onToggleCategory={handleCategoryToggle}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
               </div>
             </div>
-          )}
+
+            {/* Правая колонка — выбранные (только в multiple-режиме) */}
+            {multiple && (
+              <div className="flex flex-col min-h-0 border rounded-md">
+                <div className="flex-shrink-0 px-3 py-2 border-b bg-gray-50/60">
+                  <h4 className="text-sm font-semibold text-gray-700">
+                    Выбрано <span className="text-gray-500">({selectedCategories.length})</span>
+                  </h4>
+                </div>
+                <ScrollArea className="flex-1 min-h-0">
+                  {selectedCategories.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-xs text-gray-400">
+                      Ничего не выбрано
+                    </p>
+                  ) : (
+                    <ul className="p-1 space-y-1">
+                      {selectedCategories.map((categoryId) => {
+                        const category = findCategory(categories, categoryId)
+                        if (!category) return null
+                        return (
+                          <li
+                            key={categoryId}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 group"
+                          >
+                            <span className="flex-1 text-sm truncate">{category.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCategoryToggle(categoryId)}
+                              className="text-gray-400 hover:text-red-500 transition-colors opacity-60 group-hover:opacity-100"
+                              title="Убрать"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+          </div>
 
           {/* Кнопки действий */}
           {multiple && (
             <div className="flex justify-end gap-2 pt-4 border-t flex-shrink-0">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+              >
                 Отмена
               </Button>
-              <Button onClick={() => onOpenChange(false)}>
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+              >
                 Готово
               </Button>
             </div>

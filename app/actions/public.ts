@@ -452,14 +452,32 @@ export async function getAllProducts(): Promise<ProductData[]> {
   }
 }
 
-// Поиск товаров
-export async function searchProducts(query: string): Promise<ProductData[]> {
+// Поиск товаров. Поддерживает фильтрацию по тексту, по категории и по бренду
+// (или их комбинацию). Если все три пустые — пустой ответ.
+export async function searchProducts(
+  query: string,
+  options?: { categoryId?: number | null; brandId?: number | null }
+): Promise<ProductData[]> {
   try {
-    if (!query.trim()) {
+    const trimmedQuery = query.trim()
+    const categoryId = options?.categoryId ?? null
+    const brandId = options?.brandId ?? null
+    if (!trimmedQuery && !categoryId && !brandId) {
       return []
     }
 
-    const response = await fetch(getApiUrl(`/products/search?q=${encodeURIComponent(query)}&limit=5000`), {
+    const params = new URLSearchParams()
+    if (trimmedQuery) params.set("q", trimmedQuery)
+    if (categoryId) params.set("category_id", String(categoryId))
+    if (brandId) params.set("brand_id", String(brandId))
+    // Лимит 5000 нужен только для текстового поиска (защита от случайного
+    // фетча всей таблицы при коротком/общем запросе). Для фильтрации по
+    // категории/бренду — лимит не передаём, бэк отдаст всё что есть.
+    if (trimmedQuery && !categoryId && !brandId) {
+      params.set("limit", "5000")
+    }
+
+    const response = await fetch(getApiUrl(`/products/search?${params.toString()}`), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

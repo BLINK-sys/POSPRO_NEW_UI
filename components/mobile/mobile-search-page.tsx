@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { Search, X, Loader2, SlidersHorizontal, RotateCcw, ChevronUp } from "lucide-react"
+import Image from "next/image"
+import { Search, X, Loader2, SlidersHorizontal, RotateCcw, ChevronUp, Tag, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import {
   Drawer,
   DrawerContent,
@@ -13,8 +15,10 @@ import {
 } from "@/components/ui/drawer"
 import { isWholesaleUser } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
+import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
+import { getImageUrl } from "@/lib/image-utils"
 import MobileProductCard from "./mobile-product-card"
 
 const PAGE_SIZE = 50
@@ -26,11 +30,18 @@ export default function MobileSearchPage() {
   const [query, setQuery] = useState("")
   const [allResults, setAllResults] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const inputRef = useRef<HTMLInputElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const searchingRef = useRef(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
+
+  // Источник поиска по клику с панели (категория/бренд)
+  const [appliedCategory, setAppliedCategory] = useState<{ id: number; name: string } | null>(null)
+  const [appliedBrand, setAppliedBrand] = useState<{ id: number; name: string } | null>(null)
+  const [searchPageData, setSearchPageData] = useState<SearchPagePublicData | null>(null)
+  const [activeTab, setActiveTab] = useState<"categories" | "brands">("categories")
 
   // Show scroll-to-top after ~2 screens
   useEffect(() => {
@@ -151,8 +162,15 @@ export default function MobileSearchPage() {
   }, [])
 
   // Search with guard against concurrent calls — direct API call (bypasses server action serialization)
-  const doSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+  const doSearch = useCallback(async (
+    searchQuery: string,
+    options?: { categoryId?: number | null; brandId?: number | null }
+  ) => {
+    const trimmedQuery = searchQuery.trim()
+    const categoryId = options?.categoryId ?? null
+    const brandId = options?.brandId ?? null
+    const hasFilter = categoryId || brandId
+    if (!hasFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
       setAllResults([])
       setVisibleCount(PAGE_SIZE)
       return
@@ -162,7 +180,7 @@ export default function MobileSearchPage() {
     searchingRef.current = true
     setLoading(true)
     try {
-      const products = await searchProductsAction(searchQuery.trim())
+      const products = await searchProductsAction(trimmedQuery, { categoryId, brandId })
 
       const data: ProductData[] = products.map((product: any) => ({
         id: product.id,
@@ -184,6 +202,7 @@ export default function MobileSearchPage() {
       }))
 
       setAllResults(data)
+      setHasSearched(true)
       setVisibleCount(PAGE_SIZE)
       // Reset filters on new search
       setSelectedCategories(new Set())
@@ -197,6 +216,48 @@ export default function MobileSearchPage() {
       setLoading(false)
     }
   }, [])
+
+  // Загрузка курируемой панели один раз — прямой fetch на API route
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/public/search-page", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: SearchPagePublicData) => {
+        if (cancelled) return
+        setSearchPageData(data)
+        if (activeTab === "categories" && !data.settings.categories_enabled && data.settings.brands_enabled) {
+          setActiveTab("brands")
+        } else if (activeTab === "brands" && !data.settings.brands_enabled && data.settings.categories_enabled) {
+          setActiveTab("categories")
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load search-page data:", err)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const searchByCategory = (cat: SearchPageCategoryItem) => {
+    setQuery("")
+    setAppliedCategory({ id: cat.id, name: cat.name })
+    setAppliedBrand(null)
+    doSearch("", { categoryId: cat.id })
+  }
+
+  const searchByBrand = (brand: SearchPageBrandItem) => {
+    setQuery("")
+    setAppliedBrand({ id: brand.id, name: brand.name })
+    setAppliedCategory(null)
+    doSearch("", { brandId: brand.id })
+  }
+
+  const clearAppliedSource = () => {
+    setAppliedCategory(null)
+    setAppliedBrand(null)
+    setAllResults([])
+    setHasSearched(false)
+  }
 
   // Reset visible count when filters change
   useEffect(() => {
@@ -226,16 +287,24 @@ export default function MobileSearchPage() {
 
   const handleInputChange = (value: string) => {
     setQuery(value)
+    if (appliedCategory || appliedBrand) {
+      setAppliedCategory(null)
+      setAppliedBrand(null)
+    }
   }
 
   const handleSearch = () => {
     if (loading) return
+    setAppliedCategory(null)
+    setAppliedBrand(null)
     doSearch(query)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       if (loading) return
+      setAppliedCategory(null)
+      setAppliedBrand(null)
       doSearch(query)
     }
   }
@@ -266,14 +335,14 @@ export default function MobileSearchPage() {
               onKeyDown={handleKeyDown}
               className="pl-9 pr-9 h-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus-visible:ring-0"
             />
-            {query && (
+            {(query || appliedCategory || appliedBrand) && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
                 onClick={() => {
                   setQuery("")
-                  setAllResults([])
+                  clearAppliedSource()
                   inputRef.current?.focus()
                 }}
               >
@@ -475,10 +544,118 @@ export default function MobileSearchPage() {
           </>
         )}
 
-        {!loading && !query.trim() && (
-          <div className="text-center py-12 text-gray-400">
-            <Search className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm">Введите название товара</p>
+        {!loading && !query.trim() && !hasSearched && (() => {
+          const s = searchPageData?.settings
+          const cats = searchPageData?.categories || []
+          const brands = searchPageData?.brands || []
+          const showCategoriesTab = s?.categories_enabled && cats.length > 0
+          const showBrandsTab = s?.brands_enabled && brands.length > 0
+          const hasAnyTab = showCategoriesTab || showBrandsTab
+
+          if (!searchPageData || !hasAnyTab) {
+            return (
+              <div className="text-center py-12 text-gray-400">
+                <Search className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Введите название товара</p>
+              </div>
+            )
+          }
+
+          const effectiveTab = activeTab === "categories" && !showCategoriesTab
+            ? "brands"
+            : activeTab === "brands" && !showBrandsTab
+            ? "categories"
+            : activeTab
+
+          return (
+            <div>
+              <div className="flex justify-center mb-4">
+                <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
+                  {showCategoriesTab && (
+                    <button
+                      onClick={() => setActiveTab("categories")}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                        effectiveTab === "categories" ? "bg-white text-black shadow-md" : "text-gray-600"
+                      }`}
+                    >
+                      Категории
+                    </button>
+                  )}
+                  {showBrandsTab && (
+                    <button
+                      onClick={() => setActiveTab("brands")}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                        effectiveTab === "brands" ? "bg-white text-black shadow-md" : "text-gray-600"
+                      }`}
+                    >
+                      Бренды
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {effectiveTab === "categories" && showCategoriesTab && (
+                <div className="grid grid-cols-3 gap-3">
+                  {cats.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => searchByCategory(cat)}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+                    >
+                      <div className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-50">
+                        {cat.image_url ? (
+                          <Image src={getImageUrl(cat.image_url)} alt={cat.name} fill className="object-contain p-1" sizes="33vw" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Tag className="h-6 w-6 text-gray-300" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-gray-900 text-center line-clamp-2">{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {effectiveTab === "brands" && showBrandsTab && (
+                <div className="grid grid-cols-3 gap-3">
+                  {brands.map((brand) => (
+                    <button
+                      key={brand.id}
+                      onClick={() => searchByBrand(brand)}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+                    >
+                      <div className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-50">
+                        {brand.image_url ? (
+                          <Image src={getImageUrl(brand.image_url)} alt={brand.name} fill className="object-contain p-1" sizes="33vw" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Building2 className="h-6 w-6 text-gray-300" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-gray-900 text-center line-clamp-2">{brand.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Чип источника */}
+        {!loading && hasSearched && (appliedCategory || appliedBrand) && (
+          <div className="flex items-center gap-2 mb-3">
+            <Badge variant="outline" className="gap-1.5 px-3 py-1 text-xs font-medium border-brand-yellow bg-yellow-50">
+              {appliedCategory ? <Tag className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+              {appliedCategory ? `Категория: ${appliedCategory.name}` : `Бренд: ${appliedBrand?.name}`}
+              <button
+                onClick={() => { setQuery(""); clearAppliedSource() }}
+                className="ml-1 rounded-full hover:bg-yellow-200 p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
           </div>
         )}
       </div>

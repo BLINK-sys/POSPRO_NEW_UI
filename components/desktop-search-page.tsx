@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Search, X, Loader2, ChevronUp, RotateCcw } from "lucide-react"
+import { Search, X, Loader2, ChevronUp, RotateCcw, Tag, Building2, ChevronRight } from "lucide-react"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
+import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
@@ -34,8 +35,21 @@ export default function DesktopSearchPage() {
 
   // Initial values from URL — preserved when user comes back from a product detail page.
   const initialQuery = searchParams.get("q") || ""
-  const initialCats = (searchParams.get("cat") || "").split(",").map(Number).filter((n) => Number.isFinite(n))
-  const initialBrands = (searchParams.get("brand") || "").split(",").map(Number).filter((n) => Number.isFinite(n))
+  // ВАЖНО: пустой "" .split(",") даёт [""], а Number("") === 0 — поэтому
+  // без явной проверки на пустоту мы получаем initialCats = [0], URL
+  // самозаполняется ?cat=0 и фильтр «застревает» на несуществующей
+  // категории с id=0. Раньше работало случайно, баг проявился сейчас.
+  const parseIdsParam = (param: string | null): number[] => {
+    if (!param) return []
+    return param
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0)
+  }
+  const initialCats = parseIdsParam(searchParams.get("cat"))
+  const initialBrands = parseIdsParam(searchParams.get("brand"))
   const initialPmin = searchParams.get("pmin") || ""
   const initialPmax = searchParams.get("pmax") || ""
 
@@ -52,6 +66,18 @@ export default function DesktopSearchPage() {
   // edits the input away from this value, restored filters become stale and
   // are auto-cleared so that the new query isn't crippled by leftovers.
   const lastSearchedQuery = useRef(initialQuery)
+
+  // Source-filter — задаётся когда юзер кликнул карточку категории/бренда
+  // на «пустом» состоянии. В отличие от обычного текстового поиска, где
+  // фильтрация по имени, здесь бэк фильтрует по реальному category_id /
+  // brand_id. Один из двух — null означает обычный текстовый поиск.
+  const [appliedCategory, setAppliedCategory] = useState<{ id: number; name: string } | null>(null)
+  const [appliedBrand, setAppliedBrand] = useState<{ id: number; name: string } | null>(null)
+
+  // Курируемая панелька «Категории/Бренды» под строкой поиска. Грузится
+  // один раз при маунте (через unstable_cache на серверной стороне).
+  const [searchPageData, setSearchPageData] = useState<SearchPagePublicData | null>(null)
+  const [activeTab, setActiveTab] = useState<"categories" | "brands">("categories")
 
   // Filters — initialized from URL
   const [selectedCategories, setSelectedCategories] = useState<Set<number>>(new Set(initialCats))
@@ -222,8 +248,17 @@ export default function DesktopSearchPage() {
   }, [])
 
   // Search function
-  const doSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+  const doSearch = useCallback(async (
+    searchQuery: string,
+    options?: { categoryId?: number | null; brandId?: number | null }
+  ) => {
+    const trimmedQuery = searchQuery.trim()
+    const categoryId = options?.categoryId ?? null
+    const brandId = options?.brandId ?? null
+    // Текстовый поиск без category/brand требует минимум 2 символа.
+    // Поиск по category/brand работает с любой длиной (даже без текста).
+    const hasFilter = categoryId || brandId
+    if (!hasFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
       setAllResults([])
       setVisibleCount(PAGE_SIZE)
       return
@@ -232,7 +267,7 @@ export default function DesktopSearchPage() {
     searchingRef.current = true
     setLoading(true)
     try {
-      const products = await searchProductsAction(searchQuery.trim())
+      const products = await searchProductsAction(trimmedQuery, { categoryId, brandId })
       const data: ProductData[] = products.map((product: any) => ({
         id: product.id, name: product.name, slug: product.slug,
         price: product.price, wholesale_price: product.wholesale_price,
@@ -250,7 +285,7 @@ export default function DesktopSearchPage() {
       setAllResults(data)
       setHasSearched(true)
       setVisibleCount(PAGE_SIZE)
-      lastSearchedQuery.current = searchQuery.trim()
+      lastSearchedQuery.current = trimmedQuery
       // NOTE: filter state is not reset here on purpose — that lets us restore
       // saved filters from URL on initial mount. A fresh search via the input
       // resets filters explicitly inside handleSearch.
@@ -273,6 +308,55 @@ export default function DesktopSearchPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Загружаем настройки и данные курируемой панели один раз при маунте.
+  // Через прямой fetch к Next.js API route, не через server action —
+  // server-action путь имел баг где promise зависал в Next.js 14.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/public/search-page", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: SearchPagePublicData) => {
+        if (cancelled) return
+        setSearchPageData(data)
+        if (activeTab === "categories" && !data.settings.categories_enabled && data.settings.brands_enabled) {
+          setActiveTab("brands")
+        } else if (activeTab === "brands" && !data.settings.brands_enabled && data.settings.categories_enabled) {
+          setActiveTab("categories")
+        }
+      })
+      .catch(() => { /* silent — search page просто не покажет панель */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Клик по карточке категории — отдаём в поиск с category_id, поле
+  // ввода чистим (юзер ищет не по имени, а по факту категории).
+  const searchByCategory = (cat: SearchPageCategoryItem) => {
+    setQuery("")
+    setAppliedCategory({ id: cat.id, name: cat.name })
+    setAppliedBrand(null)
+    clearFiltersIfAny()
+    doSearch("", { categoryId: cat.id })
+  }
+
+  const searchByBrand = (brand: SearchPageBrandItem) => {
+    setQuery("")
+    setAppliedBrand({ id: brand.id, name: brand.name })
+    setAppliedCategory(null)
+    clearFiltersIfAny()
+    doSearch("", { brandId: brand.id })
+  }
+
+  // Полный сброс — возвращаемся к стартовому экрану с табами
+  const clearAppliedSource = () => {
+    setAppliedCategory(null)
+    setAppliedBrand(null)
+    setAllResults([])
+    setHasSearched(false)
+    clearFiltersIfAny()
+    lastSearchedQuery.current = ""
+  }
 
   // Persist current query + filters to the URL so coming back from a product
   // detail page restores everything.
@@ -311,8 +395,12 @@ export default function DesktopSearchPage() {
 
   const handleQueryChange = (val: string) => {
     setQuery(val)
-    // If the user starts editing the query that was last searched, the
-    // restored filters are stale — drop them to avoid the "0 of N" surprise.
+    // Если юзер начал печатать в поиск — сбрасываем applied category/brand
+    // (это был отдельный режим), фильтры тоже стираем
+    if (appliedCategory || appliedBrand) {
+      setAppliedCategory(null)
+      setAppliedBrand(null)
+    }
     if (val.trim() !== lastSearchedQuery.current) {
       clearFiltersIfAny()
     }
@@ -320,6 +408,8 @@ export default function DesktopSearchPage() {
 
   const triggerNewSearch = () => {
     if (loading) return
+    setAppliedCategory(null)
+    setAppliedBrand(null)
     clearFiltersIfAny()
     doSearch(query)
   }
@@ -353,16 +443,13 @@ export default function DesktopSearchPage() {
               onKeyDown={handleKeyDown}
               className="w-full pl-10 pr-10 h-10 rounded-full border-gray-300 focus:border-brand-yellow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-md hover:shadow-lg transition-shadow duration-200"
             />
-            {query && (
+            {(query || appliedCategory || appliedBrand) && (
               <Button
                 variant="ghost" size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full"
                 onClick={() => {
                   setQuery("")
-                  setAllResults([])
-                  setHasSearched(false)
-                  clearFiltersIfAny()
-                  lastSearchedQuery.current = ""
+                  clearAppliedSource()
                   inputRef.current?.focus()
                 }}
               >
@@ -388,11 +475,180 @@ export default function DesktopSearchPage() {
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && !hasSearched && (
-        <div className="text-center py-20 text-gray-400">
-          <Search className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-          <p className="text-lg">Введите название товара и нажмите «Найти»</p>
+      {/* Empty state — курируемая панель «Категории / Бренды» */}
+      {!loading && !hasSearched && (() => {
+        const s = searchPageData?.settings
+        const cats = searchPageData?.categories || []
+        const brands = searchPageData?.brands || []
+        const showCategoriesTab = s?.categories_enabled && cats.length > 0
+        const showBrandsTab = s?.brands_enabled && brands.length > 0
+        const hasAnyTab = showCategoriesTab || showBrandsTab
+        // Если данные ещё не загрузились — показываем дефолтную подсказку
+        if (!searchPageData) {
+          return (
+            <div className="text-center py-20 text-gray-400">
+              <Search className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <p className="text-lg">Введите название товара и нажмите «Найти»</p>
+            </div>
+          )
+        }
+        // Если оба таба выключены или пусты — старый фолбэк
+        if (!hasAnyTab) {
+          return (
+            <div className="text-center py-20 text-gray-400">
+              <Search className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <p className="text-lg">Введите название товара и нажмите «Найти»</p>
+            </div>
+          )
+        }
+        // Если активный таб выключен — переключаемся на тот что доступен
+        const effectiveTab = activeTab === "categories" && !showCategoriesTab
+          ? "brands"
+          : activeTab === "brands" && !showBrandsTab
+          ? "categories"
+          : activeTab
+
+        return (
+          <div className="max-w-6xl mx-auto">
+            {/* Таб-переключатель */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
+                {showCategoriesTab && (
+                  <button
+                    onClick={() => setActiveTab("categories")}
+                    className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                      effectiveTab === "categories"
+                        ? "bg-white text-black shadow-md"
+                        : "text-gray-600 hover:text-black"
+                    }`}
+                  >
+                    Категории
+                  </button>
+                )}
+                {showBrandsTab && (
+                  <button
+                    onClick={() => setActiveTab("brands")}
+                    className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                      effectiveTab === "brands"
+                        ? "bg-white text-black shadow-md"
+                        : "text-gray-600 hover:text-black"
+                    }`}
+                  >
+                    Бренды
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Сетка карточек. Каждая карточка занимает свою ячейку
+                (без фиксированных w-56 — иначе вылезают друг на друга). */}
+            {effectiveTab === "categories" && showCategoriesTab && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {cats.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => searchByCategory(cat)}
+                    className="group bg-white rounded-xl overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-300 cursor-pointer flex flex-col text-left"
+                  >
+                    {/* Картинка целиком вписывается в область — object-contain
+                        без внутреннего padding, чтобы лого/фото занимали max
+                        пространство и не появлялись лишние «поля». */}
+                    <div className="relative h-44 bg-white overflow-hidden">
+                      {cat.image_url ? (
+                        <Image
+                          src={getImageUrl(cat.image_url)}
+                          alt={cat.name}
+                          fill
+                          className="object-contain group-hover:scale-110 transition-transform duration-300"
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Tag className="h-12 w-12 text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                    {/* Жёлтая полоса с rounded-xl на всех углах — как на
+                        главной. Верхние скругления видны в зоне перехода
+                        к картинке, нижние клипаются card overflow-hidden.
+                        Стрелка с rounded-tr-lg + rounded-bl-lg — плавно
+                        ложится в угол жёлтого блока. */}
+                    <div className="relative bg-yellow-400 h-14 px-4 flex items-center rounded-xl">
+                      <h3 className="font-bold text-gray-900 text-sm leading-tight pr-10 line-clamp-2">
+                        {cat.name}
+                      </h3>
+                      <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
+                        <ChevronRight className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {effectiveTab === "brands" && showBrandsTab && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {brands.map((brand) => (
+                  <button
+                    key={brand.id}
+                    type="button"
+                    onClick={() => searchByBrand(brand)}
+                    className="group relative aspect-square w-full bg-white rounded-xl overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-300 cursor-pointer p-3"
+                  >
+                    {/* Внутренний контейнер с собственным rounded-xl —
+                        лого выглядит как «вставленная» карточка с отступом
+                        от внешней границы. Прямоугольные/тёмные лого
+                        получают свои закруглённые углы. */}
+                    <div className="relative w-full h-full rounded-xl overflow-hidden bg-white">
+                      {brand.image_url ? (
+                        <Image
+                          src={getImageUrl(brand.image_url)}
+                          alt={brand.name}
+                          fill
+                          className="object-contain group-hover:scale-110 transition-transform duration-300"
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Building2 className="h-12 w-12 text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                    {/* Hover-оверлей — на всю карточку (поверх padding) */}
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center pointer-events-none rounded-xl">
+                      <h3 className="font-bold text-white text-base text-center px-3">{brand.name}</h3>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Чип источника поиска (категория/бренд) — показываем над результатами
+          когда поиск пришёл из клика по карточке, а не из текста. */}
+      {!loading && hasSearched && (appliedCategory || appliedBrand) && (
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <span className="text-sm text-gray-500">Поиск по</span>
+          <Badge
+            variant="outline"
+            className="gap-1.5 px-3 py-1 text-sm font-medium border-brand-yellow bg-yellow-50"
+          >
+            {appliedCategory ? <Tag className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
+            {appliedCategory ? `Категория: ${appliedCategory.name}` : `Бренд: ${appliedBrand?.name}`}
+            <button
+              onClick={() => {
+                setQuery("")
+                clearAppliedSource()
+              }}
+              className="ml-1 rounded-full hover:bg-yellow-200 p-0.5"
+              title="Очистить"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
         </div>
       )}
 
