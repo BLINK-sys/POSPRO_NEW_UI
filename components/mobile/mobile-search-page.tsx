@@ -568,7 +568,7 @@ export default function MobileSearchPage() {
             : activeTab
 
           return (
-            <div>
+            <div className="pt-4">
               <div className="flex justify-center mb-4">
                 <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
                   {showCategoriesTab && (
@@ -595,46 +595,47 @@ export default function MobileSearchPage() {
               </div>
 
               {effectiveTab === "categories" && showCategoriesTab && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3 px-3">
                   {cats.map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => searchByCategory(cat)}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+                      className="flex flex-col bg-white rounded-xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:shadow-[0_6px_16px_rgba(0,0,0,0.16)] active:scale-[0.98] transition-all"
                     >
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-50">
+                      <div className="relative w-full aspect-square bg-white overflow-hidden">
                         {cat.image_url ? (
-                          <Image src={getImageUrl(cat.image_url)} alt={cat.name} fill className="object-contain p-1" sizes="33vw" />
+                          <Image src={getImageUrl(cat.image_url)} alt={cat.name} fill className="object-contain p-2" sizes="33vw" />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <Tag className="h-6 w-6 text-gray-300" />
+                            <Tag className="h-7 w-7 text-gray-300" />
                           </div>
                         )}
                       </div>
-                      <span className="text-xs font-medium text-gray-900 text-center line-clamp-2">{cat.name}</span>
+                      <div className="px-2 py-1.5 bg-yellow-400 min-h-[2.5rem] flex items-center">
+                        <span className="text-[11px] font-bold text-gray-900 leading-tight line-clamp-2">{cat.name}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
 
               {effectiveTab === "brands" && showBrandsTab && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3 px-3">
                   {brands.map((brand) => (
                     <button
                       key={brand.id}
                       onClick={() => searchByBrand(brand)}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-white border border-gray-200 active:bg-gray-50"
+                      className="relative aspect-square w-full bg-white rounded-xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.12)] active:shadow-[0_6px_16px_rgba(0,0,0,0.16)] active:scale-[0.98] transition-all p-1.5"
                     >
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-50">
+                      <div className="relative w-full h-full rounded-lg overflow-hidden bg-white">
                         {brand.image_url ? (
-                          <Image src={getImageUrl(brand.image_url)} alt={brand.name} fill className="object-contain p-1" sizes="33vw" />
+                          <Image src={getImageUrl(brand.image_url)} alt={brand.name} fill className="object-contain" sizes="33vw" />
                         ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Building2 className="h-6 w-6 text-gray-300" />
+                          <div className="flex items-center justify-center h-full">
+                            <Building2 className="h-7 w-7 text-gray-300" />
                           </div>
                         )}
                       </div>
-                      <span className="text-xs font-medium text-gray-900 text-center line-clamp-2">{brand.name}</span>
                     </button>
                   ))}
                 </div>
