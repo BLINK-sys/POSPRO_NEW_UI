@@ -18,6 +18,7 @@ import {
   HardDrive,
   Sparkles,
   Share2,
+  Activity,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -254,6 +255,15 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               icon={Share2}
               label="Управление КП"
               active={isActive("/admin/kp-management")}
+            />
+          )}
+
+          {kpManagementAccess && (
+            <NavItem
+              href="/admin/user-activity"
+              icon={Activity}
+              label="Активность"
+              active={isActive("/admin/user-activity")}
             />
           )}
 

@@ -103,6 +103,24 @@ export function AuthProvider({
     }
   }, [user])
 
+  // Presence heartbeat для системных юзеров (admin/system) — пингует
+  // /auth/heartbeat раз в 60 сек пока вкладка открыта, на ЛЮБОЙ странице
+  // магазина (клиентской или админской). Бэк пишет system_users.last_seen.
+  // Owner видит результат в /admin/user-activity.
+  // Для роли `client` не фаерим — экономим запросы (бэк бы вернул tracked:false).
+  useEffect(() => {
+    if (!user) return
+    if (user.role !== "admin" && user.role !== "system") return
+
+    const ping = () => {
+      fetch("/api/auth/heartbeat", { method: "POST", cache: "no-store" })
+        .catch(() => { /* silent — presence не критичен */ })
+    }
+    ping()
+    const id = setInterval(ping, 60_000)
+    return () => clearInterval(id)
+  }, [user])
+
   const handleLogout = useCallback(async () => {
     setUser(null)
     await logoutAction()
