@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { getApiUrl } from '@/lib/api-address'
 
+// force-dynamic — иначе Next.js статически кэширует HTTP-ответ этого
+// route handler'а (он без cookies/headers), и `revalidateTag` обходит
+// этот слой стороной. unstable_cache внутри всё ещё кэширует данные
+// и реагирует на revalidateTag, но сам HTTP-ответ должен пересоставляться
+// на каждом запросе.
+export const dynamic = 'force-dynamic'
+
 // Кэшируем по тегу 'catalog-visibility' — инвалидируется в админ-action
 // при тогле видимости разделов.
 // ВАЖНО: внутренний fetch обязательно с cache: 'no-store', иначе у него
