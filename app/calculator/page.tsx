@@ -4,7 +4,8 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock, Calculator as CalculatorIcon } from 'lucide-react'
+import { CalcCostOverrideDialog, applyRounding } from '@/components/calc-cost-override-dialog'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, WarehousePriceOption } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -139,7 +140,12 @@ interface CalcItem {
   // сумме «Без НДС себестоимости» при подсчёте налогов.
   vatEnabled: boolean
   deliveryPerUnit: number  // manual input
-  costPerUnitOverride: number | null    // manual override for cost per unit
+  costPerUnitOverride: number | null    // manual override for cost per unit (raw KZT value)
+  // Структурный override «За ед.» через модалку: cost (в исходной валюте) ×
+  // rate × (1 + VAT/100). costPerUnitOverride при наличии структурного
+  // ВСЕГДА равен результату умножения. Храним components отдельно чтобы
+  // оператор мог редактировать каждый компонент и видеть откуда цифра.
+  costOverrideStructured: { amount: number; rate: number; vat: number } | null
   contractPerUnitOverride: number | null // manual override for contract price per unit
   supplierName: string
   warehouseName: string
@@ -204,6 +210,7 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       vatEnabled,
       deliveryPerUnit: calculatedDelivery,
       costPerUnitOverride: null,
+      costOverrideStructured: null,
       contractPerUnitOverride: null,
       supplierName: selectedWp?.supplier_name || item.supplier_name || '',
       warehouseName: selectedWp?.warehouse_name || '',
@@ -230,6 +237,8 @@ export default function CalculatorPage() {
   const [currencyRates, setCurrencyRates] = useState<Record<string, number>>({})
   const [ratesApplied, setRatesApplied] = useState(false)
   const [expenses, setExpenses] = useState<ExpenseItem[]>([])
+  // Открытая модалка «Зафиксировать себестоимость». kpId === null = закрыта.
+  const [costOverrideDialogKpId, setCostOverrideDialogKpId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
   const [showSignConfirm, setShowSignConfirm] = useState(false)
@@ -728,21 +737,48 @@ export default function CalculatorPage() {
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractNoVat * item.quantity) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractVat * item.quantity) : '—'}</td>
 
-                  {/* Себестоимость — За ед. EDITABLE */}
+                  {/* Себестоимость — За ед. EDITABLE + кнопка структурного override */}
                   <td className="border px-0 py-0 bg-green-50/30">
                     {item.currencyCode !== 'KZT' && !ratesApplied && item.costPerUnitOverride === null ? (
-                      <span className="text-orange-500 text-[10px] px-1">{fmt(item.costPrice)} {item.currencyCode}</span>
+                      <div className="flex items-center justify-between gap-1 px-1">
+                        <span className="text-orange-500 text-[10px]">{fmt(item.costPrice)} {item.currencyCode}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCostOverrideDialogKpId(item.kpId)}
+                          className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-emerald-100 text-emerald-600 border border-emerald-200 bg-white"
+                          title="Зафиксировать вручную (себестоимость × курс × НДС)"
+                        >
+                          <CalculatorIcon className="h-4 w-4" />
+                        </button>
+                      </div>
                     ) : (
-                      <input
-                        type="number"
-                        value={item.costPerUnitOverride !== null ? item.costPerUnitOverride : (hasCost ? Math.ceil(r.costPerUnit) : '')}
-                        onChange={e => {
-                          const v = e.target.value
-                          updateItem(item.kpId, 'costPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
-                        }}
-                        className="w-full bg-transparent outline-none text-center text-[10px] px-1 h-6"
-                        placeholder="—"
-                      />
+                      <div className="flex items-center gap-1 px-0.5">
+                        <input
+                          type="number"
+                          value={item.costPerUnitOverride !== null ? item.costPerUnitOverride : (hasCost ? Math.ceil(r.costPerUnit) : '')}
+                          onChange={e => {
+                            const v = e.target.value
+                            // Ручной ввод сбрасывает структурный override
+                            // (структурный должен совпадать с числовым).
+                            updateItem(item.kpId, 'costOverrideStructured', null)
+                            updateItem(item.kpId, 'costPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
+                          }}
+                          className="flex-1 min-w-0 bg-transparent outline-none text-center text-[10px] px-1 h-7"
+                          placeholder="—"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCostOverrideDialogKpId(item.kpId)}
+                          className={`shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md border ${
+                            item.costOverrideStructured
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-300'
+                              : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 border-gray-200 bg-white'
+                          }`}
+                          title={item.costOverrideStructured ? 'Изменить структурную фиксацию' : 'Зафиксировать вручную (себестоимость × курс × НДС)'}
+                        >
+                          <CalculatorIcon className="h-4 w-4" />
+                        </button>
+                      </div>
                     )}
                   </td>
                   <td className="border px-1 py-1 text-center bg-green-50/30 font-medium">{hasCost ? fmt(r.costTotal) : '—'}</td>
@@ -910,6 +946,35 @@ export default function CalculatorPage() {
           </div>
         </div>
       </div>
+      {/* Structured cost override modal */}
+      {costOverrideDialogKpId && (() => {
+        const item = items.find(i => i.kpId === costOverrideDialogKpId)
+        if (!item) return null
+        const currencyRate = currencyRates[item.currencyCode] || 1
+        return (
+          <CalcCostOverrideDialog
+            open={true}
+            onOpenChange={(open) => { if (!open) setCostOverrideDialogKpId(null) }}
+            currencyCode={item.currencyCode}
+            warehouseLabel={item.warehouseName ? `${item.supplierName ? item.supplierName + ' — ' : ''}${item.warehouseName}` : undefined}
+            initial={item.costOverrideStructured}
+            defaultAmount={item.costPrice}
+            defaultRate={currencyRate}
+            defaultVat={item.vatEnabled ? 16 : 0}
+            onSave={(override) => {
+              const raw = override.amount * override.rate * (1 + override.vat / 100)
+              const result = applyRounding(raw, override.roundDirection, override.roundStep)
+              updateItem(item.kpId, 'costOverrideStructured', override)
+              updateItem(item.kpId, 'costPerUnitOverride', result)
+            }}
+            onClear={() => {
+              updateItem(item.kpId, 'costOverrideStructured', null)
+              updateItem(item.kpId, 'costPerUnitOverride', null)
+            }}
+          />
+        )
+      })()}
+
       {/* Help modal */}
       {showHelp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowHelp(false)}>
@@ -957,12 +1022,36 @@ export default function CalculatorPage() {
                       <li>Склад с НДС → Себестоимость поставщика × Курс × 1.16</li>
                       <li>Склад без НДС → Себестоимость поставщика × Курс (без надбавки)</li>
                     </ul>
-                    Редактируется вручную
+                    Редактируется вручную, либо через модалку «Зафиксировать» (см. ниже)
                   </li>
                   <li><b>Итого</b> = За ед. × Кол-во</li>
                   <li><b>Без НДС</b>: для строки с НДС = За ед. / 1.16 × Кол-во; для строки без НДС = равно Итого</li>
                   <li><b>НДС</b>: для строки с НДС = (За ед. − Без НДС) × Кол-во; для строки без НДС — оранжевый бейдж «без НДС»</li>
                 </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-emerald-700 mb-1">«Зафиксировать» — структурный override себестоимости</h4>
+                <p className="mb-2">
+                  Кнопка с иконкой калькулятора рядом с полем «За ед. (₸)» открывает модалку
+                  где себестоимость задаётся как произведение компонентов:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><b>Себестоимость</b> в валюте склада (RUB для BIO, USD для других)</li>
+                  <li><b>Курс</b> — фиксированный обменный курс на ₸</li>
+                  <li><b>НДС</b> в процентах (16, 12, 0…)</li>
+                  <li><b>Округление</b> — направление (↑ Вверх / ↓ Вниз) + шаг (1, 10, 100, 1000)</li>
+                </ul>
+                <p className="mt-2">
+                  Итог: <code>За ед. (₸) = round(cost × rate × (1 + vat/100), step)</code>.
+                  Используется когда менеджер договорился о фиксированной цене у поставщика
+                  и хочет видеть все компоненты в КП (не только итоговое число).
+                </p>
+                <p className="mt-2 text-gray-500">
+                  Зелёная кнопка калькулятора = фиксация активна. Ручной ввод в поле «За ед.»
+                  сбрасывает структурную фиксацию (одновременно не может быть и того и другого).
+                  В модалке доступна кнопка «Сбросить» — возвращает автоматический расчёт.
+                </p>
               </div>
 
               <div>
