@@ -19,6 +19,7 @@ import {
   Sparkles,
   Share2,
   Activity,
+  MonitorSmartphone,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -239,6 +240,13 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
           {hasAccess("settings") && (
             <NavItem href="/admin/settings" icon={Settings} label="Настройки" active={isActive("/admin/settings")} />
           )}
+
+          <NavItem
+            href="/admin/remote"
+            icon={MonitorSmartphone}
+            label="Удалённое управление"
+            active={isActive("/admin/remote")}
+          />
 
           {aiSettingsAccess && (
             <NavItem
