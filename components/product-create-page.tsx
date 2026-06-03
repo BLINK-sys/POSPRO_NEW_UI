@@ -735,10 +735,12 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                                 </div>
                                 <div className="text-right">
                                   <div className="font-mono text-sm">{cost.cost_price.toLocaleString("ru-RU")} {wh?.currency?.code || ""}</div>
-                                  {cost.calculated_price ? (
+                                  {cost.calculated_price != null ? (
                                     <div className="text-xs text-green-600 font-semibold">→ {cost.calculated_price.toLocaleString("ru-RU")} тг</div>
+                                  ) : wh?.has_formula || wh?.formula ? (
+                                    <div className="text-xs text-amber-600">Ошибка расчёта</div>
                                   ) : (
-                                    <div className="text-xs text-gray-400">Нет формулы</div>
+                                    <div className="text-xs text-gray-400">Нет формулы на складе</div>
                                   )}
                                 </div>
                                 <Button
