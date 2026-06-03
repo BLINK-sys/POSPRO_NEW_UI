@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
@@ -616,31 +616,36 @@ export default function Header() {
             />
           </Link>
 
-          {/* Кнопки каталога и поиска — сразу после логотипа */}
-          {catalogVisibility?.main && <div className="hidden lg:flex ml-2">
+          {/* Кнопки каталога / поиска / AI — сразу после логотипа.
+              При уменьшении ширины лейблы пропадают (остаются иконки), при
+              совсем тесной — кнопки уходят целиком. Каталог самый важный,
+              поэтому его лейбл живёт дольше всех. */}
+          {catalogVisibility?.main && <div className="hidden lg:flex ml-2 shrink-0">
             <Button
               className={cn(
-                "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-2 flex items-center gap-2",
+                "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 h-10 px-4 flex items-center gap-2",
                 menuOpen && "bg-yellow-500"
               )}
               onClick={toggleMenu}
+              title="Каталог товаров"
             >
               {categoriesLoading ? (
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <Menu className="h-5 w-5 mr-2" />
+                <Menu className="h-5 w-5" />
               )}
-              Каталог
+              <span className="hidden lg:inline">Каталог</span>
             </Button>
           </div>}
 
-          <div className="hidden md:flex ml-2">
+          <div className="hidden md:flex ml-2 shrink-0">
             <Button
               onClick={() => router.push("/search")}
-              className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+              className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+              title="Найти товар"
             >
               <Search className="h-5 w-5" />
-              Найти товар
+              <span className="hidden xl:inline">Найти товар</span>
             </Button>
           </div>
 
@@ -648,17 +653,18 @@ export default function Header() {
               (`/admin/ai-consultant`). Backend ручка решает, видит ли
               кнопку конкретный пользователь. */}
           {aiAccess && (
-            <div className="hidden md:flex ml-2">
+            <div className="hidden md:flex ml-2 shrink-0">
               <Button
                 onClick={() => router.push("/ai")}
-                className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+                className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
                 title="AI-подбор товаров"
               >
                 <Sparkles className="h-5 w-5" />
-                AI консультант
+                <span className="hidden xl:inline">AI консультант</span>
               </Button>
             </div>
           )}
+
             {menuOpen && (
               <div
                 className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-6"
@@ -924,14 +930,17 @@ export default function Header() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             {user ? (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200">
+                    <Button
+                      className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
+                      title="Личный кабинет"
+                    >
                       <User className="h-5 w-5" />
-                      Личный кабинет
+                      <span className="hidden xl:inline">Личный кабинет</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -958,9 +967,13 @@ export default function Header() {
 
                 {(user.role === "admin" || user.role === "system") ? (
                   <>
-                    <Link href="/kp" className="relative flex items-center gap-2 border-2 border-black text-black hover:bg-gray-100 px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
+                    <Link
+                      href="/kp"
+                      className="relative flex items-center gap-2 border-2 border-black text-black hover:bg-gray-100 h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                      title="Собрать КП"
+                    >
                       <FileText className="h-5 w-5" />
-                      <span className="text-sm font-medium">Собрать КП</span>
+                      <span className="hidden xl:inline text-sm font-medium">Собрать КП</span>
                       {kpCount > 0 && (
                         <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
                           {kpCount > 99 ? '99+' : kpCount}
@@ -968,29 +981,37 @@ export default function Header() {
                       )}
                     </Link>
                     {user.role === "admin" && (
-                      <Link href="/admin" className="flex items-center gap-2 bg-brand-yellow text-black hover:bg-yellow-500 hover:text-black px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-2 bg-brand-yellow text-black hover:bg-yellow-500 hover:text-black h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                        title="Админ панель"
+                      >
                         <Settings className="h-5 w-5" />
-                        <span className="text-sm font-medium">Админ панель</span>
+                        <span className="hidden xl:inline text-sm font-medium">Админ панель</span>
                       </Link>
                     )}
                   </>
                 ) : (
                   <>
-                    <Link href="/profile/cart" className="flex flex-col items-center gap-1 relative">
-                      <div className="relative">
-                        <ShoppingCart className="h-6 w-6 text-gray-700" />
-                        {cartCount > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                            {cartCount > 99 ? '99+' : cartCount}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm text-gray-700">Корзина</span>
+                    <Link
+                      href="/profile/cart"
+                      className="relative flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
+                      title="Корзина"
+                    >
+                      <ShoppingCart className="h-5 w-5 text-gray-700" />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold shadow">
+                          {cartCount > 99 ? '99+' : cartCount}
+                        </span>
+                      )}
                     </Link>
 
-                    <Link href="/profile/favorites" className="flex flex-col items-center gap-1">
-                      <Star className="h-6 w-6 text-gray-700" />
-                      <span className="text-sm text-gray-700">Избранное</span>
+                    <Link
+                      href="/profile/favorites"
+                      className="flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
+                      title="Избранное"
+                    >
+                      <Star className="h-5 w-5 text-gray-700" />
                     </Link>
                   </>
                 )}
@@ -998,24 +1019,44 @@ export default function Header() {
             ) : (
               !isLoading && (
                 <>
-                  <Link href="/profile/cart" className="flex flex-col items-center gap-1 relative">
-                    <div className="relative">
-                      <ShoppingCart className="h-6 w-6 text-gray-700" />
-                      {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                          {cartCount > 99 ? '99+' : cartCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-sm text-gray-700">Корзина</span>
+                  <Link
+                    href="/profile/cart"
+                    className="relative flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
+                    title="Корзина"
+                  >
+                    <ShoppingCart className="h-5 w-5 text-gray-700" />
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold shadow">
+                        {cartCount > 99 ? '99+' : cartCount}
+                      </span>
+                    )}
                   </Link>
                   <Link href="/auth">
-                    <Button className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200">
-                      Войти
+                    <Button
+                      className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                      title="Войти в личный кабинет"
+                    >
+                      <User className="h-5 w-5" />
+                      <span className="hidden lg:inline">Войти</span>
                     </Button>
                   </Link>
                 </>
               )
+            )}
+
+            {/* PosPro Desk — приложение удалённой поддержки. Только для
+                клиентов (физлица/ИП/ТОО) и гостей. Админам/системным
+                юзерам кнопка не нужна — у них и без того много элементов
+                в шапке (Собрать КП, Админ панель и т.д.). */}
+            {(!user || user.role === "client") && (
+              <Button
+                onClick={() => router.push("/posprodesk")}
+                className="hidden md:flex bg-yellow-50 border-2 border-brand-yellow text-gray-800 hover:bg-brand-yellow hover:border-black hover:text-black font-medium h-10 px-4 rounded-full items-center gap-2 shadow-sm hover:shadow-lg transition-all duration-200"
+                title="PosPro Desk — приложение удалённой поддержки"
+              >
+                <MonitorSmartphone className="h-5 w-5" />
+                <span className="hidden xl:inline">PosPro Desk</span>
+              </Button>
             )}
           </div>
         </div>

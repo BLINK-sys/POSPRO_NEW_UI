@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { MonitorSmartphone } from "lucide-react"
 import { FooterSettings, getFooterSettings } from "@/app/actions/public"
 
 export default function Footer() {
@@ -41,7 +42,7 @@ export default function Footer() {
     <footer className="bg-gray-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       {/* Основной контент футера */}
       <div className="container mx-auto px-4 md:px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Левая колонка - Логотип и социальные сети */}
           <div className="space-y-6">
             {/* Логотип */}
@@ -134,7 +135,7 @@ export default function Footer() {
             </nav>
           </div>
 
-          {/* Правая колонка - Контакты */}
+          {/* Колонка - Контакты */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-black">Контакты</h3>
             <div className="space-y-2 text-sm">
@@ -155,6 +156,26 @@ export default function Footer() {
                 <span className="text-gray-600 ml-2">{footerSettings.email}</span>
               </div>
             </div>
+          </div>
+
+          {/* Правая колонка - Удалённая поддержка (PosPro Desk).
+              Видна всем типам пользователей. На мобиле этот футер вообще
+              не рендерится (там MobileLayout). */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-black">Удалённая поддержка</h3>
+            <p className="text-gray-700 text-sm leading-relaxed">
+              Скачайте <b>PosPro Desk</b> — наше приложение для удалённой поддержки.
+              Наш сотрудник сможет подключиться к вашему компьютеру и помочь с
+              настройкой оборудования, передать драйверы или быстро решить вопрос
+              без выезда мастера.
+            </p>
+            <Link
+              href="/posprodesk"
+              className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-full bg-yellow-50 border-2 border-brand-yellow text-gray-800 hover:bg-brand-yellow hover:border-black hover:text-black font-medium shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              <MonitorSmartphone className="h-5 w-5" />
+              PosPro Desk
+            </Link>
           </div>
         </div>
         
