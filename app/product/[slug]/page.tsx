@@ -9,17 +9,18 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { 
-  ArrowLeft, 
-  Package, 
-  FileText, 
-  Download, 
-  Star, 
-  Info, 
+import {
+  ArrowLeft,
+  Package,
+  FileText,
+  Download,
+  Star,
+  Info,
   ShoppingCart,
   ExternalLink,
   Play,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Pencil
 } from "lucide-react"
 import { getProductBySlug } from "@/app/actions/products"
 import { createBitrixPriceInquiry } from "@/app/actions/bitrix"
@@ -499,20 +500,35 @@ export default function ProductPage() {
           {/* Название товара */}
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-4">{product.name}</h1>
-            <AddToKPButton
-              productId={product.id}
-              productName={product.name}
-              productSlug={product.slug}
-              productPrice={product.price}
-              productWholesalePrice={product.wholesale_price}
-              productImageUrl={product.media?.[0]?.url}
-              productDescription={product.description}
-              productArticle={product.article}
-              productBrandName={product.brand_info?.name}
-              productSupplierName={product.supplier?.name || product.supplier_name}
-              productCharacteristics={product.characteristics?.map(c => ({ key: c.key, value: c.value }))}
-              className="font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
-            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <AddToKPButton
+                productId={product.id}
+                productName={product.name}
+                productSlug={product.slug}
+                productPrice={product.price}
+                productWholesalePrice={product.wholesale_price}
+                productImageUrl={product.media?.[0]?.url}
+                productDescription={product.description}
+                productArticle={product.article}
+                productBrandName={product.brand_info?.name}
+                productSupplierName={product.supplier?.name || product.supplier_name}
+                productCharacteristics={product.characteristics?.map(c => ({ key: c.key, value: c.value }))}
+                className="font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+              />
+              {/* Только для админов/системных — быстрый редирект в админку
+                  с предзаполненным поиском по названию товара. */}
+              {(user?.role === "admin" || user?.role === "system") && (
+                <Button
+                  onClick={() => router.push(`/admin/catalog/products?q=${encodeURIComponent(product.name)}`)}
+                  variant="outline"
+                  className="border-2 border-black text-black bg-transparent hover:bg-gray-100 font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                  title="Открыть в админке для редактирования"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Редактировать
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Информация о товаре */}

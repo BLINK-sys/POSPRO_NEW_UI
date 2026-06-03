@@ -40,8 +40,10 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X, LayoutGrid, List, ExternalLink } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X, LayoutGrid, List, ExternalLink, FileText } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
+import { useAddToKP } from "@/hooks/use-add-to-kp"
+import { useKP } from "@/context/kp-context"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "./ui/use-toast"
 import { ParentCategoryDialog } from "./parent-category-dialog"
@@ -425,6 +427,35 @@ export function ProductsTable({
     router.push(`/admin/catalog/products/${product.slug}/edit`)
   }
 
+  // Добавить в КП прямо из админ-таблицы. Отдельный пункт в dropdown'е
+  // действий — менеджеру удобно прямо при поиске накидать товары и
+  // потом перейти в /kp где они уже будут.
+  const addToKP = useAddToKP()
+  const { kpItems } = useKP()
+  const handleAddToKP = useCallback(async (product: Product) => {
+    await addToKP({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price || 0,
+      wholesale_price: product.wholesale_price ?? null,
+      image_url: product.image,
+      description: product.description,
+      article: product.article,
+      brand_name: product.brand_info?.name,
+      supplier_name: product.supplier?.name || product.supplier_name || null,
+      characteristics: product.characteristics?.map(c => ({ key: c.key, value: c.value })),
+    })
+    toast({ title: 'Добавлено в КП', description: product.name })
+  }, [addToKP, toast])
+
+  // Сколько штук этого товара уже в КП (для бейджа на строке/карточке).
+  const getKpCount = useCallback((productId: number) => {
+    return kpItems
+      .filter(item => item.id === productId)
+      .reduce((sum, item) => sum + (item.quantity || 0), 0)
+  }, [kpItems])
+
   const handleItemsPerPageChange = (value: string) => {
     if (value === "custom") {
       setIsCustomItemsPerPage(true)
@@ -584,6 +615,7 @@ export function ProductsTable({
           <TableRow className="bg-gray-50 hover:bg-gray-50 border-b border-gray-200">
             <TableHead className="w-[60px] text-gray-700 font-medium">Изоб.</TableHead>
             <TableHead className="text-gray-700 font-medium">Название</TableHead>
+            <TableHead className="w-[170px] text-gray-700 font-medium">КП</TableHead>
             <TableHead className="text-gray-700 font-medium">Цена</TableHead>
             <TableHead className="text-gray-700 font-medium">Кол-во</TableHead>
             <TableHead className="text-gray-700 font-medium">Поставщики</TableHead>
@@ -613,6 +645,22 @@ export function ProductsTable({
                   />
                 </TableCell>
                 <TableCell className="font-medium text-gray-900">{product.name}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="relative h-7 px-3 text-xs rounded-full border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                    onClick={() => handleAddToKP(product)}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1.5" />
+                    Добавить в КП
+                    {getKpCount(product.id) > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-brand-yellow text-black text-[11px] font-bold border-2 border-white shadow pointer-events-none">
+                        {getKpCount(product.id) > 99 ? '99+' : getKpCount(product.id)}
+                      </span>
+                    )}
+                  </Button>
+                </TableCell>
                 <TableCell className="text-gray-800">
                   {product.price.toLocaleString("ru-RU")} ₸
                   {product.winning_warehouse?.name && (
@@ -702,7 +750,7 @@ export function ProductsTable({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center text-gray-500">
+              <TableCell colSpan={10} className="h-24 text-center text-gray-500">
                 {emptyMessage}
               </TableCell>
             </TableRow>
@@ -798,28 +846,47 @@ export function ProductsTable({
                     </div>
                   )}
                 </div>
-                <div className="mt-auto flex items-center gap-2 pt-2">
+                <div className="mt-auto flex flex-col gap-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8 text-xs rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                      onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                    >
+                      Остатки
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full hover:bg-brand-yellow/20"
+                      title="Открыть на сайте"
+                      onClick={() => {
+                        if (product.slug) {
+                          window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
+                        }
+                      }}
+                      disabled={!product.slug}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {/* Кнопка добавления в КП — отдельной строкой на всю ширину
+                      под «Остатки», чтобы менеджеру не приходилось лезть в
+                      выпадающее меню. Бейдж с количеством справа. */}
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 h-8 text-xs rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
-                    onClick={() => setStocksProduct({ id: product.id, name: product.name })}
+                    className="relative w-full h-8 text-xs rounded-full border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+                    onClick={() => handleAddToKP(product)}
                   >
-                    Остатки
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full hover:bg-brand-yellow/20"
-                    title="Открыть на сайте"
-                    onClick={() => {
-                      if (product.slug) {
-                        window.open(`/product/${product.slug}`, '_blank', 'noopener,noreferrer')
-                      }
-                    }}
-                    disabled={!product.slug}
-                  >
-                    <ExternalLink className="h-4 w-4" />
+                    <FileText className="h-3.5 w-3.5 mr-1.5" />
+                    Добавить в КП
+                    {getKpCount(product.id) > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-brand-yellow text-black text-[11px] font-bold border-2 border-white shadow pointer-events-none">
+                        {getKpCount(product.id) > 99 ? '99+' : getKpCount(product.id)}
+                      </span>
+                    )}
                   </Button>
                 </div>
               </div>
