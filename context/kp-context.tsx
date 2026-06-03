@@ -17,6 +17,11 @@ export interface WarehousePriceOption {
   // строка получает vatEnabled=false, и колонки Себестоимости считаются
   // «как есть» без НДС-разделения. Контрактная сторона всегда с НДС (16%).
   vat_enabled?: boolean
+  // Примечание менеджера к связке product × warehouse. Если есть — в
+  // корп.расчётнике в колонке Поставщик показывается иконка для просмотра/
+  // редактирования. PWC.id нужен чтобы PUT'нуть изменение обратно на бэк.
+  pwc_id?: number
+  note?: string | null
 }
 
 export interface KPItem {

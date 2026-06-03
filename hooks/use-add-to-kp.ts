@@ -76,6 +76,10 @@ export function useAddToKP() {
             currency_code: c.currency_code || 'KZT',
             // Старые бэки до миграции warehouse.vat_enabled — дефолт true.
             vat_enabled: c.vat_enabled !== false,
+            // PWC id и заметка — для корп.расчётника, чтобы кнопкой
+            // показывать/редактировать примечание прямо в строке.
+            pwc_id: c.id,
+            note: c.note,
           }))
       }
 

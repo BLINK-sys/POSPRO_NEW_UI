@@ -56,19 +56,36 @@ export function ProductCostNoteDialog({
           rows={8}
           className="resize-y min-h-[180px] font-normal"
         />
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Отмена
-          </Button>
-          <Button
-            onClick={() => {
-              onSave(value)
-              onOpenChange(false)
-            }}
-            className="bg-brand-yellow text-black hover:bg-yellow-500"
-          >
-            Сохранить
-          </Button>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {/* «Удалить» — слева, видна только если уже есть сохранённое значение. */}
+          {(initialValue || "").trim() ? (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                onSave("") // пустая строка → бэк сохранит null
+                onOpenChange(false)
+              }}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              Удалить
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={() => {
+                onSave(value)
+                onOpenChange(false)
+              }}
+              className="bg-brand-yellow text-black hover:bg-yellow-500"
+            >
+              Сохранить
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

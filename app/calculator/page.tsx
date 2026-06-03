@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock, Calculator as CalculatorIcon } from 'lucide-react'
 import { CalcCostOverrideDialog, applyRounding } from '@/components/calc-cost-override-dialog'
+import { ProductCostNoteDialog } from '@/components/product-cost-note-dialog'
+import { updateProductCost } from '@/app/actions/product-costs'
+import { StickyNote } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, WarehousePriceOption } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -149,6 +152,11 @@ interface CalcItem {
   contractPerUnitOverride: number | null // manual override for contract price per unit
   supplierName: string
   warehouseName: string
+  // PWC.id + note прокидываются из ProductWarehouseCost. Если note есть —
+  // в колонке «Поставщик» появляется иконка для просмотра/редактирования.
+  // pwc_id нужен для PUT'а изменения обратно на бэк.
+  warehousePwcId?: number
+  warehouseNote?: string | null
   // Был ли товар добавлен в подписанный контракт. Если да — показываем
   // «после подписания» бейдж и не пересчитываем автоматически (часть снимка).
   addedAfterSign?: boolean
@@ -214,6 +222,8 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       contractPerUnitOverride: null,
       supplierName: selectedWp?.supplier_name || item.supplier_name || '',
       warehouseName: selectedWp?.warehouse_name || '',
+      warehousePwcId: selectedWp?.pwc_id,
+      warehouseNote: selectedWp?.note ?? null,
       paymentDate: '',
       deliveryTerms: '',
       paymentTerms: '',
@@ -239,6 +249,8 @@ export default function CalculatorPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([])
   // Открытая модалка «Зафиксировать себестоимость». kpId === null = закрыта.
   const [costOverrideDialogKpId, setCostOverrideDialogKpId] = useState<string | null>(null)
+  // Открытая модалка «Примечание склада». Хранит kpId редактируемой строки.
+  const [warehouseNoteKpId, setWarehouseNoteKpId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
   const [showSignConfirm, setShowSignConfirm] = useState(false)
@@ -400,6 +412,32 @@ export default function CalculatorPage() {
       item.kpId === kpId ? { ...item, [field]: value } : item
     ))
   }, [])
+
+  // Сохранение примечания склада (PWC.note) из модалки в строке корп.расчётника.
+  // Шлёт PUT /meta/product-costs/<id> + синхронизирует обе стороны:
+  //   - items state в расчётнике (для отображения кнопки/модалки)
+  //   - kpItems в KP-контексте (чтобы на /kp в карточке тоже видеть свежую заметку)
+  const handleSaveWarehouseNote = useCallback(async (kpId: string, value: string) => {
+    const item = items.find(i => i.kpId === kpId)
+    if (!item || !item.warehousePwcId) return
+    const newNote = value.trim() ? value.trim() : null
+    const result = await updateProductCost(item.warehousePwcId, { note: newNote })
+    if (!result.success) {
+      toast({ variant: 'destructive', title: 'Не удалось сохранить', description: result.error })
+      return
+    }
+    setItems(prev => prev.map(i => i.kpId === kpId ? { ...i, warehouseNote: newNote } : i))
+    // Синкаем warehousePrices в KP-контексте — чтобы карточка на /kp тоже
+    // подтянула свежее значение без перезагрузки.
+    const kpItem = kpItems.find(it => it.kpId === kpId)
+    if (kpItem?.warehousePrices) {
+      const newWarehousePrices = kpItem.warehousePrices.map(wp =>
+        wp.pwc_id === item.warehousePwcId ? { ...wp, note: newNote } : wp
+      )
+      updateKpItem(kpId, { warehousePrices: newWarehousePrices })
+    }
+    toast({ title: newNote ? 'Примечание сохранено' : 'Примечание удалено' })
+  }, [items, kpItems, updateKpItem, toast])
 
   // Expenses
   const addExpense = useCallback(() => {
@@ -672,19 +710,19 @@ export default function CalculatorPage() {
 
       {/* Main table */}
       <div className="max-w-[1600px] mx-auto overflow-x-auto">
-        <table className="w-full border-collapse text-[10px] bg-white rounded-xl border shadow-sm table-fixed">
+        <table className="w-full border-collapse text-[10px] bg-white rounded-xl border shadow-sm table-auto">
           <thead>
             <tr className="bg-gray-100">
               <th rowSpan={2} className="border px-1 py-1 text-center w-7">№</th>
-              <th rowSpan={2} className="border px-1 py-1 text-left w-[140px]">Наименование</th>
+              <th rowSpan={2} className="border px-1 py-1 text-left min-w-[140px]">Наименование</th>
               <th rowSpan={2} className="border px-1 py-1 text-center w-14 whitespace-nowrap">Кол-во</th>
               <th colSpan={4} className="border px-1 py-1 text-center bg-blue-50">Сумма контракта</th>
               <th colSpan={4} className="border px-1 py-1 text-center bg-green-50">Себестоимость</th>
-              <th rowSpan={2} className="border px-1 py-1 text-left w-[70px]">Поставщик</th>
-              <th rowSpan={2} className="border px-1 py-1 text-left w-[80px]">Примечание</th>
-              <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Дата оплаты</th>
-              <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Сроки поставки</th>
-              <th rowSpan={2} className="border px-1 py-1 text-center w-[70px]">Условия оплаты</th>
+              <th rowSpan={2} className="border px-1 py-1 text-left min-w-[110px]">Поставщик</th>
+              <th rowSpan={2} className="border px-1 py-1 text-left min-w-[130px]">Примечание</th>
+              <th rowSpan={2} className="border px-1 py-1 text-center min-w-[90px] whitespace-nowrap">Дата<br />оплаты</th>
+              <th rowSpan={2} className="border px-1 py-1 text-center min-w-[110px] whitespace-nowrap">Сроки<br />поставки</th>
+              <th rowSpan={2} className="border px-1 py-1 text-center min-w-[110px] whitespace-nowrap">Условия<br />оплаты</th>
             </tr>
             <tr className="bg-gray-50">
               <th className="border px-1 py-1 text-center bg-blue-50 text-[10px]">Цена за ед.</th>
@@ -799,7 +837,21 @@ export default function CalculatorPage() {
                   </td>
 
                   {/* Info fields */}
-                  <td className="border px-1 py-1 text-gray-600 truncate max-w-[70px]" title={item.supplierName}>{item.supplierName}</td>
+                  <td className="border px-1 py-1 text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <span className="flex-1 min-w-0 break-words" title={item.supplierName}>{item.supplierName}</span>
+                      {item.warehouseNote && (
+                        <button
+                          type="button"
+                          onClick={() => setWarehouseNoteKpId(item.kpId)}
+                          className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-yellow-600 hover:bg-yellow-100 border border-yellow-300 bg-yellow-50"
+                          title="Примечание склада (клик — посмотреть/изменить)"
+                        >
+                          <StickyNote className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <TextCell value={item.note} onChange={v => updateItem(item.kpId, 'note', v)} placeholder="Примечание" />
                   <DateCell value={item.paymentDate} onChange={v => updateItem(item.kpId, 'paymentDate', v)} />
                   <TextCell value={item.deliveryTerms} onChange={v => updateItem(item.kpId, 'deliveryTerms', v)} placeholder="Сроки поставки" />
@@ -975,6 +1027,21 @@ export default function CalculatorPage() {
         )
       })()}
 
+      {/* Warehouse note modal — переиспользуем ProductCostNoteDialog. */}
+      {warehouseNoteKpId && (() => {
+        const item = items.find(i => i.kpId === warehouseNoteKpId)
+        if (!item) return null
+        return (
+          <ProductCostNoteDialog
+            open={true}
+            onOpenChange={(open) => { if (!open) setWarehouseNoteKpId(null) }}
+            initialValue={item.warehouseNote || ''}
+            warehouseLabel={item.warehouseName ? `${item.supplierName ? item.supplierName + ' — ' : ''}${item.warehouseName}` : undefined}
+            onSave={(value) => handleSaveWarehouseNote(item.kpId, value)}
+          />
+        )
+      })()}
+
       {/* Help modal */}
       {showHelp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowHelp(false)}>
@@ -1066,6 +1133,27 @@ export default function CalculatorPage() {
               <div>
                 <h4 className="font-semibold text-orange-600 mb-1">Строка разницы (Δ)</h4>
                 <p>Появляется только когда вручную изменена <b>За ед.</b> в себестоимости. Показывает разницу между новым и оригинальным значением по всем колонкам.</p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-yellow-600 mb-1">Два примечания у строки</h4>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>
+                    <b>Жёлтая кнопка-стикер в колонке «Поставщик»</b> — общая заметка к товару на этом складе.
+                    Появляется только если заметка существует. Открывает модалку для просмотра, редактирования или удаления.
+                    Заметка <b>живёт на складе товара</b> (`product_warehouse_cost.note`) и видна везде, где этот склад используется
+                    (карточка товара в админке, корп.расчётник).
+                  </li>
+                  <li>
+                    <b>Колонка «Примечание»</b> — свободный текст <b>только для этого КП</b>. Не синхронизируется со складом
+                    и не виден в других расчётниках, даже если выбран тот же товар и склад.
+                  </li>
+                </ul>
+                <p className="mt-2 text-gray-500">
+                  Стикер у поставщика появляется в строке расчётника только если на момент добавления товара
+                  в КП у склада уже была заметка. Если заметку добавили позже — удалите товар из КП и добавьте заново,
+                  чтобы расчётник подтянул свежую информацию.
+                </p>
               </div>
 
               <div>
