@@ -229,6 +229,7 @@ interface KPContextType {
   removeItem: (kpId: string) => void
   updateItemQuantity: (kpId: string, quantity: number) => void
   updateItem: (kpId: string, updates: Partial<KPItem>) => void
+  reorderItems: (sourceIndex: number, destIndex: number) => void
   clearAll: () => void
   isInKP: (productId: number) => boolean
   // Settings
@@ -445,6 +446,21 @@ export function KPProvider({ children }: { children: ReactNode }) {
 
   const updateItem = useCallback((kpId: string, updates: Partial<KPItem>) => {
     setKpItems(prev => prev.map(item => item.kpId === kpId ? { ...item, ...updates } : item))
+  }, [])
+
+  // Перестановка строк в КП. Используется и левой панелью (drag&drop через
+  // @dnd-kit), и автоматически распространяется на A4-превью — оно
+  // рендерится из того же kpItems массива.
+  const reorderItems = useCallback((sourceIndex: number, destIndex: number) => {
+    setKpItems(prev => {
+      if (sourceIndex === destIndex) return prev
+      if (sourceIndex < 0 || sourceIndex >= prev.length) return prev
+      if (destIndex < 0 || destIndex >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(sourceIndex, 1)
+      next.splice(destIndex, 0, moved)
+      return next
+    })
   }, [])
 
   const clearAll = useCallback(() => {
@@ -731,7 +747,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
 
   const value: KPContextType = {
     kpItems, kpCount: kpItems.length,
-    addItem, removeItem, updateItemQuantity, updateItem, clearAll, isInKP,
+    addItem, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll, isInKP,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     calculatorData, setCalculatorData,

@@ -9,7 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users, User, Info, Building2 } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users, User, Info, Building2, GripVertical } from 'lucide-react'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { KpShareDialog } from '@/components/kp-share-dialog'
 import { KpClientPickerDialog } from '@/components/kp-client-picker-dialog'
 import { getKpShareTargets, type KpShareTarget } from '@/app/actions/kp-share'
@@ -192,8 +195,11 @@ function visibleCharacteristics(chars?: Array<{ key: string; value: string }>) {
   return chars.filter(ch => ch.key.toLowerCase() !== 'code')
 }
 
-// ── Product card with description & characteristics ──
-function KPProductCard({
+// ── Sortable wrapper для карточки товара ──
+// `useSortable` даёт нам attributes/listeners для grip-handle и стиль для
+// transform. Карточка сама внутри обрабатывает свои клики/инпуты; grip
+// единственная зона которая инициирует drag.
+function SortableKPProductCard({
   item,
   updateItem,
   updateItemQuantity,
@@ -204,9 +210,49 @@ function KPProductCard({
   updateItemQuantity: (kpId: string, qty: number) => void
   removeItem: (kpId: string) => void
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.kpId })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+  return (
+    <div ref={setNodeRef} style={style}>
+      <KPProductCard
+        item={item}
+        updateItem={updateItem}
+        updateItemQuantity={updateItemQuantity}
+        removeItem={removeItem}
+        dragHandleProps={{ attributes, listeners }}
+      />
+    </div>
+  )
+}
+
+// ── Product card with description & characteristics ──
+function KPProductCard({
+  item,
+  updateItem,
+  updateItemQuantity,
+  removeItem,
+  dragHandleProps,
+  isDragOverlay,
+}: {
+  item: KPItem
+  updateItem: (kpId: string, updates: Partial<KPItem>) => void
+  updateItemQuantity: (kpId: string, qty: number) => void
+  removeItem: (kpId: string) => void
+  // Из @dnd-kit/sortable приходят props для grip-кнопки. Опционально:
+  // на A4-превью (если когда-то отрендерим этот же компонент) они не нужны.
+  dragHandleProps?: { attributes?: React.HTMLAttributes<HTMLElement>; listeners?: any }
+  isDragOverlay?: boolean
+}) {
   const [expanded, setExpanded] = useState(false)
+  const [descExpanded, setDescExpanded] = useState(false)
+  const [charsExpanded, setCharsExpanded] = useState(false)
   const visibleChars = visibleCharacteristics(item.characteristics)
   const warehousePrices = item.warehousePrices || []
+  const hasDescription = (item.description || '').trim().length > 0
 
   const handleAddCharacteristic = () => {
     const chars = [...(item.characteristics || []), { key: '', value: '' }]
@@ -251,126 +297,178 @@ function KPProductCard({
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card className={`shadow-sm ${isDragOverlay ? 'ring-2 ring-yellow-400 shadow-lg rotate-1' : ''}`}>
       <CardContent className="p-2">
-        {/* Header row — always visible (image, name, delete, expand toggle) */}
-        <div className="flex gap-2 items-center">
-          <Link href={`/product/${item.slug}`} className="relative w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0">
+        {/* Header row — always visible: drag-handle, image, name, actions */}
+        <div className="flex gap-1.5 items-center">
+          {/* Grip-handle. Только она реагирует на drag — а не вся карточка,
+              чтобы внутри можно было кликать кнопки/раскрывать секции без
+              перетаскивания. */}
+          <button
+            {...(dragHandleProps?.attributes || {})}
+            {...(dragHandleProps?.listeners || {})}
+            type="button"
+            className="h-7 w-5 flex items-center justify-center text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+            title="Перетащить для изменения порядка"
+            aria-label="Перетащить"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <Link href={`/product/${item.slug}`} className="relative w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-gray-100">
             {item.image_url ? (
               <Image src={getImageUrl(item.image_url)} alt={item.name} fill className="object-contain p-0.5" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400"><FileText className="h-3 w-3" /></div>
             )}
           </Link>
-          <span className="text-xs font-medium text-gray-900 flex-1 min-w-0 truncate">{item.name}</span>
-          <button onClick={() => removeItem(item.kpId)} className="h-5 w-5 flex items-center justify-center text-red-500 hover:text-red-700 flex-shrink-0 border border-red-400 rounded bg-white [box-shadow:1px_2px_4px_rgba(0,0,0,0.12)]">
-            <Trash2 className="h-3 w-3" />
-          </button>
-          <button onClick={() => setExpanded(!expanded)} className="h-5 w-5 flex items-center justify-center text-gray-600 hover:text-gray-900 flex-shrink-0 border border-yellow-400 rounded bg-white [box-shadow:1px_2px_4px_rgba(0,0,0,0.12)]">
-            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
+          <span className="text-xs font-medium text-gray-900 flex-1 min-w-0 line-clamp-2 leading-tight" title={item.name}>{item.name}</span>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={() => removeItem(item.kpId)} className="h-6 w-6 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-md border border-red-200 bg-white transition-colors" title="Удалить из КП">
+              <Trash2 className="h-3 w-3" />
+            </button>
+            <button onClick={() => setExpanded(!expanded)} className="h-6 w-6 flex items-center justify-center text-gray-700 hover:bg-yellow-50 rounded-md border border-yellow-400 bg-white transition-colors" title={expanded ? 'Свернуть' : 'Развернуть'}>
+              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+          </div>
         </div>
 
-        {/* Expanded content */}
+        {/* Expanded body — name/warehouse/price/qty + collapsed sections */}
         {expanded && (
-          <div className="mt-2 pt-2 border-t space-y-2">
+          <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
             {/* Name edit */}
-            <AutoTextarea
-              value={item.name}
-              onChange={(val) => updateItem(item.kpId, { name: val })}
-              className="text-xs font-medium text-gray-900 w-full bg-transparent border border-gray-200 hover:border-gray-300 focus:border-blue-400 rounded p-1 outline-none resize-none leading-tight"
-            />
+            <div>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Название</label>
+              <AutoTextarea
+                value={item.name}
+                onChange={(val) => updateItem(item.kpId, { name: val })}
+                className="text-xs font-medium text-gray-900 w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-blue-400 rounded p-1.5 outline-none resize-none leading-tight mt-0.5"
+              />
+            </div>
 
             {/* Warehouse selector */}
             {warehousePrices.length > 0 && (
-              <select
-                value={item.selectedWarehouseId ? String(item.selectedWarehouseId) : ''}
-                onChange={(e) => handleWarehouseChange(e.target.value)}
-                className="text-xs w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-6 outline-none text-gray-700"
-              >
-                <option value="">Выбрать поставщика/склад...</option>
-                {warehousePrices.map((wp) => (
-                  <option key={wp.warehouse_id} value={String(wp.warehouse_id)}>
-                    {wp.supplier_name ? `${wp.supplier_name} — ` : ''}{wp.warehouse_name}: {formatProductPrice(wp.calculated_price || 0)} ₸
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Поставщик / склад</label>
+                <select
+                  value={item.selectedWarehouseId ? String(item.selectedWarehouseId) : ''}
+                  onChange={(e) => handleWarehouseChange(e.target.value)}
+                  className="text-xs w-full bg-white border border-gray-200 focus:border-blue-400 rounded px-1.5 h-7 outline-none text-gray-700 mt-0.5"
+                >
+                  <option value="">Выбрать поставщика/склад…</option>
+                  {warehousePrices.map((wp) => (
+                    <option key={wp.warehouse_id} value={String(wp.warehouse_id)}>
+                      {wp.supplier_name ? `${wp.supplier_name} — ` : ''}{wp.warehouse_name}: {formatProductPrice(wp.calculated_price || 0)} ₸
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
-            {/* Price + Qty */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5">
+            {/* Price + Qty — единый «строка-блок» с разделителем сверху */}
+            <div className="flex items-center justify-between gap-2 px-1 py-1.5 bg-gray-50 rounded-md border border-gray-100">
+              <div className="flex items-baseline gap-1">
                 <input
                   type="number"
                   value={item.price}
                   onChange={(e) => updateItem(item.kpId, { price: parseFloat(e.target.value) || 0 })}
-                  className="text-base font-bold text-gray-800 w-24 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-400 rounded px-0.5 h-7 outline-none"
+                  className="text-base font-bold text-gray-900 w-24 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-400 rounded px-0.5 h-7 outline-none"
                 />
-                <span className="text-xs text-gray-400">₸</span>
+                <span className="text-xs text-gray-500">₸</span>
               </div>
-              <div className="flex items-center gap-0.5 ml-auto">
+              <div className="flex items-center gap-1">
                 <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.kpId, item.quantity - 1)} disabled={item.quantity <= 1} className="w-6 h-6 rounded-full p-0 text-xs">
                   <Minus className="h-3 w-3" />
                 </Button>
                 <input
-                  type="text" value={item.quantity}
+                  type="text"
+                  value={item.quantity}
                   onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) updateItemQuantity(item.kpId, v) }}
-                  className="w-8 text-center text-xs border rounded h-6"
+                  className="w-9 text-center text-xs border border-gray-200 bg-white rounded h-6"
                 />
-                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.kpId, item.quantity + 1)} className="w-6 h-6 rounded-full p-0 text-xs bg-yellow-400 hover:bg-yellow-500">
+                <Button variant="outline" size="sm" onClick={() => updateItemQuantity(item.kpId, item.quantity + 1)} className="w-6 h-6 rounded-full p-0 text-xs bg-yellow-400 hover:bg-yellow-500 border-yellow-400">
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase">Описание</label>
-              <AutoTextarea
-                value={item.description || ''}
-                onChange={(val) => updateItem(item.kpId, { description: val })}
-                placeholder="Описание товара..."
-                className="text-[11px] text-gray-700 w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded p-1.5 resize-none leading-tight outline-none mt-0.5"
-              />
+            {/* ── Описание (collapsible) ── */}
+            <div className="border border-gray-100 rounded-md overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDescExpanded(!descExpanded)}
+                className="w-full flex items-center justify-between px-2 py-1.5 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+                  Описание
+                  {hasDescription && <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-yellow-100 text-yellow-800 text-[9px] font-bold">●</span>}
+                </span>
+                {descExpanded ? <ChevronUp className="h-3 w-3 text-gray-500" /> : <ChevronDown className="h-3 w-3 text-gray-500" />}
+              </button>
+              {descExpanded && (
+                <div className="p-1.5 bg-white">
+                  <AutoTextarea
+                    value={item.description || ''}
+                    onChange={(val) => updateItem(item.kpId, { description: val })}
+                    placeholder="Описание товара…"
+                    className="text-[11px] text-gray-700 w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded p-1.5 resize-none leading-tight outline-none"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Characteristics */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-medium text-gray-500 uppercase">Характеристики</label>
-                <button
-                  onClick={handleAddCharacteristic}
-                  className="text-[10px] text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-                >
-                  <Plus className="h-2.5 w-2.5" /> Добавить
-                </button>
-              </div>
-              {visibleChars.map((ch, idx) => (
-                <div key={idx} className="flex items-center gap-1 mt-1">
-                  <input
-                    type="text"
-                    value={ch.key}
-                    onChange={(e) => handleUpdateCharacteristic(idx, 'key', e.target.value)}
-                    placeholder="Ключ"
-                    className="text-[10px] w-1/3 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={ch.value}
-                    onChange={(e) => handleUpdateCharacteristic(idx, 'value', e.target.value)}
-                    placeholder="Значение"
-                    className="text-[10px] flex-1 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
-                  />
+            {/* ── Характеристики (collapsible) ── */}
+            <div className="border border-gray-100 rounded-md overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCharsExpanded(!charsExpanded)}
+                className="w-full flex items-center justify-between px-2 py-1.5 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+                  Характеристики
+                  {visibleChars.length > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-yellow-100 text-yellow-800 text-[9px] font-bold">
+                      {visibleChars.length}
+                    </span>
+                  )}
+                </span>
+                {charsExpanded ? <ChevronUp className="h-3 w-3 text-gray-500" /> : <ChevronDown className="h-3 w-3 text-gray-500" />}
+              </button>
+              {charsExpanded && (
+                <div className="p-1.5 bg-white space-y-1">
                   <button
-                    onClick={() => handleRemoveCharacteristic(idx)}
-                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                    onClick={handleAddCharacteristic}
+                    className="w-full text-[10px] text-blue-600 hover:text-blue-800 hover:bg-blue-50 flex items-center justify-center gap-0.5 py-1 border border-dashed border-blue-200 rounded transition-colors"
                   >
-                    <X className="h-3 w-3" />
+                    <Plus className="h-2.5 w-2.5" /> Добавить характеристику
                   </button>
+                  {visibleChars.map((ch, idx) => (
+                    <div key={idx} className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={ch.key}
+                        onChange={(e) => handleUpdateCharacteristic(idx, 'key', e.target.value)}
+                        placeholder="Ключ"
+                        className="text-[10px] w-1/3 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={ch.value}
+                        onChange={(e) => handleUpdateCharacteristic(idx, 'value', e.target.value)}
+                        placeholder="Значение"
+                        className="text-[10px] flex-1 bg-gray-50 border border-gray-200 focus:border-blue-400 rounded px-1 h-5 outline-none"
+                      />
+                      <button
+                        onClick={() => handleRemoveCharacteristic(idx)}
+                        className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {visibleChars.length === 0 && (
+                    <p className="text-[10px] text-gray-400 text-center py-1">Нет характеристик</p>
+                  )}
                 </div>
-              ))}
-              {visibleChars.length === 0 && (
-                <p className="text-[10px] text-gray-400 mt-1">Нет характеристик</p>
               )}
             </div>
           </div>
@@ -384,7 +482,7 @@ function KPProductCard({
 export default function KPPage() {
   const { user } = useAuth()
   const {
-    kpItems, kpCount, removeItem, updateItemQuantity, updateItem, clearAll,
+    kpItems, kpCount, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
     addTextElement, updateTextElement, removeTextElement,
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
@@ -394,6 +492,12 @@ export default function KPPage() {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLTableElement>(null)
+  // DnD-сенсоры: pointer (с минимальной дистанцией чтобы не сбивать клики
+  // по другим интерактивным элементам внутри карточки) + клавиатура.
+  const kpDndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
   const [scale, setScale] = useState(0.5)
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [editingElement, setEditingElement] = useState<string | null>(null)
@@ -1490,16 +1594,41 @@ export default function KPPage() {
         <Panel defaultSize={25} minSize={15}>
           <div className="h-full overflow-y-auto border-r bg-gray-50">
             <div className="p-3 space-y-2">
-              <h2 className="text-sm font-semibold text-gray-600 px-1">Товары в КП</h2>
-              {kpItems.map((item) => (
-                <KPProductCard
-                  key={item.kpId}
-                  item={item}
-                  updateItem={updateItem}
-                  updateItemQuantity={updateItemQuantity}
-                  removeItem={removeItem}
-                />
-              ))}
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-sm font-semibold text-gray-600">Товары в КП</h2>
+                {kpItems.length > 1 && (
+                  <span className="text-[10px] text-gray-400 flex items-center gap-1" title="Перетащите за иконку слева для изменения порядка">
+                    <GripVertical className="h-3 w-3" />
+                    переставить
+                  </span>
+                )}
+              </div>
+              <DndContext
+                sensors={kpDndSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event: DragEndEvent) => {
+                  const { active, over } = event
+                  if (!over || active.id === over.id) return
+                  const oldIndex = kpItems.findIndex((it) => it.kpId === active.id)
+                  const newIndex = kpItems.findIndex((it) => it.kpId === over.id)
+                  if (oldIndex < 0 || newIndex < 0) return
+                  reorderItems(oldIndex, newIndex)
+                }}
+              >
+                <SortableContext items={kpItems.map((it) => it.kpId)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {kpItems.map((item) => (
+                      <SortableKPProductCard
+                        key={item.kpId}
+                        item={item}
+                        updateItem={updateItem}
+                        updateItemQuantity={updateItemQuantity}
+                        removeItem={removeItem}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
               <div className="bg-white rounded-lg border p-2 mt-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500">{kpCount} поз.</span>
