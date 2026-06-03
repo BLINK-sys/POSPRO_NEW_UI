@@ -26,8 +26,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast"
 import {
   Loader2, List, ImageIcon, FileText, ChevronsUpDown, ArrowLeft, BookOpen,
-  Warehouse as WarehouseIcon, Plus, Trash2, Wand2,
+  Warehouse as WarehouseIcon, Plus, Trash2, Wand2, StickyNote, Info,
 } from "lucide-react"
+import { ProductCostNoteDialog } from "@/components/product-cost-note-dialog"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { BrandSelectDialog } from "./brand-select-dialog"
 import { ProductCharacteristicsDialog } from "./product-characteristics-dialog"
@@ -144,6 +145,11 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
   const [addingWarehouseId, setAddingWarehouseId] = useState("")
   const [addingCostPrice, setAddingCostPrice] = useState("")
   const [addingQuantity, setAddingQuantity] = useState("")
+  const [addingNote, setAddingNote] = useState("")
+  // Note dialog state. Если costId=null → редактируем «новую» строку
+  // (поле addingNote выше). Если costId=N → редактируем существующую запись.
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false)
+  const [noteDialogCostId, setNoteDialogCostId] = useState<number | null>(null)
   const quantityDebouncesRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
   // Create draft on mount
@@ -277,13 +283,33 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
         warehouse_id: Number(addingWarehouseId),
         cost_price: Number(addingCostPrice),
         quantity: Math.max(0, Number(addingQuantity) || 0),
+        note: addingNote.trim() || null,
       })
       if (result.success && result.data) {
         setAllCosts([...allCosts, result.data])
         setAddingWarehouseId("")
         setAddingCostPrice("")
         setAddingQuantity("")
+        setAddingNote("")
         toast({ title: "Себестоимость добавлена" })
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error })
+      }
+    })
+  }
+
+  // Сохранение заметки. costId=null → меняем локальный addingNote
+  // (новая, ещё не добавленная строка). costId=N → отправляем PUT на бэк.
+  const handleSaveNote = (costId: number | null, value: string) => {
+    if (costId === null) {
+      setAddingNote(value)
+      return
+    }
+    startTransition(async () => {
+      const result = await updateProductCost(costId, { note: value.trim() || null })
+      if (result.success && result.data) {
+        setAllCosts(allCosts.map((c) => (c.id === costId ? result.data! : c)))
+        toast({ title: "Примечание сохранено" })
       } else {
         toast({ variant: "destructive", title: "Ошибка", description: result.error })
       }
@@ -746,6 +772,16 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  onClick={() => { setNoteDialogCostId(cost.id); setNoteDialogOpen(true) }}
+                                  disabled={isPending}
+                                  className="rounded-full hover:bg-yellow-50"
+                                  title={cost.note ? "Изменить примечание" : "Добавить примечание"}
+                                >
+                                  <StickyNote className={cn("h-4 w-4", cost.note ? "text-yellow-600" : "text-gray-400")} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={() => handleDeleteWarehouseCost(cost.id)}
                                   disabled={isPending}
                                   className="rounded-full hover:bg-red-50"
@@ -759,34 +795,62 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
                       </div>
                     )}
                     {supplierWarehouses.length > 0 ? (
-                      <div className="flex items-end gap-2 pt-2 border-t">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs">Склад</Label>
-                          <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
-                            <SelectTrigger className={cn("text-sm", SOFT_CONTROL)}><SelectValue placeholder="Выберите склад" /></SelectTrigger>
-                            <SelectContent>
-                              {supplierWarehouses.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
-                                <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div className="pt-2 border-t space-y-3">
+                        <div className="flex items-end gap-2 flex-wrap">
+                          <div className="flex-1 min-w-[160px] space-y-1">
+                            <Label className="text-xs">Склад</Label>
+                            <Select value={addingWarehouseId} onValueChange={setAddingWarehouseId}>
+                              <SelectTrigger className={cn("text-sm", SOFT_CONTROL)}><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                              <SelectContent>
+                                {supplierWarehouses.filter((w) => !allCosts.some((c) => c.warehouse_id === w.id)).map((w) => (
+                                  <SelectItem key={w.id} value={String(w.id)}>{w.name} ({w.currency?.code})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="w-[120px] space-y-1">
+                            <Label className="text-xs">Себестоимость</Label>
+                            <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
+                          </div>
+                          <div className="w-[90px] space-y-1">
+                            <Label className="text-xs">Остаток</Label>
+                            <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { setNoteDialogCostId(null); setNoteDialogOpen(true) }}
+                            className="h-10 px-3 text-xs rounded-md border-gray-200"
+                            title={addingNote ? "Изменить примечание" : "Добавить примечание"}
+                          >
+                            <StickyNote className={cn("h-4 w-4", addingNote ? "text-yellow-600" : "text-gray-400")} />
+                            {addingNote ? "Примечание ✓" : "Примечание"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleAddWarehouseCost}
+                            disabled={isPending || !addingWarehouseId || !addingCostPrice || !draftId}
+                            className={cn(PRIMARY_BTN, "h-10 px-4")}
+                          >
+                            <Plus className="h-4 w-4 mr-1.5" />
+                            Добавить
+                          </Button>
                         </div>
-                        <div className="w-[120px] space-y-1">
-                          <Label className="text-xs">Себестоимость</Label>
-                          <Input type="number" step="0.01" value={addingCostPrice} onChange={(e) => setAddingCostPrice(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
+                        {/* Описание под формой — что вообще тут делает кнопка. */}
+                        <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-800 leading-relaxed">
+                          <Info className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            Привязывает выбранный склад к товару с указанной
+                            себестоимостью и остатком. После добавления цена
+                            на витрине пересчитывается по формуле этого склада:
+                            если формула <b>не использует</b> вес/габариты —
+                            характеристики вес/габариты не нужны и расчёт пройдёт
+                            штатно; если формула <b>использует</b> в расчётах
+                            вес/габариты — цена остаётся 0 до их заполнения.
+                            Заметка опциональна — видна только в админке.
+                          </div>
                         </div>
-                        <div className="w-[90px] space-y-1">
-                          <Label className="text-xs">Остаток</Label>
-                          <Input type="number" min={0} step={1} value={addingQuantity} onChange={(e) => setAddingQuantity(e.target.value)} placeholder="0" className={cn("text-sm", SOFT_CONTROL)} disabled={isPending} />
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={handleAddWarehouseCost}
-                          disabled={isPending || !addingWarehouseId || !addingCostPrice || !draftId}
-                          className={PRIMARY_BTN}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
                       </div>
                     ) : (
                       <div className="text-xs text-gray-400 text-center py-2">У этого поставщика нет складов.</div>
@@ -849,6 +913,22 @@ export function ProductCreatePage({ categories, brands, statuses, suppliers }: P
           onImported={handleImported}
         />
       )}
+
+      <ProductCostNoteDialog
+        open={noteDialogOpen}
+        onOpenChange={setNoteDialogOpen}
+        initialValue={
+          noteDialogCostId === null
+            ? addingNote
+            : allCosts.find((c) => c.id === noteDialogCostId)?.note || ""
+        }
+        warehouseLabel={
+          noteDialogCostId === null
+            ? supplierWarehouses.find((w) => w.id === Number(addingWarehouseId))?.name
+            : supplierWarehouses.find((w) => w.id === allCosts.find((c) => c.id === noteDialogCostId)?.warehouse_id)?.name
+        }
+        onSave={(value) => handleSaveNote(noteDialogCostId, value)}
+      />
 
       <ParentCategoryDialog
         open={showCategoryDialog}

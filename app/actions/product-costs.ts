@@ -25,6 +25,9 @@ export interface ProductCost {
   // null = формула не настроена либо ещё не пересчитывалась.
   calculated_cost_no_margin: number | null
   calculated_at: string | null
+  // Свободный текст-комментарий менеджера. Редактируется через модалку
+  // «Примечание» в форме товара. Null = заметки нет.
+  note: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -96,6 +99,7 @@ export async function createProductCost(data: {
   warehouse_id: number
   cost_price: number
   quantity?: number
+  note?: string | null
 }): Promise<ProductCostActionResponse> {
   try {
     const token = await getToken()
@@ -119,7 +123,7 @@ export async function createProductCost(data: {
 
 export async function updateProductCost(
   id: number,
-  data: { cost_price?: number; quantity?: number }
+  data: { cost_price?: number; quantity?: number; note?: string | null }
 ): Promise<ProductCostActionResponse> {
   try {
     const token = await getToken()
