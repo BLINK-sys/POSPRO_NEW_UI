@@ -19,6 +19,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import { QuickViewButton } from "@/components/quick-view-modal"
 import CategoryFilter from "@/components/category-filter"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface HomepageBlockComponentProps {
   block: HomepageBlock
@@ -840,7 +841,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
                         fontSize: "12px"
                       }}
                     >
-                      {product.availability_status.status_name}
+                      {formatAvailabilityStatusLabel(product.availability_status)}
                     </span>
                   ) : (
                     <span>{product.quantity} шт.</span>

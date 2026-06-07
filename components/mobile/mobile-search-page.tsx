@@ -21,7 +21,7 @@ import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import MobileProductCard from "./mobile-product-card"
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
 
 export default function MobileSearchPage() {
   const { user } = useAuth()
@@ -31,10 +31,18 @@ export default function MobileSearchPage() {
   const [allResults, setAllResults] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  // Серверная пагинация: current page + facets.
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  const [facetsData, setFacetsData] = useState<{
+    categories: { id: number; name: string; count: number }[]
+    brands: { id: number; name: string; count: number }[]
+    price_min: number
+    price_max: number
+  } | null>(null)
+  const isLoadingMoreRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const searchingRef = useRef(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
 
   // Источник поиска по клику с панели (категория/бренд)
@@ -85,104 +93,119 @@ export default function MobileSearchPage() {
     })
   }
 
-  // Extract unique categories from ALL search results
+  // Все «available»-списки приходят с бэка как facets — фильтры server-side.
   const availableCategories = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const p of allResults) {
-      const catId = p.category_id ? Number(p.category_id) : null
-      if (catId) {
-        let name: string | undefined
-        if (p.category && typeof p.category === "object" && "name" in p.category) {
-          name = (p.category as any).name
-        } else if (p.category && typeof p.category === "string") {
-          name = p.category as unknown as string
-        }
-        if (name) {
-          map.set(catId, name)
-        }
+    const map = new Map<number, { name: string; count?: number }>()
+    if (facetsData) {
+      for (const c of facetsData.categories) map.set(c.id, { name: c.name, count: c.count })
+    }
+    for (const id of selectedCategories) {
+      if (map.has(id)) continue
+      const found = allResults.find((p) => p.category_id != null && Number(p.category_id) === id)
+      let name: string | undefined
+      if (found?.category && typeof found.category === "object" && "name" in found.category) {
+        name = (found.category as any).name
+      } else if (found?.category && typeof found.category === "string") {
+        name = found.category as unknown as string
       }
+      if (name) map.set(id, { name })
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, count: v.count }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [allResults])
+  }, [facetsData, selectedCategories, allResults])
 
-  // Extract unique brands from ALL search results
   const availableBrands = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const p of allResults) {
-      const brandId = p.brand_id ? Number(p.brand_id) : null
-      if (brandId && p.brand_info) {
-        map.set(brandId, p.brand_info.name)
-      }
+    const map = new Map<number, { name: string; count?: number }>()
+    if (facetsData) {
+      for (const b of facetsData.brands) map.set(b.id, { name: b.name, count: b.count })
+    }
+    for (const id of selectedBrands) {
+      if (map.has(id)) continue
+      const found = allResults.find((p) => p.brand_id != null && Number(p.brand_id) === id)
+      if (found?.brand_info) map.set(id, { name: found.brand_info.name })
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, count: v.count }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [allResults])
+  }, [facetsData, selectedBrands, allResults])
 
-  // Apply client-side filters to ALL results
-  const filteredResults = useMemo(() => {
-    let filtered = allResults
-
-    if (selectedCategories.size > 0) {
-      filtered = filtered.filter((p) => selectedCategories.has(Number(p.category_id)))
-    }
-    if (selectedBrands.size > 0) {
-      filtered = filtered.filter((p) => selectedBrands.has(Number(p.brand_id)))
-    }
-    if (priceFrom) {
-      const min = Number(priceFrom)
-      if (!isNaN(min)) {
-        filtered = filtered.filter((p) => p.price >= min)
-      }
-    }
-    if (priceTo) {
-      const max = Number(priceTo)
-      if (!isNaN(max)) {
-        filtered = filtered.filter((p) => p.price <= max)
-      }
-    }
-
-    return filtered
-  }, [allResults, selectedCategories, selectedBrands, priceFrom, priceTo])
-
-  // Visible slice for pagination
-  const visibleResults = useMemo(
-    () => filteredResults.slice(0, visibleCount),
-    [filteredResults, visibleCount]
-  )
-
-  const hasMore = visibleCount < filteredResults.length
-  const remaining = Math.max(0, filteredResults.length - visibleCount)
+  // Серверная пагинация: items накапливаются в allResults при скролле.
+  const filteredResults = allResults
+  const visibleResults = allResults
+  const hasMore = totalCount !== null && allResults.length < totalCount
+  const remaining = totalCount !== null ? Math.max(0, totalCount - allResults.length) : 0
 
   // Autofocus
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [])
 
-  // Search with guard against concurrent calls — direct API call (bypasses server action serialization)
+  // AbortController текущего запроса — для отмены предыдущего при новом
+  // нажатии клавиши (live-search). Ref не вызывает ререндер.
+  const searchAbortRef = useRef<AbortController | null>(null)
+
+  // Server-side search: фильтры + пагинация на бэке. Идентичная логика
+  // как в desktop-search-page — см. там более подробные комментарии.
   const doSearch = useCallback(async (
-    searchQuery: string,
-    options?: { categoryId?: number | null; brandId?: number | null }
+    args: {
+      query?: string
+      categoryIds?: number[]
+      brandIds?: number[]
+      pmin?: string | number
+      pmax?: string | number
+      page?: number
+      append?: boolean
+    } = {}
   ) => {
-    const trimmedQuery = searchQuery.trim()
-    const categoryId = options?.categoryId ?? null
-    const brandId = options?.brandId ?? null
-    const hasFilter = categoryId || brandId
-    if (!hasFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
+    const trimmedQuery = (args.query ?? "").trim()
+    const categoryIds = args.categoryIds ?? []
+    const brandIds = args.brandIds ?? []
+    const pminStr = args.pmin !== undefined ? String(args.pmin) : ""
+    const pmaxStr = args.pmax !== undefined ? String(args.pmax) : ""
+    const page = args.page ?? 1
+    const append = !!args.append
+
+    const hasAnyFilter = categoryIds.length > 0 || brandIds.length > 0 || pminStr || pmaxStr
+    if (!hasAnyFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
+      searchAbortRef.current?.abort()
       setAllResults([])
-      setVisibleCount(PAGE_SIZE)
+      setTotalCount(null)
+      setFacetsData(null)
+      setCurrentPage(1)
+      setLoading(false)
       return
     }
-    // Prevent concurrent searches
-    if (searchingRef.current) return
-    searchingRef.current = true
+    searchAbortRef.current?.abort()
+    const ac = new AbortController()
+    searchAbortRef.current = ac
+    if (append) isLoadingMoreRef.current = true
     setLoading(true)
     try {
-      const products = await searchProductsAction(trimmedQuery, { categoryId, brandId })
+      const params = new URLSearchParams()
+      if (trimmedQuery) params.set("q", trimmedQuery)
+      if (categoryIds.length === 1) params.set("category_id", String(categoryIds[0]))
+      else if (categoryIds.length > 1) params.set("category_ids", categoryIds.join(","))
+      if (brandIds.length === 1) params.set("brand_id", String(brandIds[0]))
+      else if (brandIds.length > 1) params.set("brand_ids", brandIds.join(","))
+      if (pminStr) params.set("pmin", pminStr)
+      if (pmaxStr) params.set("pmax", pmaxStr)
+      params.set("page", String(page))
+      params.set("per_page", String(PAGE_SIZE))
+      if (!append) params.set("with_facets", "1")
 
-      const data: ProductData[] = products.map((product: any) => ({
+      const resp = await fetch(`/api/public/products/search?${params.toString()}`, {
+        method: "GET",
+        signal: ac.signal,
+        cache: "no-store",
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const raw = await resp.json()
+      const items: any[] = Array.isArray(raw) ? raw : (raw.items || [])
+      const total: number | null = Array.isArray(raw) ? items.length : (raw.total_count ?? items.length)
+      const respFacets = (!Array.isArray(raw) && raw.facets) ? raw.facets : null
+
+      const data: ProductData[] = items.map((product: any) => ({
         id: product.id,
         name: product.name,
         slug: product.slug,
@@ -201,21 +224,57 @@ export default function MobileSearchPage() {
         availability_status: product.availability_status ?? undefined,
       }))
 
-      setAllResults(data)
-      setHasSearched(true)
-      setVisibleCount(PAGE_SIZE)
-      // Reset filters on new search
-      setSelectedCategories(new Set())
-      setSelectedBrands(new Set())
-      setPriceFrom("")
-      setPriceTo("")
-    } catch (e) {
-      console.error("Search error:", e)
+      if (!ac.signal.aborted) {
+        if (append) {
+          setAllResults(prev => [...prev, ...data])
+        } else {
+          setAllResults(data)
+          setFacetsData(respFacets)
+        }
+        setTotalCount(total)
+        setCurrentPage(page)
+        setHasSearched(true)
+      }
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.error("Search error:", e)
+      }
     } finally {
-      searchingRef.current = false
-      setLoading(false)
+      if (searchAbortRef.current === ac) {
+        setLoading(false)
+        isLoadingMoreRef.current = false
+      }
     }
   }, [])
+
+  // Live-search debounce 300ms. Реагирует на смену query И фильтров —
+  // фильтры теперь идут на бэк. Пропускаем когда активен применённый
+  // category/brand с панели (там отдельный поток).
+  useEffect(() => {
+    if (appliedCategory || appliedBrand) return
+    const trimmed = query.trim()
+    const hasAnyFilter = selectedCategories.size > 0 || selectedBrands.size > 0 || priceFrom || priceTo
+    if (!hasAnyFilter && (!trimmed || trimmed.length < 2)) {
+      searchAbortRef.current?.abort()
+      setAllResults([])
+      setTotalCount(null)
+      setFacetsData(null)
+      setCurrentPage(1)
+      setLoading(false)
+      return
+    }
+    const t = setTimeout(() => {
+      doSearch({
+        query: trimmed,
+        categoryIds: Array.from(selectedCategories),
+        brandIds: Array.from(selectedBrands),
+        pmin: priceFrom,
+        pmax: priceTo,
+        page: 1,
+      })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
 
   // Загрузка курируемой панели один раз — прямой fetch на API route
   useEffect(() => {
@@ -242,14 +301,14 @@ export default function MobileSearchPage() {
     setQuery("")
     setAppliedCategory({ id: cat.id, name: cat.name })
     setAppliedBrand(null)
-    doSearch("", { categoryId: cat.id })
+    doSearch({ categoryIds: [cat.id], page: 1 })
   }
 
   const searchByBrand = (brand: SearchPageBrandItem) => {
     setQuery("")
     setAppliedBrand({ id: brand.id, name: brand.name })
     setAppliedCategory(null)
-    doSearch("", { brandId: brand.id })
+    doSearch({ brandIds: [brand.id], page: 1 })
   }
 
   const clearAppliedSource = () => {
@@ -259,31 +318,38 @@ export default function MobileSearchPage() {
     setHasSearched(false)
   }
 
-  // Reset visible count when filters change
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE)
-  }, [selectedCategories, selectedBrands, priceFrom, priceTo])
-
-  // IntersectionObserver for auto-loading more
+  // Infinite scroll: достижение sentinel → подгрузка следующей серверной страницы.
+  // appliedCategory/appliedBrand имеют приоритет над selectedCategories/Brands —
+  // при поиске через табы категорий/брендов фильтр сидит в отдельном state,
+  // и без этого учёта подгрузка ушла бы с пустыми фильтрами и схлопнула грид.
   useEffect(() => {
     if (!hasMore) return
-
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + PAGE_SIZE)
-        }
+        if (!entries[0].isIntersecting) return
+        if (loading || isLoadingMoreRef.current) return
+        const catIds = appliedCategory
+          ? [appliedCategory.id]
+          : Array.from(selectedCategories)
+        const brandIds = appliedBrand
+          ? [appliedBrand.id]
+          : Array.from(selectedBrands)
+        doSearch({
+          query,
+          categoryIds: catIds,
+          brandIds,
+          pmin: priceFrom,
+          pmax: priceTo,
+          page: currentPage + 1,
+          append: true,
+        })
       },
       { rootMargin: "200px" }
     )
-
     const el = loadMoreRef.current
     if (el) observer.observe(el)
-
-    return () => {
-      if (el) observer.unobserve(el)
-    }
-  }, [hasMore, filteredResults.length])
+    return () => { if (el) observer.unobserve(el) }
+  }, [hasMore, loading, currentPage, query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
 
   const handleInputChange = (value: string) => {
     setQuery(value)
@@ -297,7 +363,7 @@ export default function MobileSearchPage() {
     if (loading) return
     setAppliedCategory(null)
     setAppliedBrand(null)
-    doSearch(query)
+    doSearch({ query, page: 1 })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -305,7 +371,7 @@ export default function MobileSearchPage() {
       if (loading) return
       setAppliedCategory(null)
       setAppliedBrand(null)
-      doSearch(query)
+      doSearch({ query, page: 1 })
     }
   }
 
@@ -392,9 +458,7 @@ export default function MobileSearchPage() {
               </Button>
             )}
             <span className="text-xs text-gray-500">
-              {hasActiveFilters
-                ? `${filteredResults.length} из ${allResults.length}`
-                : `Найдено: ${allResults.length}`}
+              Найдено: {totalCount ?? allResults.length}
             </span>
           </div>
         )}
@@ -505,7 +569,9 @@ export default function MobileSearchPage() {
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto pb-20">
-        {loading && (
+        {/* Full-screen loading — только когда у нас ещё ничего не загружено.
+            При refetch'е грид остаётся, мерцания нет. */}
+        {loading && !hasSearched && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
           </div>
@@ -517,7 +583,7 @@ export default function MobileSearchPage() {
           </div>
         )}
 
-        {!loading && visibleResults.length > 0 && (
+        {visibleResults.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-2 px-4 py-3">
               {visibleResults.map((product) => (
@@ -529,15 +595,24 @@ export default function MobileSearchPage() {
               ))}
             </div>
 
-            {/* Load more trigger */}
+            {/* Load more trigger — sentinel для IntersectionObserver, кнопка как fallback. */}
             {hasMore && (
               <div ref={loadMoreRef} className="flex justify-center px-4 py-4">
                 <Button
                   variant="outline"
-                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                  onClick={() => doSearch({
+                    query,
+                    categoryIds: appliedCategory ? [appliedCategory.id] : Array.from(selectedCategories),
+                    brandIds: appliedBrand ? [appliedBrand.id] : Array.from(selectedBrands),
+                    pmin: priceFrom,
+                    pmax: priceTo,
+                    page: currentPage + 1,
+                    append: true,
+                  })}
+                  disabled={loading}
                   className="w-full max-w-xs h-10 rounded-xl font-medium"
                 >
-                  Показать ещё ({remaining} осталось)
+                  {loading ? "Загрузка…" : `Показать ещё (${remaining} осталось)`}
                 </Button>
               </div>
             )}

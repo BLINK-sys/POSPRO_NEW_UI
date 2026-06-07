@@ -19,6 +19,7 @@ import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface CategoryPageData {
   category: CategoryData
@@ -507,7 +508,7 @@ export default function CategoryPage() {
                                    fontSize: "12px"
                                  }}
                                >
-                                 {product.availability_status.status_name}
+                                 {formatAvailabilityStatusLabel(product.availability_status)}
                                </span>
                              ) : (
                                <span>{product.quantity} шт.</span>
@@ -592,7 +593,7 @@ export default function CategoryPage() {
                               fontSize: "14px"
                             }}
                           >
-                            {product.availability_status.status_name}
+                            {formatAvailabilityStatusLabel(product.availability_status)}
                           </span>
                         ) : (
                           <span className="text-base font-bold text-gray-500">{product.quantity} шт.</span>

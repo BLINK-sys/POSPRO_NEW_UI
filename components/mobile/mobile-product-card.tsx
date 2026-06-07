@@ -10,6 +10,7 @@ import { getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { useAuth } from "@/context/auth-context"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface MobileProductCardProps {
   product: {
@@ -21,7 +22,7 @@ interface MobileProductCardProps {
     image_url?: string
     brand_info?: { name: string; country?: string }
     status?: { name: string; background_color: string; text_color: string }
-    availability_status?: { status_name: string; background_color: string; text_color: string } | null
+    availability_status?: { status_name: string; background_color: string; text_color: string; is_arrival_status?: boolean; arrival_days?: number | null } | null
     quantity?: number
     supplier_name?: string | null
     suppliers?: { id: number; name: string }[]
@@ -110,7 +111,7 @@ export default function MobileProductCard({ product, wholesaleUser = false, show
                     color: product.availability_status.text_color,
                   }}
                 >
-                  {product.availability_status.status_name}
+                  {formatAvailabilityStatusLabel(product.availability_status)}
                 </span>
               ) : product.quantity !== undefined ? (
                 <span>{product.quantity} шт.</span>

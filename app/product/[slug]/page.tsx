@@ -36,6 +36,7 @@ import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
 import { formatProductPrice, formatPhone, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 
 interface ProductDetail {
@@ -585,7 +586,7 @@ export default function ProductPage() {
                     fontWeight: "500"
                   }}
                 >
-                  {product.availability_status.status_name}
+                  {formatAvailabilityStatusLabel(product.availability_status)}
                 </span>
               ) : (
                 <span>{product.quantity} шт.</span>

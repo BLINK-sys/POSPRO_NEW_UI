@@ -17,6 +17,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { QuickViewButton } from "@/components/quick-view-modal"
 import { AISearchChat, type AISearchResult, type ChatMessage } from "@/components/ai-search-chat"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 // Persisted across navigation (e.g. clicking a product card and returning).
 // Cleared only when user starts a new chat from the chat panel.
@@ -467,7 +468,7 @@ export default function AISearchPage() {
                                     fontSize: "11px",
                                   }}
                                 >
-                                  {product.availability_status.status_name}
+                                  {formatAvailabilityStatusLabel(product.availability_status)}
                                 </span>
                               ) : (
                                 <span>{product.quantity} шт.</span>

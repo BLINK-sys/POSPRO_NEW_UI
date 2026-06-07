@@ -19,6 +19,7 @@ import { API_BASE_URL } from "@/lib/api-address"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 const PER_PAGE = 20
 
@@ -542,7 +543,7 @@ export default function BrandPage() {
                                         fontSize: "12px"
                                       }}
                                     >
-                                      {product.availability_status.status_name}
+                                      {formatAvailabilityStatusLabel(product.availability_status)}
                                     </span>
                                   ) : (
                                     <span>{product.quantity} шт.</span>

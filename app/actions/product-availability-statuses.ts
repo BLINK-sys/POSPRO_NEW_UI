@@ -14,6 +14,11 @@ export interface ProductAvailabilityStatus {
   active: boolean
   supplier_id: number | null
   supplier_name: string | null
+  // Режим «Поступление»: шильдик карточки рендерится как
+  // "<status_name> - <today + arrival_days>". Активация по условию
+  // (operator/value) не меняется.
+  is_arrival_status: boolean
+  arrival_days: number | null
 }
 
 export interface CreateProductAvailabilityStatusData {
@@ -25,6 +30,8 @@ export interface CreateProductAvailabilityStatusData {
   order?: number
   active?: boolean
   supplier_id?: number | null
+  is_arrival_status?: boolean
+  arrival_days?: number | null
 }
 
 export async function getProductAvailabilityStatuses() {

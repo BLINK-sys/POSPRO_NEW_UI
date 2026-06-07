@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass } from "@/lib/utils"
+import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass, cn } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
@@ -22,8 +22,9 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { Slider } from "@/components/ui/slider"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
 
 export default function DesktopSearchPage() {
   const { user } = useAuth()
@@ -57,7 +58,22 @@ export default function DesktopSearchPage() {
   const [allResults, setAllResults] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  // Текущая страница серверной пагинации. Стартует с 1, инкрементится при скролле.
+  // Сбрасывается в 1 при смене query или любого фильтра.
+  const [currentPage, setCurrentPage] = useState(1)
+  // total_count из последнего ответа бэка — для подсказки и подсчёта hasMore.
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  // Facets от бэка — счётчики по ВСЕМ матчам, не по странице.
+  // Используются для рендера UI фильтров (категорий, брендов, диапазона цен).
+  // null = ещё не получали (первый рендер до search'а).
+  const [facetsData, setFacetsData] = useState<{
+    categories: { id: number; name: string; count: number }[]
+    brands: { id: number; name: string; count: number }[]
+    price_min: number
+    price_max: number
+  } | null>(null)
+  // Защита от подгрузки follow-up страниц во время первого fetch'а.
+  const isLoadingMoreRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const searchingRef = useRef(false)
@@ -110,101 +126,68 @@ export default function DesktopSearchPage() {
     })
   }
 
-  // Cross-filter facets: applying brand should narrow the visible category
-  // list to only categories present for those brands, and vice-versa.
-  // Each `resultsExcept*` slice ignores its own dimension so selecting "Fimar"
-  // still shows all of Fimar's categories (not just one).
-  const resultsExceptCategory = useMemo(() => {
-    let f = allResults
-    if (selectedBrands.size > 0) f = f.filter((p) => selectedBrands.has(Number(p.brand_id)))
-    if (priceFrom) { const min = Number(priceFrom); if (!isNaN(min)) f = f.filter((p) => p.price >= min) }
-    if (priceTo) { const max = Number(priceTo); if (!isNaN(max)) f = f.filter((p) => p.price <= max) }
-    return f
-  }, [allResults, selectedBrands, priceFrom, priceTo])
-
-  const resultsExceptBrand = useMemo(() => {
-    let f = allResults
-    if (selectedCategories.size > 0) f = f.filter((p) => selectedCategories.has(Number(p.category_id)))
-    if (priceFrom) { const min = Number(priceFrom); if (!isNaN(min)) f = f.filter((p) => p.price >= min) }
-    if (priceTo) { const max = Number(priceTo); if (!isNaN(max)) f = f.filter((p) => p.price <= max) }
-    return f
-  }, [allResults, selectedCategories, priceFrom, priceTo])
-
   const extractCategoryName = (p: ProductData): string | undefined => {
     if (p.category && typeof p.category === "object" && "name" in p.category) return (p.category as any).name
     if (p.category && typeof p.category === "string") return p.category as unknown as string
     return undefined
   }
 
-  // Available categories = categories appearing in resultsExceptCategory,
-  // PLUS any currently-selected category (so users can still see/uncheck it
-  // even if other filters made it temporarily empty).
+  // Все «available»-списки приходят с бэка как facets — фильтры server-side.
+  // Селект которого нет в текущем facets-снимке (например юзер только что
+  // выбрал бренд который теперь подсветил всю категорию) — тоже добавляем
+  // чтобы можно было его снять.
   const availableCategories = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const p of resultsExceptCategory) {
-      const catId = p.category_id ? Number(p.category_id) : null
-      if (!catId) continue
-      const name = extractCategoryName(p)
-      if (name) map.set(catId, name)
+    const map = new Map<number, { name: string; count?: number }>()
+    if (facetsData) {
+      for (const c of facetsData.categories) {
+        map.set(c.id, { name: c.name, count: c.count })
+      }
     }
     for (const id of selectedCategories) {
       if (map.has(id)) continue
       const found = allResults.find((p) => p.category_id != null && Number(p.category_id) === id)
       const name = found ? extractCategoryName(found) : undefined
-      if (name) map.set(id, name)
+      if (name) map.set(id, { name })
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, count: v.count }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [resultsExceptCategory, selectedCategories, allResults])
+  }, [facetsData, selectedCategories, allResults])
 
   const availableBrands = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const p of resultsExceptBrand) {
-      const brandId = p.brand_id ? Number(p.brand_id) : null
-      if (brandId && p.brand_info) map.set(brandId, p.brand_info.name)
+    const map = new Map<number, { name: string; count?: number }>()
+    if (facetsData) {
+      for (const b of facetsData.brands) {
+        map.set(b.id, { name: b.name, count: b.count })
+      }
     }
     for (const id of selectedBrands) {
       if (map.has(id)) continue
       const found = allResults.find((p) => p.brand_id != null && Number(p.brand_id) === id)
-      if (found?.brand_info) map.set(id, found.brand_info.name)
+      if (found?.brand_info) map.set(id, { name: found.brand_info.name })
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, count: v.count }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [resultsExceptBrand, selectedBrands, allResults])
+  }, [facetsData, selectedBrands, allResults])
 
-  // Apply filters
-  const filteredResults = useMemo(() => {
-    let filtered = allResults
-    if (selectedCategories.size > 0) filtered = filtered.filter((p) => selectedCategories.has(Number(p.category_id)))
-    if (selectedBrands.size > 0) filtered = filtered.filter((p) => selectedBrands.has(Number(p.brand_id)))
-    if (priceFrom) { const min = Number(priceFrom); if (!isNaN(min)) filtered = filtered.filter((p) => p.price >= min) }
-    if (priceTo) { const max = Number(priceTo); if (!isNaN(max)) filtered = filtered.filter((p) => p.price <= max) }
-    return filtered
-  }, [allResults, selectedCategories, selectedBrands, priceFrom, priceTo])
-
-  // Results filtered by category+brand but NOT by price — this is what the
-  // price slider's bounds should reflect, so changing brand/category instantly
-  // narrows the available price range.
-  const resultsExceptPrice = useMemo(() => {
-    let f = allResults
-    if (selectedCategories.size > 0) f = f.filter((p) => selectedCategories.has(Number(p.category_id)))
-    if (selectedBrands.size > 0) f = f.filter((p) => selectedBrands.has(Number(p.brand_id)))
-    return f
-  }, [allResults, selectedCategories, selectedBrands])
-
-  // Min/max prices from results in scope (excluding the price filter itself)
+  // Price range из facets — реальный диапазон по ВСЕМ матчам, не по странице.
   const priceRange = useMemo(() => {
-    if (resultsExceptPrice.length === 0) return { min: 0, max: 0 }
-    const prices = resultsExceptPrice.map((p) => p.price).filter((p) => p > 0)
-    if (prices.length === 0) return { min: 0, max: 0 }
-    return { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) }
-  }, [resultsExceptPrice])
+    if (facetsData) {
+      return {
+        min: Math.floor(facetsData.price_min || 0),
+        max: Math.ceil(facetsData.price_max || 0),
+      }
+    }
+    return { min: 0, max: 0 }
+  }, [facetsData])
 
-  const visibleResults = useMemo(() => filteredResults.slice(0, visibleCount), [filteredResults, visibleCount])
-  const hasMore = visibleCount < filteredResults.length
-  const remaining = Math.max(0, filteredResults.length - visibleCount)
+  // Серверная пагинация: items накапливаются в allResults при скролле.
+  // Локальной фильтрации больше нет — бэк уже отфильтровал.
+  const filteredResults = allResults
+  const visibleResults = allResults
+  const hasMore = totalCount !== null && allResults.length < totalCount
+  const remaining = totalCount !== null ? Math.max(0, totalCount - allResults.length) : 0
 
   const hasActiveFilters = !!(selectedCategories.size > 0 || selectedBrands.size > 0 || priceFrom || priceTo)
 
@@ -247,28 +230,75 @@ export default function DesktopSearchPage() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  // Search function
+  // AbortController текущего запроса — нужен чтобы при каждом нажатии
+  // клавиши убивать предыдущий fetch. Сам ref не вызывает ререндер.
+  const searchAbortRef = useRef<AbortController | null>(null)
+
+  // Server-side search: фильтры (категории/бренды/цена) + пагинация
+  // полностью на бэке. На первый запрос (page=1) запрашиваем facets;
+  // при подгрузке follow-up страниц facets не нужны (они уже есть).
+  // Прямой fetch на /api/public/products/search с AbortController — server
+  // action не используем (его клиентский abort не отменяет работу на бэке).
   const doSearch = useCallback(async (
-    searchQuery: string,
-    options?: { categoryId?: number | null; brandId?: number | null }
+    args: {
+      query?: string
+      categoryIds?: number[]
+      brandIds?: number[]
+      pmin?: string | number
+      pmax?: string | number
+      page?: number
+      append?: boolean  // true = добавить к существующим (скролл), false = заменить (новый поиск/фильтр)
+    } = {}
   ) => {
-    const trimmedQuery = searchQuery.trim()
-    const categoryId = options?.categoryId ?? null
-    const brandId = options?.brandId ?? null
-    // Текстовый поиск без category/brand требует минимум 2 символа.
-    // Поиск по category/brand работает с любой длиной (даже без текста).
-    const hasFilter = categoryId || brandId
-    if (!hasFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
+    const trimmedQuery = (args.query ?? "").trim()
+    const categoryIds = args.categoryIds ?? []
+    const brandIds = args.brandIds ?? []
+    const pminStr = args.pmin !== undefined ? String(args.pmin) : ""
+    const pmaxStr = args.pmax !== undefined ? String(args.pmax) : ""
+    const page = args.page ?? 1
+    const append = !!args.append
+
+    const hasAnyFilter = categoryIds.length > 0 || brandIds.length > 0 || pminStr || pmaxStr
+    // Текстовый поиск без фильтров требует минимум 2 символа.
+    if (!hasAnyFilter && (!trimmedQuery || trimmedQuery.length < 2)) {
+      searchAbortRef.current?.abort()
       setAllResults([])
-      setVisibleCount(PAGE_SIZE)
+      setTotalCount(null)
+      setFacetsData(null)
+      setCurrentPage(1)
+      setLoading(false)
       return
     }
-    if (searchingRef.current) return
-    searchingRef.current = true
+    searchAbortRef.current?.abort()
+    const ac = new AbortController()
+    searchAbortRef.current = ac
+    if (append) isLoadingMoreRef.current = true
     setLoading(true)
     try {
-      const products = await searchProductsAction(trimmedQuery, { categoryId, brandId })
-      const data: ProductData[] = products.map((product: any) => ({
+      const params = new URLSearchParams()
+      if (trimmedQuery) params.set("q", trimmedQuery)
+      if (categoryIds.length === 1) params.set("category_id", String(categoryIds[0]))
+      else if (categoryIds.length > 1) params.set("category_ids", categoryIds.join(","))
+      if (brandIds.length === 1) params.set("brand_id", String(brandIds[0]))
+      else if (brandIds.length > 1) params.set("brand_ids", brandIds.join(","))
+      if (pminStr) params.set("pmin", pminStr)
+      if (pmaxStr) params.set("pmax", pmaxStr)
+      params.set("page", String(page))
+      params.set("per_page", String(PAGE_SIZE))
+      // facets просим только на первой странице — на скролле они уже есть.
+      if (!append) params.set("with_facets", "1")
+
+      const resp = await fetch(`/api/public/products/search?${params.toString()}`, {
+        method: "GET",
+        signal: ac.signal,
+        cache: "no-store",
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const raw = await resp.json()
+      const items: any[] = Array.isArray(raw) ? raw : (raw.items || [])
+      const total: number | null = Array.isArray(raw) ? items.length : (raw.total_count ?? items.length)
+      const respFacets = (!Array.isArray(raw) && raw.facets) ? raw.facets : null
+      const data: ProductData[] = items.map((product: any) => ({
         id: product.id, name: product.name, slug: product.slug,
         price: product.price, wholesale_price: product.wholesale_price,
         quantity: product.quantity,
@@ -282,32 +312,82 @@ export default function DesktopSearchPage() {
         category: product.category, image_url: product.image_url || product.image,
         availability_status: product.availability_status ?? undefined,
       }))
-      setAllResults(data)
-      setHasSearched(true)
-      setVisibleCount(PAGE_SIZE)
-      lastSearchedQuery.current = trimmedQuery
-      // NOTE: filter state is not reset here on purpose — that lets us restore
-      // saved filters from URL on initial mount. A fresh search via the input
-      // resets filters explicitly inside handleSearch.
-    } catch (e) {
-      console.error("Search error:", e)
+      // Только применяем результат если запрос всё ещё актуален.
+      if (!ac.signal.aborted) {
+        if (append) {
+          setAllResults(prev => [...prev, ...data])
+        } else {
+          setAllResults(data)
+          setFacetsData(respFacets)
+          lastSearchedQuery.current = trimmedQuery
+        }
+        setTotalCount(total)
+        setCurrentPage(page)
+        setHasSearched(true)
+      }
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.error("Search error:", e)
+      }
     } finally {
-      searchingRef.current = false
-      setLoading(false)
+      if (searchAbortRef.current === ac) {
+        setLoading(false)
+        isLoadingMoreRef.current = false
+      }
     }
   }, [])
 
-  // Initial search on mount — uses query restored from URL (if any).
-  // Intentionally not depending on searchParams so we don't re-fetch when
-  // we ourselves rewrite the URL via router.replace below.
+  // Initial search on mount — восстанавливаем фильтры из URL и стартуем
+  // первую страницу. Зависит ТОЛЬКО от mount чтобы не reflowить когда мы
+  // сами переписываем URL ниже через router.replace.
   useEffect(() => {
     if (initialQuery && initialQuery.trim().length >= 2) {
-      doSearch(initialQuery)
+      doSearch({
+        query: initialQuery,
+        categoryIds: Array.from(selectedCategories),
+        brandIds: Array.from(selectedBrands),
+        pmin: priceFrom,
+        pmax: priceTo,
+        page: 1,
+      })
     } else {
       setTimeout(() => inputRef.current?.focus(), 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Live-search: debounce 300ms на изменение query. Также реагирует на смену
+  // фильтров (selectedCategories/Brands/priceFrom/priceTo) — все они идут
+  // на бэк, поэтому любая смена должна перезапросить page=1 с новыми условиями.
+  // appliedCategory/appliedBrand → пропускаем, чтобы при возврате с карточки
+  // товара не дёрнуть лишний раз.
+  useEffect(() => {
+    if (appliedCategory || appliedBrand) return
+    const trimmed = query.trim()
+    const hasAnyFilter = selectedCategories.size > 0 || selectedBrands.size > 0 || priceFrom || priceTo
+    // Меньше 2 символов И нет фильтров — мгновенно чистим без debounce.
+    if (!hasAnyFilter && trimmed.length < 2) {
+      searchAbortRef.current?.abort()
+      setAllResults([])
+      setTotalCount(null)
+      setFacetsData(null)
+      setCurrentPage(1)
+      setLoading(false)
+      lastSearchedQuery.current = trimmed
+      return
+    }
+    const t = setTimeout(() => {
+      doSearch({
+        query: trimmed,
+        categoryIds: Array.from(selectedCategories),
+        brandIds: Array.from(selectedBrands),
+        pmin: priceFrom,
+        pmax: priceTo,
+        page: 1,
+      })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
 
   // Загружаем настройки и данные курируемой панели один раз при маунте.
   // Через прямой fetch к Next.js API route, не через server action —
@@ -337,7 +417,7 @@ export default function DesktopSearchPage() {
     setAppliedCategory({ id: cat.id, name: cat.name })
     setAppliedBrand(null)
     clearFiltersIfAny()
-    doSearch("", { categoryId: cat.id })
+    doSearch({ categoryIds: [cat.id], page: 1 })
   }
 
   const searchByBrand = (brand: SearchPageBrandItem) => {
@@ -345,7 +425,7 @@ export default function DesktopSearchPage() {
     setAppliedBrand({ id: brand.id, name: brand.name })
     setAppliedCategory(null)
     clearFiltersIfAny()
-    doSearch("", { brandId: brand.id })
+    doSearch({ brandIds: [brand.id], page: 1 })
   }
 
   // Полный сброс — возвращаемся к стартовому экрану с табами
@@ -371,20 +451,39 @@ export default function DesktopSearchPage() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, pathname, router])
 
-  // Reset visible count on filter change
-  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [selectedCategories, selectedBrands, priceFrom, priceTo])
-
-  // IntersectionObserver for lazy load
+  // Infinite scroll: при достижении нижнего sentinel'а догружаем следующую
+  // страницу с бэка. Уже летящий запрос (loading) и догрузка (isLoadingMoreRef)
+  // блокируют повторный fire. appliedCategory/appliedBrand учитываем как
+  // первичный источник — без них бэк получил бы пустой запрос и подгрузка
+  // схлопнула бы грид при поиске через табы категорий/брендов.
   useEffect(() => {
     if (!hasMore) return
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) setVisibleCount((prev) => prev + PAGE_SIZE) },
+      (entries) => {
+        if (!entries[0].isIntersecting) return
+        if (loading || isLoadingMoreRef.current) return
+        const catIds = appliedCategory
+          ? [appliedCategory.id]
+          : Array.from(selectedCategories)
+        const brandIds = appliedBrand
+          ? [appliedBrand.id]
+          : Array.from(selectedBrands)
+        doSearch({
+          query,
+          categoryIds: catIds,
+          brandIds,
+          pmin: priceFrom,
+          pmax: priceTo,
+          page: currentPage + 1,
+          append: true,
+        })
+      },
       { rootMargin: "200px" }
     )
     const el = loadMoreRef.current
     if (el) observer.observe(el)
     return () => { if (el) observer.unobserve(el) }
-  }, [hasMore, filteredResults.length])
+  }, [hasMore, loading, currentPage, query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
 
   const clearFiltersIfAny = () => {
     if (selectedCategories.size > 0) setSelectedCategories(new Set())
@@ -411,7 +510,7 @@ export default function DesktopSearchPage() {
     setAppliedCategory(null)
     setAppliedBrand(null)
     clearFiltersIfAny()
-    doSearch(query)
+    doSearch({ query, page: 1 })
   }
   const handleSearch = () => triggerNewSearch()
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter") triggerNewSearch() }
@@ -468,8 +567,10 @@ export default function DesktopSearchPage() {
         </div>
       </div>
 
-      {/* Loading */}
-      {loading && (
+      {/* Full-screen loading — только на ПЕРВУЮ загрузку (когда у нас ещё
+          ничего нет). При refetch'е (смена фильтра, debounced query) ничего
+          не скрываем — это вызывало некрасивое мерцание. */}
+      {loading && !hasSearched && (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
@@ -629,7 +730,7 @@ export default function DesktopSearchPage() {
 
       {/* Чип источника поиска (категория/бренд) — показываем над результатами
           когда поиск пришёл из клика по карточке, а не из текста. */}
-      {!loading && hasSearched && (appliedCategory || appliedBrand) && (
+      {hasSearched && (appliedCategory || appliedBrand) && (
         <div className="flex items-center justify-center gap-2 mb-4">
           <span className="text-sm text-gray-500">Поиск по</span>
           <Badge
@@ -652,13 +753,16 @@ export default function DesktopSearchPage() {
         </div>
       )}
 
-      {/* No results */}
+      {/* No results — показываем только когда запрос закончен и результат пуст. */}
       {!loading && hasSearched && allResults.length === 0 && (
         <div className="text-center py-16 text-gray-500">Ничего не найдено</div>
       )}
 
-      {/* Main content: sidebar + grid */}
-      {!loading && showFilters && (
+      {/* Main content: sidebar + grid. Скрываем `!loading &&` убран —
+          панель и карточки остаются на месте при refetch'е, без мерцания.
+          Loading-state видно только тонким индикатором (spinner в кнопке
+          поиска вверху + opacity на гриде). */}
+      {showFilters && (
         <div className="flex gap-6">
           {/* Left sidebar — filters */}
           <aside className="min-w-64 max-w-80 w-fit flex-shrink-0">
@@ -674,6 +778,18 @@ export default function DesktopSearchPage() {
                   </button>
                 )}
               </div>
+
+              {/* Счётчик найденного — сразу после заголовка чтобы юзер
+                  не скроллил весь сайдбар до низа. Показываем total_count
+                  с бэка (по ВСЕМ совпадениям после фильтров, не только по
+                  загруженной странице). */}
+              {totalCount !== null && totalCount > 0 && (
+                <div className="bg-brand-yellow rounded-xl p-3 text-center">
+                  <span className="text-sm font-semibold text-black">
+                    Найдено {totalCount} {pluralize(totalCount)}
+                  </span>
+                </div>
+              )}
 
               {/* Categories */}
               {availableCategories.length > 0 && (() => {
@@ -707,7 +823,12 @@ export default function DesktopSearchPage() {
                             onCheckedChange={() => toggleCategory(cat.id)}
                             className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
                           />
-                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight">{cat.name}</span>
+                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
+                            {cat.name}
+                            {cat.count !== undefined && (
+                              <span className="text-gray-400 ml-1">({cat.count})</span>
+                            )}
+                          </span>
                         </label>
                       ))}
                       {filtered.length === 0 && categorySearch && (
@@ -758,7 +879,12 @@ export default function DesktopSearchPage() {
                             onCheckedChange={() => toggleBrand(brand.id)}
                             className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
                           />
-                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight">{brand.name}</span>
+                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
+                            {brand.name}
+                            {brand.count !== undefined && (
+                              <span className="text-gray-400 ml-1">({brand.count})</span>
+                            )}
+                          </span>
                         </label>
                       ))}
                       {filtered.length === 0 && brandSearch && (
@@ -833,25 +959,13 @@ export default function DesktopSearchPage() {
                 })()}
               </div>
 
-              {/* Result count */}
-              <div className="pt-2 border-t border-gray-200">
-                <div className="bg-brand-yellow rounded-xl p-3 text-center">
-                  <span className="text-sm font-semibold text-black">
-                    Найдено {filteredResults.length} {pluralize(filteredResults.length)}
-                  </span>
-                  {hasActiveFilters && (
-                    <span className="text-xs text-gray-700 block mt-0.5">
-                      из {allResults.length} результатов
-                    </span>
-                  )}
-                </div>
-              </div>
               </div>
             </div>
           </aside>
 
-          {/* Right — product grid */}
-          <main className="flex-1 min-w-0">
+          {/* Right — product grid. При refetch'е (loading=true но карточки
+              уже есть) затемняем грид — нет мерцания, видно что идёт обновление. */}
+          <main className={cn("flex-1 min-w-0 transition-opacity", loading && visibleResults.length > 0 && "opacity-60 pointer-events-none")}>
             {/* No filtered results */}
             {filteredResults.length === 0 && hasActiveFilters && (
               <div className="text-center py-16">
@@ -944,7 +1058,7 @@ export default function DesktopSearchPage() {
                                         padding: "2px 6px", borderRadius: "4px", fontSize: "11px"
                                       }}
                                     >
-                                      {product.availability_status.status_name}
+                                      {formatAvailabilityStatusLabel(product.availability_status)}
                                     </span>
                                   ) : (
                                     <span>{product.quantity} шт.</span>
@@ -995,15 +1109,27 @@ export default function DesktopSearchPage() {
                   ))}
                 </div>
 
-                {/* Load more */}
+                {/* Sentinel для IntersectionObserver — он сам триггерит
+                    подгрузку следующей страницы. Кнопка остаётся как
+                    fallback для пользователей с отключённым JS-observer'ом
+                    или если автоскролл по какой-то причине не сработал. */}
                 {hasMore && (
                   <div ref={loadMoreRef} className="flex justify-center py-8">
                     <Button
                       variant="outline"
-                      onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                      onClick={() => doSearch({
+                        query,
+                        categoryIds: appliedCategory ? [appliedCategory.id] : Array.from(selectedCategories),
+                        brandIds: appliedBrand ? [appliedBrand.id] : Array.from(selectedBrands),
+                        pmin: priceFrom,
+                        pmax: priceTo,
+                        page: currentPage + 1,
+                        append: true,
+                      })}
+                      disabled={loading}
                       className="h-11 px-8 rounded-xl font-medium"
                     >
-                      Показать ещё ({remaining} осталось)
+                      {loading ? "Загрузка…" : `Показать ещё (${remaining} осталось)`}
                     </Button>
                   </div>
                 )}

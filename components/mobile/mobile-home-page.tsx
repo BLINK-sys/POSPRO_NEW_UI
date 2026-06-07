@@ -16,6 +16,7 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import type { HomepageBlock, Banner, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface MobileHomePageProps {
   banners: Banner[]
@@ -317,7 +318,7 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
                     color: product.availability_status.text_color,
                   }}
                 >
-                  {product.availability_status.status_name}
+                  {formatAvailabilityStatusLabel(product.availability_status)}
                 </span>
               ) : product.quantity !== undefined ? (
                 <span>{product.quantity} шт.</span>

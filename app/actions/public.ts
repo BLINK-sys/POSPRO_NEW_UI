@@ -738,6 +738,8 @@ export interface ProductAvailabilityStatus {
   text_color: string
   order: number
   active: boolean
+  is_arrival_status?: boolean
+  arrival_days?: number | null
 }
 
 // Внутренний вариант без cookies — используется внутри unstable_cache

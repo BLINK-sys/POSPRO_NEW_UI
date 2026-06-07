@@ -18,6 +18,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { API_BASE_URL } from "@/lib/api-address"
 import { createBitrixPriceInquiry } from "@/app/actions/bitrix"
 import { toast } from "@/hooks/use-toast"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface MobileProductPageProps {
   slug: string
@@ -361,7 +362,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
                 color: product.availability_status.text_color,
               }}
             >
-              {product.availability_status.status_name}
+              {formatAvailabilityStatusLabel(product.availability_status)}
             </span>
           </div>
         )}

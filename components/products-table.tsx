@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import Image from "next/image"
-import { type Product, type PaginatedProducts, deleteProduct } from "@/app/actions/products"
+import { type Product, type PaginatedProducts, deleteProduct, updateProduct } from "@/app/actions/products"
 import type { Category } from "@/app/actions/categories"
 import type { Brand, Status } from "@/app/actions/meta"
 import type { Supplier } from "@/app/actions/suppliers"
@@ -40,7 +40,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X, LayoutGrid, List, ExternalLink, FileText } from "lucide-react"
+import { MoreHorizontal, PlusCircle, Search, Filter, ChevronsUpDown, X, LayoutGrid, List, ExternalLink, FileText, Eye, EyeOff } from "lucide-react"
 import { ProductEditDialog } from "./product-edit-dialog"
 import { useAddToKP } from "@/hooks/use-add-to-kp"
 import { useKP } from "@/context/kp-context"
@@ -115,6 +115,14 @@ export function ProductsTable({
 
   // Фильтры
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
+  // Debounced версия — попадает в loadProducts через useCallback dep.
+  // Изменение `searchQuery` (на каждый символ) только перезапускает таймер,
+  // запрос летит после 300ms тишины. Дешевле для бэка и плавнее в UI.
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(initialSearchQuery)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
   const [categoryFilter, setCategoryFilter] = useState(initialCategory)
   const [statusFilter, setStatusFilter] = useState(initialStatus)
   const [brandFilter, setBrandFilter] = useState(initialBrand)
@@ -257,17 +265,25 @@ export function ProductsTable({
     }
   }, [toast])
 
+  // AbortController текущего запроса — каждый новый search прерывает
+  // предыдущий на сетевом уровне (не дожидаясь ответа). `requestIdRef`
+  // оставляем как safety-belt: даже если abort не сработал, устаревший
+  // ответ всё равно не перезатрёт состояние.
+  const loadAbortRef = useRef<AbortController | null>(null)
   const loadProducts = useCallback(
     async (pageToLoad: number, perPageValue: number) => {
       const requestId = ++requestIdRef.current
+      loadAbortRef.current?.abort()
+      const ac = new AbortController()
+      loadAbortRef.current = ac
       setIsLoading(true)
       try {
         const params = new URLSearchParams()
         params.set("page", String(pageToLoad))
         params.set("per_page", String(perPageValue))
 
-        if (searchQuery.trim()) {
-          params.set("search", searchQuery.trim())
+        if (debouncedSearchQuery.trim()) {
+          params.set("search", debouncedSearchQuery.trim())
         }
         if (categoryFilter !== "all") {
           params.set("category_id", categoryFilter)
@@ -295,6 +311,7 @@ export function ProductsTable({
           method: "GET",
           credentials: "include",
           cache: "no-store",
+          signal: ac.signal,
         })
 
         if (!response.ok) {
@@ -313,7 +330,9 @@ export function ProductsTable({
           }
           setError(null)
         }
-      } catch (err) {
+      } catch (err: any) {
+        // AbortError игнорируем — это мы сами отменили предыдущий запрос.
+        if (err?.name === "AbortError") return
         console.error("Error loading products:", err)
         if (requestIdRef.current === requestId) {
           const message =
@@ -328,7 +347,7 @@ export function ProductsTable({
       }
     },
     [
-      searchQuery,
+      debouncedSearchQuery,
       categoryFilter,
       statusFilter,
       brandFilter,
@@ -426,6 +445,40 @@ export function ProductsTable({
   const handleEditProduct = (product: Product) => {
     router.push(`/admin/catalog/products/${product.slug}/edit`)
   }
+
+  // Переключение видимости товара прямо из таблицы/карточки. Оптимистично
+  // меняем state одним setState (без отдельного «loading»-флага — иначе
+  // получаем три ререндера на клик и кнопка «дёргается» из-за transition-colors).
+  // Защита от двойного клика — через ref-набор «летящих сейчас» id; ref
+  // не вызывает ререндер.
+  const togglingRef = useRef<Set<number>>(new Set())
+  const handleToggleVisibility = useCallback(async (product: Product) => {
+    if (togglingRef.current.has(product.id)) return
+    togglingRef.current.add(product.id)
+    const next = !product.is_visible
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_visible: next } : p))
+    try {
+      const res = await updateProduct(product.id, { is_visible: next })
+      if (!res.success) {
+        // Откат при ошибке — второй setState, но только в exceptional path.
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_visible: product.is_visible } : p))
+        toast({
+          title: "Не удалось переключить видимость",
+          description: res.error || "Попробуйте ещё раз",
+          variant: "destructive",
+        })
+      }
+    } catch (err) {
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_visible: product.is_visible } : p))
+      toast({
+        title: "Ошибка сети",
+        description: "Не удалось переключить видимость",
+        variant: "destructive",
+      })
+    } finally {
+      togglingRef.current.delete(product.id)
+    }
+  }, [toast])
 
   // Добавить в КП прямо из админ-таблицы. Отдельный пункт в dropdown'е
   // действий — менеджеру удобно прямо при поиске накидать товары и
@@ -693,15 +746,22 @@ export function ProductsTable({
                   })()}
                 </TableCell>
                 <TableCell>
-                  {product.is_visible ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                      Виден
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      Скрыт
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleVisibility(product)}
+                    title={product.is_visible ? "Кликните чтобы скрыть товар" : "Кликните чтобы показать товар"}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-1 w-[78px] px-2 py-0.5 rounded-full text-xs font-medium border",
+                      product.is_visible
+                        ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                        : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200",
+                    )}
+                  >
+                    {product.is_visible
+                      ? <Eye className="h-3 w-3 shrink-0" />
+                      : <EyeOff className="h-3 w-3 shrink-0" />}
+                    <span>{product.is_visible ? "Виден" : "Скрыт"}</span>
+                  </button>
                 </TableCell>
                 <TableCell className="text-gray-700">
                   {product.brand_info?.name || <span className="text-gray-400">Без бренда</span>}
@@ -810,15 +870,22 @@ export function ProductsTable({
                   </DropdownMenu>
                 </div>
                 <div className="absolute top-2 left-2">
-                  {product.is_visible ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
-                      Виден
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                      Скрыт
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleToggleVisibility(product) }}
+                    title={product.is_visible ? "Кликните чтобы скрыть товар" : "Кликните чтобы показать товар"}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-1 w-[72px] px-2 py-0.5 rounded-full text-[10px] font-medium border [box-shadow:0_1px_3px_rgba(0,0,0,0.08)]",
+                      product.is_visible
+                        ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                        : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200",
+                    )}
+                  >
+                    {product.is_visible
+                      ? <Eye className="h-3 w-3 shrink-0" />
+                      : <EyeOff className="h-3 w-3 shrink-0" />}
+                    <span>{product.is_visible ? "Виден" : "Скрыт"}</span>
+                  </button>
                 </div>
               </div>
               <div className="flex flex-col flex-1 p-3 gap-2">

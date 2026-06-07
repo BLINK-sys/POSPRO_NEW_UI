@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import type { ProductAvailabilityStatus } from "@/app/actions/public"
+import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface ProductAvailabilityBadgeProps {
   availabilityStatus: ProductAvailabilityStatus | null
@@ -9,13 +10,11 @@ interface ProductAvailabilityBadgeProps {
   className?: string
 }
 
-export function ProductAvailabilityBadge({ 
-  availabilityStatus, 
-  quantity, 
-  className = "" 
+export function ProductAvailabilityBadge({
+  availabilityStatus,
+  quantity,
+  className = ""
 }: ProductAvailabilityBadgeProps) {
-  console.log('ProductAvailabilityBadge props:', { availabilityStatus, quantity })
-  
   if (!availabilityStatus) {
     return (
       <div className={`text-sm text-gray-500 ${className}`}>
@@ -34,7 +33,7 @@ export function ProductAvailabilityBadge({
         }}
         className="px-2 py-1 text-xs font-medium"
       >
-        {availabilityStatus.status_name}
+        {formatAvailabilityStatusLabel(availabilityStatus)}
       </Badge>
     </div>
   )
