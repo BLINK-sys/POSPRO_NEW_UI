@@ -48,6 +48,15 @@ export interface KPItem {
 }
 
 // --- Settings types ---
+// Зона позиционирования текстового блока:
+//   - 'header' — фиксированная зона в шапке первой страницы. Поле `page`
+//     игнорируется (всегда 0). Drag clamp'ится по Y верхней зоной.
+//   - 'footer' — running footer, появится с этапом колонтитула. Резервируется
+//     уже сейчас, чтобы тип не пришлось снова мигрировать.
+//   - 'free' (default) — свободно располагается на любой странице, поведение
+//     как раньше.
+export type KPTextZone = 'header' | 'footer' | 'free'
+
 export interface KPTextElement {
   id: string
   text: string
@@ -56,7 +65,53 @@ export interface KPTextElement {
   fontSize: number
   fontWeight: 'normal' | 'bold'
   textAlign: 'left' | 'center' | 'right'
-  page: number // 0-based page index
+  page: number // 0-based page index (только для zone='free')
+  zone: KPTextZone
+  fontFamily: string  // 'Inter' | 'Arial' | 'Tahoma' | 'Times New Roman' | 'Courier New'
+  lineHeight: number  // 1.0..2.0
+}
+
+// Системные шрифты — гарантированно рендерятся в html2canvas PDF без
+// необходимости подгружать что-либо извне.
+export const KP_FONT_FAMILIES = ['Inter', 'Arial', 'Tahoma', 'Times New Roman', 'Courier New'] as const
+
+// Элементы колонтитула. Координаты относительные — `x/y` внутри
+// bounding-box колонтитула (не страницы целиком). Это позволяет
+// перетаскивать только в его пределах и автоматически растиражировать
+// один и тот же layout на все страницы как running footer.
+export interface KPFooterTextElement {
+  id: string
+  type: 'text'
+  x: number
+  y: number
+  text: string
+  fontSize: number
+  fontWeight: 'normal' | 'bold'
+  textAlign: 'left' | 'center' | 'right'
+  fontFamily: string
+  lineHeight: number
+}
+
+export interface KPFooterImageElement {
+  id: string
+  type: 'image'
+  x: number
+  y: number
+  width: number
+  height: number  // 0 = auto по aspect-ratio
+  serverUrl?: string
+  logoFilename?: string
+  customUrl?: string
+}
+
+export type KPFooterElement = KPFooterTextElement | KPFooterImageElement
+
+export interface KPFooterSettings {
+  enabled: boolean
+  // Высота bounding-box в pixels (тех же что и A4_HEIGHT в page.tsx).
+  // Таблица товаров сжимается вверх на это значение.
+  height: number
+  elements: KPFooterElement[]
 }
 
 export interface KPLogoSettings {
@@ -66,6 +121,20 @@ export interface KPLogoSettings {
   customUrl?: string      // legacy: Base64 DataURL (kept for backward compat)
   serverUrl?: string      // server path: /uploads/kp-logos/{userId}/{filename}
   logoFilename?: string   // filename on server for identification
+}
+
+// Один слот логотипа. На КП их может быть несколько — каждый со своим
+// файлом, положением и размером. Рендерятся только на первой странице.
+// Высота 0 = auto по aspect-ratio изображения.
+export interface KPLogoSlot {
+  id: string
+  serverUrl?: string
+  logoFilename?: string
+  customUrl?: string
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 export interface KPColumnSettings {
@@ -112,8 +181,13 @@ export interface KPSettings {
   columnHeaderAligns: Record<string, 'left' | 'center' | 'right'>
   mergeImageName: boolean
   managerAlign: 'left' | 'center' | 'right'
+  // Legacy: один логотип. Оставлен для обратной совместимости —
+  // mergeWithDefaults() мигрирует его в logos[0] при загрузке.
+  // Новый код должен работать с `logos` массивом.
   logo: KPLogoSettings
+  logos: KPLogoSlot[]
   textElements: KPTextElement[]
+  footer: KPFooterSettings
   kpName: string
   title: string
   footerNote: string
@@ -143,7 +217,13 @@ const DEFAULT_SETTINGS: KPSettings = {
     width: 150,
     height: 0,
   },
+  logos: [],
   textElements: [],
+  footer: {
+    enabled: false,
+    height: 80,
+    elements: [],
+  },
   kpName: '',
   title: 'Коммерческое предложение',
   footerNote: '* Цены указаны в тенге. Предложение действительно 14 дней.',
@@ -160,11 +240,76 @@ function mergeWithDefaults(parsed: any): KPSettings {
   if (parsed.columnAligns) merged.columnAligns = { ...DEFAULT_COLUMN_ALIGNS, ...parsed.columnAligns }
   if (parsed.columnHeaderAligns) merged.columnHeaderAligns = { ...DEFAULT_SETTINGS.columnHeaderAligns, ...parsed.columnHeaderAligns }
   if (parsed.logo) merged.logo = { ...DEFAULT_SETTINGS.logo, ...parsed.logo }
+  // Миграция legacy single-logo → logos[]. Происходит один раз: если
+  // в сохранённых настройках уже есть массив logos — используем его, иначе
+  // строим первый слот из старого `logo` + позиции в localStorage
+  // ('kp-logo-pos'). Дальше единственный источник правды — logos.
+  if (Array.isArray(parsed.logos)) {
+    merged.logos = parsed.logos.map((slot: any, idx: number) => ({
+      id: slot.id || `logo-${Date.now()}-${idx}`,
+      serverUrl: slot.serverUrl,
+      logoFilename: slot.logoFilename,
+      customUrl: slot.customUrl,
+      x: typeof slot.x === 'number' ? slot.x : 48,
+      y: typeof slot.y === 'number' ? slot.y : 48,
+      width: typeof slot.width === 'number' ? slot.width : 150,
+      height: typeof slot.height === 'number' ? slot.height : 0,
+    }))
+  } else {
+    // Нет массива logos — создаём один слот из legacy `logo` если он
+    // был включён, иначе оставляем пустой массив.
+    const legacy = merged.logo
+    if (legacy?.enabled) {
+      let posX = 48, posY = 48
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = window.localStorage.getItem('kp-logo-pos')
+          if (stored) {
+            const p = JSON.parse(stored)
+            if (typeof p?.x === 'number') posX = p.x
+            if (typeof p?.y === 'number') posY = p.y
+          }
+        } catch {}
+      }
+      merged.logos = [{
+        id: `logo-legacy-${Date.now()}`,
+        serverUrl: legacy.serverUrl,
+        logoFilename: legacy.logoFilename,
+        customUrl: legacy.customUrl,
+        x: posX,
+        y: posY,
+        width: legacy.width || 150,
+        height: legacy.height || 0,
+      }]
+    } else {
+      merged.logos = []
+    }
+  }
   if (parsed.textElements) {
     merged.textElements = parsed.textElements.map((el: any) => ({
       ...el,
       page: typeof el.page === 'number' ? el.page : 0,
+      // Миграция: старые элементы без zone → 'free' (текущее поведение).
+      zone: (el.zone === 'header' || el.zone === 'footer' || el.zone === 'free') ? el.zone : 'free',
+      fontFamily: typeof el.fontFamily === 'string' && el.fontFamily ? el.fontFamily : 'Inter',
+      lineHeight: typeof el.lineHeight === 'number' && el.lineHeight > 0 ? el.lineHeight : 1.4,
     }))
+  }
+  if (parsed.footer && typeof parsed.footer === 'object') {
+    merged.footer = {
+      enabled: !!parsed.footer.enabled,
+      height: typeof parsed.footer.height === 'number' && parsed.footer.height > 0 ? parsed.footer.height : 80,
+      elements: Array.isArray(parsed.footer.elements) ? parsed.footer.elements.map((el: any) => ({
+        ...el,
+        // Дефолты для типобезопасности при ручной правке/обратной совместимости.
+        x: typeof el.x === 'number' ? el.x : 24,
+        y: typeof el.y === 'number' ? el.y : 24,
+        ...(el.type === 'text' ? {
+          fontFamily: typeof el.fontFamily === 'string' && el.fontFamily ? el.fontFamily : 'Inter',
+          lineHeight: typeof el.lineHeight === 'number' && el.lineHeight > 0 ? el.lineHeight : 1.4,
+        } : {}),
+      })) : [],
+    }
   }
   return merged
 }
@@ -174,7 +319,6 @@ function mergeWithDefaults(parsed: any): KPSettings {
 // Полные данные грузим отдельно через getKpClient(id).
 export interface KPClientStub {
   id: number
-  organization_type: "too" | "ip" | "individual"
   display_name: string
 }
 
@@ -206,13 +350,9 @@ export interface KPHistoryEntry {
 // /api/kp-clients/<id> каждый раз при перерисовке settings panel.
 // Полная форма редактирования всё равно тянет свежий объект через action.
 export interface KPClientSnapshot extends KPClientStub {
-  organization_name?: string | null
   full_name?: string | null
-  bin?: string | null
-  iin?: string | null
-  phone?: string | null
-  whatsapp?: string | null
-  note?: string | null
+  object?: string | null
+  contacts?: { phone: string; note: string }[]
 }
 
 // Фильтр для списка истории — управляется UI выпадушкой над колонками.
@@ -247,9 +387,21 @@ interface KPContextType {
   updateColumnAlign: (key: string, align: 'left' | 'center' | 'right') => void
   updateColumnHeaderAlign: (key: string, align: 'left' | 'center' | 'right') => void
   updateLogo: (updates: Partial<KPLogoSettings>) => void
-  addTextElement: (text?: string, page?: number) => void
+  // Multi-logo API. addLogoSlot создаёт новый слот без файла (юзер
+  // потом выбирает файл через UI), возвращает id.
+  addLogoSlot: () => string
+  updateLogoSlot: (id: string, updates: Partial<KPLogoSlot>) => void
+  removeLogoSlot: (id: string) => void
+  addTextElement: (text?: string, page?: number, zone?: KPTextZone) => void
   updateTextElement: (id: string, updates: Partial<KPTextElement>) => void
   removeTextElement: (id: string) => void
+  // Footer (running колонтитул на каждой странице). Содержит свободные
+  // элементы: текст + картинки. Drag/resize — только внутри bounding-box.
+  updateFooter: (updates: Partial<KPFooterSettings>) => void
+  addFooterTextElement: () => string
+  addFooterImageElement: () => string
+  updateFooterElement: (id: string, updates: Partial<KPFooterTextElement> | Partial<KPFooterImageElement>) => void
+  removeFooterElement: (id: string) => void
   // Calculator data
   calculatorData: any | null
   setCalculatorData: (data: any | null) => void
@@ -529,16 +681,57 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setKpSettings(prev => ({ ...prev, logo: { ...prev.logo, ...updates } }))
   }, [])
 
-  const addTextElement = useCallback((text?: string, page?: number) => {
+  const addLogoSlot = useCallback((): string => {
+    const id = `logo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setKpSettings(prev => {
+      // Сдвигаем новый слот по диагонали на каждом следующем добавлении,
+      // чтобы не накладывался на существующие. Step 20px от позиции
+      // последнего слота, либо от (48, 48) если массив пуст.
+      const last = prev.logos[prev.logos.length - 1]
+      const baseX = last ? last.x + 20 : 48
+      const baseY = last ? last.y + 20 : 48
+      const newSlot: KPLogoSlot = {
+        id,
+        x: baseX,
+        y: baseY,
+        width: 150,
+        height: 0,
+      }
+      return { ...prev, logos: [...prev.logos, newSlot] }
+    })
+    return id
+  }, [])
+
+  const updateLogoSlot = useCallback((id: string, updates: Partial<KPLogoSlot>) => {
+    setKpSettings(prev => ({
+      ...prev,
+      logos: prev.logos.map(s => s.id === id ? { ...s, ...updates } : s),
+    }))
+  }, [])
+
+  const removeLogoSlot = useCallback((id: string) => {
+    setKpSettings(prev => ({
+      ...prev,
+      logos: prev.logos.filter(s => s.id !== id),
+    }))
+  }, [])
+
+  const addTextElement = useCallback((text?: string, page?: number, zone: KPTextZone = 'free') => {
+    // Стартовые координаты подбираем под зону: 'header' — в верхней
+    // полосе страницы 1, 'footer' — внизу, 'free' — посередине.
+    const startY = zone === 'header' ? 120 : zone === 'footer' ? 1050 : 500
     const newElement: KPTextElement = {
-      id: `text-${Date.now()}`,
+      id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       text: text || 'Новый текст',
       x: 48,
-      y: 500,
+      y: startY,
       fontSize: 14,
       fontWeight: 'normal',
       textAlign: 'left',
-      page: page ?? 0,
+      page: zone === 'free' ? (page ?? 0) : 0,
+      zone,
+      fontFamily: 'Inter',
+      lineHeight: 1.4,
     }
     setKpSettings(prev => ({
       ...prev,
@@ -557,6 +750,67 @@ export function KPProvider({ children }: { children: ReactNode }) {
     setKpSettings(prev => ({
       ...prev,
       textElements: prev.textElements.filter(el => el.id !== id),
+    }))
+  }, [])
+
+  // --- Footer ---
+  const updateFooter = useCallback((updates: Partial<KPFooterSettings>) => {
+    setKpSettings(prev => ({ ...prev, footer: { ...prev.footer, ...updates } }))
+  }, [])
+
+  const addFooterTextElement = useCallback((): string => {
+    const id = `footer-text-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    setKpSettings(prev => {
+      const el: KPFooterTextElement = {
+        id,
+        type: 'text',
+        x: 24,
+        y: Math.max(8, Math.min(prev.footer.height - 24, prev.footer.height / 2 - 8)),
+        text: 'Текст',
+        fontSize: 10,
+        fontWeight: 'normal',
+        textAlign: 'left',
+        fontFamily: 'Inter',
+        lineHeight: 1.3,
+      }
+      return { ...prev, footer: { ...prev.footer, elements: [...prev.footer.elements, el] } }
+    })
+    return id
+  }, [])
+
+  const addFooterImageElement = useCallback((): string => {
+    const id = `footer-img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    setKpSettings(prev => {
+      const el: KPFooterImageElement = {
+        id,
+        type: 'image',
+        x: 24,
+        y: 8,
+        width: 80,
+        height: 0,
+      }
+      return { ...prev, footer: { ...prev.footer, elements: [...prev.footer.elements, el] } }
+    })
+    return id
+  }, [])
+
+  const updateFooterElement = useCallback((id: string, updates: any) => {
+    setKpSettings(prev => ({
+      ...prev,
+      footer: {
+        ...prev.footer,
+        elements: prev.footer.elements.map(el => el.id === id ? { ...el, ...updates } : el),
+      },
+    }))
+  }, [])
+
+  const removeFooterElement = useCallback((id: string) => {
+    setKpSettings(prev => ({
+      ...prev,
+      footer: {
+        ...prev.footer,
+        elements: prev.footer.elements.filter(el => el.id !== id),
+      },
     }))
   }, [])
 
@@ -753,8 +1007,9 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const value: KPContextType = {
     kpItems, kpCount: kpItems.length,
     addItem, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll, isInKP,
-    kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
+    kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo, addLogoSlot, updateLogoSlot, removeLogoSlot,
     addTextElement, updateTextElement, removeTextElement,
+    updateFooter, addFooterTextElement, addFooterImageElement, updateFooterElement, removeFooterElement,
     calculatorData, setCalculatorData,
     kpHistory, historyLoading, activeHistoryId, activeSignedAt,
     activeAccessLevel, isSuperAdmin, hasOtherVisible, historyFilter, setHistoryFilter,

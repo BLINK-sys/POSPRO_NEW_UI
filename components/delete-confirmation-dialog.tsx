@@ -17,6 +17,10 @@ interface DeleteConfirmationDialogProps {
   onConfirm: () => void
   title: string
   description: string
+  // Подпись кнопки подтверждения. Дефолт «Удалить» — компонент изначально
+  // только для удаления, но переиспользуется и для других подтверждений
+  // («Применить», «Перезаписать»).
+  confirmLabel?: string
 }
 
 export function DeleteConfirmationDialog({
@@ -25,6 +29,7 @@ export function DeleteConfirmationDialog({
   onConfirm,
   title,
   description,
+  confirmLabel,
 }: DeleteConfirmationDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -35,7 +40,7 @@ export function DeleteConfirmationDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Отмена</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Удалить</AlertDialogAction>
+          <AlertDialogAction onClick={onConfirm}>{confirmLabel || "Удалить"}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

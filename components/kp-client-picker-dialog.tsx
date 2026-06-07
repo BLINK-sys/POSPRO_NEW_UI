@@ -5,7 +5,8 @@
  *
  * Левая колонка — список клиентов адресной книги с поиском и кнопкой
  * «Добавить нового». Правая — форма редактирования/просмотра выбранного
- * клиента. Поля зависят от типа организации (ТОО / ИП / Физ.лицо).
+ * клиента. Поля: ФИО, Объект (свободный текст), Контакты (массив телефонов
+ * с заметками). Никаких ТОО/ИП/физлицо — все клиенты однотипные.
  *
  * После «Сохранить и выбрать» закрывает модалку и пробрасывает выбранного
  * клиента наверх через onPicked. Пул клиентов общий для всех системных
@@ -13,7 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Search, Trash2, Check } from "lucide-react"
+import { Loader2, Plus, Search, Trash2, Check, Phone, X } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -25,13 +26,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import {
   listKpClients,
@@ -40,7 +34,7 @@ import {
   deleteKpClient,
   type KpClient,
   type KpClientInput,
-  type KpClientOrgType,
+  type KpClientContact,
 } from "@/app/actions/kp-clients"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { cn } from "@/lib/utils"
@@ -50,42 +44,6 @@ const SOFT =
   "focus:ring-0 focus:ring-offset-0 focus:outline-none " +
   "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300"
 
-const ORG_TYPE_LABEL: Record<KpClientOrgType, string> = {
-  too: "ТОО",
-  ip: "ИП",
-  individual: "Физ.лицо",
-}
-
-const ORG_TYPE_BADGE: Record<KpClientOrgType, string> = {
-  too: "bg-blue-100 text-blue-700 border-blue-200",
-  ip: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  individual: "bg-amber-100 text-amber-700 border-amber-200",
-}
-
-// Какие поля показывать для каждого типа организации
-const ORG_TYPE_FIELDS: Record<KpClientOrgType, {
-  organization_name: boolean
-  full_name: boolean
-  bin: boolean
-  iin: boolean
-}> = {
-  too: { organization_name: true, full_name: true, bin: true, iin: false },
-  ip: { organization_name: true, full_name: true, bin: false, iin: true },
-  individual: { organization_name: false, full_name: true, bin: false, iin: true },
-}
-
-const FULL_NAME_LABEL: Record<KpClientOrgType, string> = {
-  too: "ФИО директора",
-  ip: "ФИО директора / владельца",
-  individual: "ФИО",
-}
-
-const ORG_NAME_LABEL: Record<KpClientOrgType, string> = {
-  too: "Название ТОО",
-  ip: "Название ИП",
-  individual: "",
-}
-
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -93,56 +51,37 @@ interface Props {
   onPicked: (client: KpClient) => void
 }
 
-// Состояние формы — то что юзер сейчас редактирует. id = null означает
-// «создаём нового», id = число — редактируем существующего.
+// Состояние формы. id = null — создание нового клиента.
 interface FormState {
   id: number | null
-  organization_type: KpClientOrgType
-  organization_name: string
   full_name: string
-  bin: string
-  iin: string
-  phone: string
-  whatsapp: string
-  note: string
+  object: string
+  contacts: KpClientContact[]
 }
 
 const EMPTY_FORM: FormState = {
   id: null,
-  organization_type: "too",
-  organization_name: "",
   full_name: "",
-  bin: "",
-  iin: "",
-  phone: "",
-  whatsapp: "",
-  note: "",
+  object: "",
+  contacts: [],
 }
 
 function clientToForm(c: KpClient): FormState {
   return {
     id: c.id,
-    organization_type: c.organization_type,
-    organization_name: c.organization_name || "",
     full_name: c.full_name || "",
-    bin: c.bin || "",
-    iin: c.iin || "",
-    phone: c.phone || "",
-    whatsapp: c.whatsapp || "",
-    note: c.note || "",
+    object: c.object || "",
+    contacts: Array.isArray(c.contacts) ? c.contacts.map(x => ({ phone: x.phone || "", note: x.note || "" })) : [],
   }
 }
 
 function formToInput(f: FormState): KpClientInput {
   return {
-    organization_type: f.organization_type,
-    organization_name: f.organization_name.trim() || null,
-    full_name: f.full_name.trim() || null,
-    bin: f.bin.trim() || null,
-    iin: f.iin.trim() || null,
-    phone: f.phone.trim() || null,
-    whatsapp: f.whatsapp.trim() || null,
-    note: f.note.trim() || null,
+    full_name: f.full_name.trim(),
+    object: f.object.trim() || null,
+    contacts: f.contacts
+      .map(c => ({ phone: c.phone.trim(), note: c.note.trim() }))
+      .filter(c => c.phone),  // выкидываем пустые
   }
 }
 
@@ -165,7 +104,6 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
     listKpClients()
       .then((list) => {
         setClients(list)
-        // Если уже был выбран клиент — открываем его сразу
         if (selectedClientId) {
           const found = list.find((c) => c.id === selectedClientId)
           if (found) {
@@ -174,7 +112,6 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
             return
           }
         }
-        // Иначе — пустая форма создания нового
         setActiveId(null)
         setForm(EMPTY_FORM)
       })
@@ -184,21 +121,15 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
       .finally(() => setLoading(false))
   }, [open, selectedClientId, toast])
 
-  // Локальный фильтр по поисковой строке. Бэк-поиск тоже есть, но для
-  // адресных книг до пары сотен записей достаточно клиентского.
+  // Локальный фильтр по поисковой строке.
   const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return clients
     return clients.filter((c) => {
-      const fields = [
-        c.organization_name,
-        c.full_name,
-        c.bin,
-        c.iin,
-        c.phone,
-        c.whatsapp,
-      ].filter(Boolean) as string[]
-      return fields.some((f) => f.toLowerCase().includes(q))
+      const fields = [c.full_name, c.object].filter(Boolean) as string[]
+      if (fields.some((f) => f.toLowerCase().includes(q))) return true
+      // Поиск по телефонам тоже — менеджеры часто ищут по номеру.
+      return (c.contacts || []).some(ct => ct.phone.toLowerCase().includes(q))
     })
   }, [clients, search])
 
@@ -212,17 +143,22 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
     setForm(EMPTY_FORM)
   }
 
-  // Валидируем минимально на клиенте — бэк вернёт точную ошибку если что.
+  // --- Контакты ---
+  const addContact = () => {
+    setForm(f => ({ ...f, contacts: [...f.contacts, { phone: "", note: "" }] }))
+  }
+  const updateContact = (idx: number, patch: Partial<KpClientContact>) => {
+    setForm(f => ({
+      ...f,
+      contacts: f.contacts.map((c, i) => i === idx ? { ...c, ...patch } : c),
+    }))
+  }
+  const removeContact = (idx: number) => {
+    setForm(f => ({ ...f, contacts: f.contacts.filter((_, i) => i !== idx) }))
+  }
+
   const validate = (f: FormState): string | null => {
-    const fields = ORG_TYPE_FIELDS[f.organization_type]
-    if (fields.organization_name && !f.organization_name.trim()) {
-      return ORG_NAME_LABEL[f.organization_type] + " обязательно"
-    }
-    if (fields.full_name && !f.full_name.trim()) {
-      return FULL_NAME_LABEL[f.organization_type] + " обязательно"
-    }
-    if (fields.bin && !f.bin.trim()) return "БИН обязателен"
-    if (fields.iin && !f.iin.trim()) return "ИИН обязателен"
+    if (!f.full_name.trim()) return "ФИО клиента обязательно"
     return null
   }
 
@@ -243,7 +179,6 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
         return
       }
       const saved = res.client
-      // Обновляем список в памяти — без повторного fetch'а.
       setClients((prev) => {
         const idx = prev.findIndex((c) => c.id === saved.id)
         if (idx >= 0) {
@@ -274,7 +209,6 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
         return
       }
       setClients((prev) => prev.filter((c) => c.id !== deleteCandidate.id))
-      // Если удалили того что был открыт — сбросим форму
       if (activeId === deleteCandidate.id) {
         setActiveId(null)
         setForm(EMPTY_FORM)
@@ -285,8 +219,6 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
       setDeleting(false)
     }
   }
-
-  const fields = ORG_TYPE_FIELDS[form.organization_type]
 
   return (
     <>
@@ -303,7 +235,7 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <Input
-                    placeholder="Поиск по имени / БИН / ИИН"
+                    placeholder="Поиск по ФИО / объекту / телефону"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className={cn("h-9 pl-8 text-sm", SOFT)}
@@ -336,6 +268,7 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                   <ul className="py-1">
                     {filteredClients.map((c) => {
                       const isActive = activeId === c.id
+                      const firstContact = c.contacts?.[0]
                       return (
                         <li key={c.id}>
                           <button
@@ -346,20 +279,23 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                               isActive && "bg-yellow-100 hover:bg-yellow-100",
                             )}
                           >
-                            <span
-                              className={cn(
-                                "inline-flex shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded border uppercase tracking-wide",
-                                ORG_TYPE_BADGE[c.organization_type],
-                              )}
-                            >
-                              {ORG_TYPE_LABEL[c.organization_type]}
-                            </span>
                             <span className="flex-1 min-w-0">
                               <span className="block text-sm font-medium text-gray-900 truncate">
                                 {c.display_name}
                               </span>
-                              {c.phone && (
-                                <span className="block text-[11px] text-gray-500 truncate">{c.phone}</span>
+                              {c.object && (
+                                <span className="block text-[11px] text-gray-500 truncate">
+                                  {c.object}
+                                </span>
+                              )}
+                              {firstContact && (
+                                <span className="block text-[11px] text-gray-400 truncate flex items-center gap-1">
+                                  <Phone className="h-2.5 w-2.5 flex-shrink-0" />
+                                  {firstContact.phone}
+                                  {(c.contacts?.length ?? 0) > 1 && (
+                                    <span className="text-gray-300">+{(c.contacts?.length ?? 1) - 1}</span>
+                                  )}
+                                </span>
                               )}
                             </span>
                             {isActive && <Check className="h-4 w-4 text-yellow-700 shrink-0 mt-0.5" />}
@@ -397,117 +333,79 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
 
                 <div>
                   <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Тип организации
+                    ФИО <span className="text-red-500">*</span>
                   </Label>
-                  <Select
-                    value={form.organization_type}
-                    onValueChange={(v) => setForm((f) => ({ ...f, organization_type: v as KpClientOrgType }))}
-                  >
-                    <SelectTrigger className={cn("mt-1 h-9", SOFT)}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="too">ТОО</SelectItem>
-                      <SelectItem value="ip">ИП</SelectItem>
-                      <SelectItem value="individual">Физ.лицо</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {fields.organization_name && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      {ORG_NAME_LABEL[form.organization_type]} <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={form.organization_name}
-                      onChange={(e) => setForm((f) => ({ ...f, organization_name: e.target.value }))}
-                      className={cn("mt-1 h-9 text-sm", SOFT)}
-                      placeholder={form.organization_type === "too" ? 'ТОО «Пример»' : 'ИП Иванов'}
-                    />
-                  </div>
-                )}
-
-                {fields.full_name && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      {FULL_NAME_LABEL[form.organization_type]} <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      value={form.full_name}
-                      onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-                      className={cn("mt-1 h-9 text-sm", SOFT)}
-                      placeholder="Иванов Иван Иванович"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  {fields.bin && (
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        БИН <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        value={form.bin}
-                        onChange={(e) => setForm((f) => ({ ...f, bin: e.target.value.replace(/\D/g, "").slice(0, 12) }))}
-                        className={cn("mt-1 h-9 text-sm", SOFT)}
-                        placeholder="123456789012"
-                        inputMode="numeric"
-                      />
-                    </div>
-                  )}
-                  {fields.iin && (
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        ИИН <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        value={form.iin}
-                        onChange={(e) => setForm((f) => ({ ...f, iin: e.target.value.replace(/\D/g, "").slice(0, 12) }))}
-                        className={cn("mt-1 h-9 text-sm", SOFT)}
-                        placeholder="123456789012"
-                        inputMode="numeric"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Телефон
-                    </Label>
-                    <Input
-                      value={form.phone}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                      className={cn("mt-1 h-9 text-sm", SOFT)}
-                      placeholder="+7 (___) ___-__-__"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      WhatsApp
-                    </Label>
-                    <Input
-                      value={form.whatsapp}
-                      onChange={(e) => setForm((f) => ({ ...f, whatsapp: e.target.value }))}
-                      className={cn("mt-1 h-9 text-sm", SOFT)}
-                      placeholder="+7 (___) ___-__-__"
-                    />
-                  </div>
+                  <Input
+                    value={form.full_name}
+                    onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                    className={cn("mt-1 h-9 text-sm", SOFT)}
+                    placeholder="Иванов Иван Иванович"
+                  />
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Заметка
+                    Объект
                   </Label>
                   <Textarea
-                    value={form.note}
-                    onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                    className={cn("mt-1 text-sm min-h-[70px] resize-none", SOFT)}
-                    placeholder="Дополнительная информация о клиенте..."
+                    value={form.object}
+                    onChange={(e) => setForm((f) => ({ ...f, object: e.target.value }))}
+                    className={cn("mt-1 text-sm min-h-[60px] resize-none", SOFT)}
+                    placeholder="Название объекта, адрес, название организации…"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Контакты
+                    </Label>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={addContact}
+                      className="h-7 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Добавить
+                    </Button>
+                  </div>
+
+                  {form.contacts.length === 0 ? (
+                    <p className="text-[11px] text-gray-400 py-2">
+                      Контактов нет. Нажмите «Добавить» — можно добавить несколько телефонов с заметками.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.contacts.map((ct, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <div className="flex-1 grid grid-cols-[1fr_1fr] gap-2">
+                            <Input
+                              value={ct.phone}
+                              onChange={(e) => updateContact(idx, { phone: e.target.value })}
+                              className={cn("h-9 text-sm", SOFT)}
+                              placeholder="+7 (___) ___-__-__"
+                            />
+                            <Input
+                              value={ct.note}
+                              onChange={(e) => updateContact(idx, { note: e.target.value })}
+                              className={cn("h-9 text-sm", SOFT)}
+                              placeholder="Заметка (WhatsApp, секретарь…)"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeContact(idx)}
+                            className="h-9 w-9 p-0 text-gray-400 hover:text-red-600 shrink-0"
+                            title="Удалить контакт"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

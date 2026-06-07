@@ -15,12 +15,13 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { KpShareDialog } from '@/components/kp-share-dialog'
 import { KpClientPickerDialog } from '@/components/kp-client-picker-dialog'
+import { KpTemplateManagerDialog } from '@/components/kp-template-manager-dialog'
 import { getKpShareTargets, type KpShareTarget } from '@/app/actions/kp-share'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
-import { useKP, KPItem, KPColumnSettings, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
+import { useKP, KPItem, KPColumnSettings, KPTextElement, KP_FONT_FAMILIES, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
 import { formatProductPrice } from '@/lib/utils'
 import { getImageUrl } from '@/lib/image-utils'
@@ -115,16 +116,23 @@ function buildPages(
   items: KPItem[],
   cols: KPColumnSettings,
   widths: Record<string, number>,
-  logoEnabled: boolean,
-  logoWidth: number,
+  logos: { x: number; y: number; width: number; height: number }[],
+  footerReserve: number,
   measuredHeights: number[],
   customSizes?: Record<string, number>,
 ): PageSlice[] {
   if (items.length === 0) return []
 
-  const firstPageHeaderH = logoEnabled ? 100 + Math.max(0, logoWidth * 0.25) : 80
-  const firstAvail = USABLE_HEIGHT - firstPageHeaderH - TABLE_HEADER_H
-  const otherAvail = USABLE_HEIGHT - TABLE_HEADER_H - 16
+  // Реальная высота резерва под лого — максимум по эффективным высотам
+  // (height или width*0.4 fallback) среди всех слотов. Раньше при single-logo
+  // считалось от width, из-за чего тяга за правый край сдвигала таблицу.
+  const maxLogoH = logos.length === 0
+    ? 0
+    : Math.max(...logos.map(l => l.height > 0 ? l.height : l.width * 0.4))
+  const firstPageHeaderH = logos.length > 0 ? 60 + maxLogoH : 80
+  // Колонтитул занимает место снизу на ВСЕХ страницах — таблица сжимается.
+  const firstAvail = USABLE_HEIGHT - firstPageHeaderH - TABLE_HEADER_H - footerReserve
+  const otherAvail = USABLE_HEIGHT - TABLE_HEADER_H - 16 - footerReserve
 
   const getRowH = (idx: number) =>
     measuredHeights[idx] > 0 ? measuredHeights[idx] : estimateRowHeight(items[idx], cols, widths, customSizes)
@@ -483,8 +491,9 @@ export default function KPPage() {
   const { user } = useAuth()
   const {
     kpItems, kpCount, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll,
-    kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo,
+    kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, addLogoSlot, updateLogoSlot, removeLogoSlot,
     addTextElement, updateTextElement, removeTextElement,
+    updateFooter, addFooterTextElement, addFooterImageElement, updateFooterElement, removeFooterElement,
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
     activeAccessLevel, isSuperAdmin, hasOtherVisible, historyFilter, setHistoryFilter,
     activeClient, setActiveClient,
@@ -505,7 +514,6 @@ export default function KPPage() {
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [measuredHeights, setMeasuredHeights] = useState<number[]>([])
   const [exporting, setExporting] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
   const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
   const [newTextPage, setNewTextPage] = useState(0)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
@@ -515,6 +523,7 @@ export default function KPPage() {
   // Модалка адресной книги клиентов. activeClient (из контекста) живёт
   // независимо — она остаётся выбранной даже когда модалка закрыта.
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false)
   // Локальный фильтр карточек по клиенту. "all" = не фильтруем, число = id
   // конкретного клиента. Применяется поверх historyFilter (mine/shared/all).
   const [clientFilter, setClientFilter] = useState<number | "all">("all")
@@ -552,8 +561,11 @@ export default function KPPage() {
   const logoUploadRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
 
-  // Logo gallery state
-  const [showLogoModal, setShowLogoModal] = useState(false)
+  // Logo gallery state. galleryTarget — кому передать выбранный файл:
+  // {kind: 'logo', id} — слот лого; {kind: 'footer-image', id} — картинка
+  // в колонтитуле. null = модалка закрыта. Унификация одной модалки
+  // под обе сущности избавляет от дублирования UI.
+  const [galleryTarget, setGalleryTarget] = useState<{ kind: 'logo' | 'footer-image'; id: string } | null>(null)
   const [userLogos, setUserLogos] = useState<Array<{ filename: string; url: string; size: number; uploaded_at: string }>>([])
   const [logosLoading, setLogosLoading] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -611,12 +623,18 @@ export default function KPPage() {
     const startElX = element.x
     const startElY = element.y
 
+    // Clamp Y по зоне. Для 'header' — верхняя часть страницы (0..220),
+    // чтобы header-блоки физически не уехали ниже шапки. Для 'free' —
+    // вся страница как и раньше.
+    const isHeader = element.zone === 'header'
+    const maxY = isHeader ? 220 : A4_HEIGHT - 30
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const dx = (moveEvent.clientX - startX) / scale
       const dy = (moveEvent.clientY - startY) / scale
       updateTextElement(elementId, {
         x: Math.max(0, Math.min(A4_WIDTH - 100, startElX + dx)),
-        y: Math.max(0, Math.min(A4_HEIGHT - 30, startElY + dy)),
+        y: Math.max(0, Math.min(maxY, startElY + dy)),
       })
     }
 
@@ -629,27 +647,6 @@ export default function KPPage() {
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
   }, [kpSettings.textElements, scale, updateTextElement])
-
-  // ── Logo drag ─────────────────────────────────
-  const [logoPos, setLogoPos] = useState<{ x: number; y: number }>({ x: 48, y: 48 })
-  const [logoLoaded, setLogoLoaded] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    try {
-      const stored = localStorage.getItem("kp-logo-pos")
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (parsed && typeof parsed.x === 'number') setLogoPos(parsed)
-      }
-    } catch {}
-    setLogoLoaded(true)
-  }, [])
-
-  useEffect(() => {
-    if (!logoLoaded || typeof window === "undefined") return
-    try { localStorage.setItem("kp-logo-pos", JSON.stringify(logoPos)) } catch {}
-  }, [logoPos, logoLoaded])
 
   // ── Manager block drag ──────────────────────
   const [managerPos, setManagerPos] = useState<{ x: number; y: number }>(MANAGER_DEFAULT_POS)
@@ -672,19 +669,23 @@ export default function KPPage() {
     try { localStorage.setItem("kp-manager-pos", JSON.stringify(managerPos)) } catch {}
   }, [managerPos, managerPosLoaded])
 
-  const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
+  // ── Logo slot drag/resize (multi-logo) ─────────
+  // Позиции и размеры лого живут в kpSettings.logos[]. Драг/resize
+  // апдейтят слот по id через updateLogoSlot из контекста — никакого
+  // отдельного state'а тут больше не держим.
+  const handleLogoSlotDragStart = useCallback((slotId: string, startSlot: { x: number; y: number }, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setSelectedElement('logo')
+    setSelectedElement(`logo:${slotId}`)
     const startX = e.clientX
     const startY = e.clientY
-    const startLX = logoPos.x
-    const startLY = logoPos.y
+    const startLX = startSlot.x
+    const startLY = startSlot.y
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const dx = (moveEvent.clientX - startX) / scale
       const dy = (moveEvent.clientY - startY) / scale
-      setLogoPos({
+      updateLogoSlot(slotId, {
         x: Math.max(0, Math.min(A4_WIDTH - 50, startLX + dx)),
         y: Math.max(0, Math.min(A4_HEIGHT - 50, startLY + dy)),
       })
@@ -695,17 +696,15 @@ export default function KPPage() {
     }
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }, [logoPos, scale])
+  }, [scale, updateLogoSlot])
 
-  // ── Logo corner resize ──────────────────────
-  const handleLogoResizeStart = useCallback((corner: string, e: React.MouseEvent) => {
+  const handleLogoSlotResizeStart = useCallback((slotId: string, startSlot: { width: number; height: number }, corner: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     const startX = e.clientX
     const startY = e.clientY
-    const startWidth = kpSettings.logo.width
-    const startHeight = kpSettings.logo.height || 0
-    // If no explicit height set, get current rendered height
+    const startWidth = startSlot.width
+    const startHeight = startSlot.height || 0
     const imgEl = (e.target as HTMLElement).parentElement?.querySelector('img')
     const actualHeight = startHeight > 0 ? startHeight : (imgEl?.offsetHeight || 80)
 
@@ -716,7 +715,7 @@ export default function KPPage() {
       const signY = corner.includes('bottom') ? 1 : -1
       const newWidth = Math.max(30, Math.min(500, Math.round(startWidth + dx * signX)))
       const newHeight = Math.max(20, Math.min(400, Math.round(actualHeight + dy * signY)))
-      updateLogo({ width: newWidth, height: newHeight })
+      updateLogoSlot(slotId, { width: newWidth, height: newHeight })
     }
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
@@ -724,9 +723,8 @@ export default function KPPage() {
     }
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }, [kpSettings.logo.width, kpSettings.logo.height, scale, updateLogo])
+  }, [scale, updateLogoSlot])
 
-  // ── Manager block drag ──────────────────────
   const handleManagerDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -792,15 +790,27 @@ export default function KPPage() {
       const data = await resp.json()
       if (data.success && data.logo) {
         setUserLogos(prev => [...prev, data.logo])
-        // Auto-select the uploaded logo
-        updateLogo({ serverUrl: data.logo.url, logoFilename: data.logo.filename, customUrl: undefined })
+        // Авто-выбор сразу в цель модалки (логослот или картинка футера).
+        if (galleryTarget?.kind === 'logo') {
+          updateLogoSlot(galleryTarget.id, {
+            serverUrl: data.logo.url,
+            logoFilename: data.logo.filename,
+            customUrl: undefined,
+          })
+        } else if (galleryTarget?.kind === 'footer-image') {
+          updateFooterElement(galleryTarget.id, {
+            serverUrl: data.logo.url,
+            logoFilename: data.logo.filename,
+            customUrl: undefined,
+          })
+        }
       }
     } catch (err) {
       console.error('Failed to upload logo:', err)
     } finally {
       setLogoUploading(false)
     }
-  }, [updateLogo])
+  }, [galleryTarget, updateLogoSlot, updateFooterElement])
 
   const handleDeleteLogo = useCallback(async (filename: string) => {
     try {
@@ -808,25 +818,120 @@ export default function KPPage() {
       const data = await resp.json()
       if (data.success) {
         setUserLogos(prev => prev.filter(l => l.filename !== filename))
-        // If deleted logo was selected, reset
-        if (kpSettings.logo.logoFilename === filename) {
-          updateLogo({ serverUrl: undefined, logoFilename: undefined })
-        }
+        // Сбрасываем у всех слотов лого И картинок колонтитула.
+        kpSettings.logos.forEach(slot => {
+          if (slot.logoFilename === filename) {
+            updateLogoSlot(slot.id, { serverUrl: undefined, logoFilename: undefined })
+          }
+        })
+        kpSettings.footer.elements.forEach(el => {
+          if (el.type === 'image' && el.logoFilename === filename) {
+            updateFooterElement(el.id, { serverUrl: undefined, logoFilename: undefined })
+          }
+        })
       }
     } catch (err) {
       console.error('Failed to delete logo:', err)
     }
-  }, [kpSettings.logo.logoFilename, updateLogo])
+  }, [kpSettings.logos, kpSettings.footer.elements, updateLogoSlot, updateFooterElement])
 
   const handleSelectLogo = useCallback((logoItem: { filename: string; url: string }) => {
-    updateLogo({ serverUrl: logoItem.url, logoFilename: logoItem.filename, customUrl: undefined })
-    setShowLogoModal(false)
-  }, [updateLogo])
+    if (!galleryTarget) return
+    if (galleryTarget.kind === 'logo') {
+      updateLogoSlot(galleryTarget.id, {
+        serverUrl: logoItem.url,
+        logoFilename: logoItem.filename,
+        customUrl: undefined,
+      })
+    } else if (galleryTarget.kind === 'footer-image') {
+      updateFooterElement(galleryTarget.id, {
+        serverUrl: logoItem.url,
+        logoFilename: logoItem.filename,
+        customUrl: undefined,
+      })
+    }
+    setGalleryTarget(null)
+  }, [galleryTarget, updateLogoSlot, updateFooterElement])
 
-  const handleOpenLogoModal = useCallback(() => {
-    setShowLogoModal(true)
+  const handleOpenLogoModal = useCallback((slotId: string) => {
+    setGalleryTarget({ kind: 'logo', id: slotId })
     fetchUserLogos()
   }, [fetchUserLogos])
+
+  const handleOpenFooterImageGallery = useCallback((elementId: string) => {
+    setGalleryTarget({ kind: 'footer-image', id: elementId })
+    fetchUserLogos()
+  }, [fetchUserLogos])
+
+  const handleAddLogo = useCallback(() => {
+    // Создаём слот и сразу открываем галерею для выбора файла.
+    const newId = addLogoSlot()
+    setGalleryTarget({ kind: 'logo', id: newId })
+    fetchUserLogos()
+  }, [addLogoSlot, fetchUserLogos])
+
+  const handleAddFooterImage = useCallback(() => {
+    const newId = addFooterImageElement()
+    setGalleryTarget({ kind: 'footer-image', id: newId })
+    fetchUserLogos()
+  }, [addFooterImageElement, fetchUserLogos])
+
+  // ── Footer element drag/resize (внутри bounding-box) ──
+  const handleFooterElementDragStart = useCallback((elementId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setSelectedElement(`footer:${elementId}`)
+    setDragging(`footer:${elementId}`)
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const el = kpSettings.footer.elements.find(x => x.id === elementId)
+    if (!el) return
+    const startElX = el.x
+    const startElY = el.y
+    const footerH = kpSettings.footer.height
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale
+      const dy = (moveEvent.clientY - startY) / scale
+      updateFooterElement(elementId, {
+        x: Math.max(0, Math.min(A4_WIDTH - 60, startElX + dx)),
+        y: Math.max(0, Math.min(footerH - 16, startElY + dy)),
+      })
+    }
+    const handleMouseUp = () => {
+      setDragging(null)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [kpSettings.footer.elements, kpSettings.footer.height, scale, updateFooterElement])
+
+  const handleFooterImageResizeStart = useCallback((elementId: string, startSize: { width: number; height: number }, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startY = e.clientY
+    const startWidth = startSize.width
+    const startHeight = startSize.height || 0
+    const imgEl = (e.target as HTMLElement).parentElement?.querySelector('img')
+    const actualHeight = startHeight > 0 ? startHeight : (imgEl?.offsetHeight || 30)
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = (moveEvent.clientX - startX) / scale
+      const dy = (moveEvent.clientY - startY) / scale
+      const newWidth = Math.max(20, Math.min(400, Math.round(startWidth + dx)))
+      const newHeight = Math.max(16, Math.min(300, Math.round(actualHeight + dy)))
+      updateFooterElement(elementId, { width: newWidth, height: newHeight })
+    }
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [scale, updateFooterElement])
 
   // ── Deselect ──────────────────────────────────
   const handlePreviewClick = useCallback(() => {
@@ -923,8 +1028,9 @@ export default function KPPage() {
       const name = kpSettings.kpName || 'КП'
       pdf.save(`${name}_${dateStr}.pdf`)
 
-      // Автосохранение в историю (с позициями)
-      saveToHistory({ logoPos, managerPos })
+      // Автосохранение в историю (с позициями). logoPos больше не
+      // нужен — позиции лежат в kpSettings.logos[].
+      saveToHistory({ managerPos })
     } catch (err) {
       console.error('PDF export error:', err)
       // Restore scale on error
@@ -934,15 +1040,17 @@ export default function KPPage() {
     } finally {
       setExporting(false)
     }
-  }, [exporting, scale, kpSettings.kpName, selectedElement, saveToHistory, logoPos, managerPos])
+  }, [exporting, scale, kpSettings.kpName, selectedElement, saveToHistory, managerPos])
 
   // ── Guard ─────────────────────────────────────
   if (!isSystemUser) return null
 
   // ── Derived data ──────────────────────────────
   const totalAmount = kpItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const { columns, columnWidths, columnFontSizes, columnHeaderFontSizes, columnAligns, columnHeaderAligns, mergeImageName, managerAlign, logo, textElements, kpName, title, footerNote } = kpSettings
-  const logoSrc = logo.serverUrl ? getImageUrl(logo.serverUrl) : (logo.customUrl || "/ui/big_logo.png")
+  const { columns, columnWidths, columnFontSizes, columnHeaderFontSizes, columnAligns, columnHeaderAligns, mergeImageName, managerAlign, logos, textElements, footer, kpName, title, footerNote } = kpSettings
+  // Резолвер src для одного слота. Если файла нет — placeholder.
+  const resolveLogoSrc = (slot: { serverUrl?: string; customUrl?: string }) =>
+    slot.serverUrl ? getImageUrl(slot.serverUrl) : (slot.customUrl || "/ui/big_logo.png")
 
   // Visible columns
   const visibleCols = ALL_COLUMNS.filter(col => {
@@ -953,7 +1061,8 @@ export default function KPPage() {
   })
 
   // Build pages using measured heights
-  const pages = buildPages(kpItems, columns, columnWidths, logo.enabled, logo.width, measuredHeights, columnFontSizes)
+  const footerReserve = footer.enabled ? footer.height : 0
+  const pages = buildPages(kpItems, columns, columnWidths, logos, footerReserve, measuredHeights, columnFontSizes)
   const totalContentHeight = A4_HEIGHT * pages.length + PAGE_GAP * Math.max(0, pages.length - 1)
 
   // ── Render table cell (shared by measurement + visible tables) ──
@@ -1104,7 +1213,13 @@ export default function KPPage() {
             onClick={async () => {
               setLoadingHistoryId(entry.id)
               const result = await loadFromHistory(entry.id)
-              if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
+              // Legacy logoPos из старых КП → первый слот лого.
+              if (result.positions?.logoPos && kpSettings.logos[0]) {
+                updateLogoSlot(kpSettings.logos[0].id, {
+                  x: result.positions.logoPos.x,
+                  y: result.positions.logoPos.y,
+                })
+              }
               if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
               setLoadingHistoryId(null)
             }}
@@ -1135,15 +1250,11 @@ export default function KPPage() {
               <span>{new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
               <span className="font-medium">{entry.total_amount.toLocaleString()} тг</span>
             </div>
-            {/* Денормализованное название клиента из бэка (short=True). Показываем
-                как отдельную строку — длинные ТОО'шки занимают всю ширину. */}
+            {/* Денормализованное имя клиента из бэка (short=True). Длинные
+                имена/объекты занимают всю ширину. */}
             {entry.client && (
               <div className="mt-1.5 inline-flex items-center gap-1 text-xs text-gray-700 bg-white/70 border border-gray-200 rounded-full px-2 py-0.5 max-w-full">
-                {entry.client.organization_type === "individual" ? (
-                  <User className="h-3 w-3 shrink-0 text-gray-500" />
-                ) : (
-                  <Building2 className="h-3 w-3 shrink-0 text-gray-500" />
-                )}
+                <User className="h-3 w-3 shrink-0 text-gray-500" />
                 <span className="truncate">{entry.client.display_name}</span>
               </div>
             )}
@@ -1310,6 +1421,39 @@ export default function KPPage() {
           </Card>
         )}
 
+        {/* Панель управления шаблонами — НАД колонками. Шаблоны это
+            «фирменный бланк» (настройки правой панели редактора КП),
+            общий пул на всех системных юзеров: один менеджер настроил
+            шапку/лого/колонтитул — другие импортируют одним кликом. */}
+        {!showEmptyOnboarding && (
+          <Card className="mb-6 border-blue-200">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-blue-50 shrink-0">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold">Шаблоны КП</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Общая библиотека «фирменных бланков» — настроек логотипа, колонтитула,
+                      колонок и текстов шапки. Один менеджер создаёт шаблон, остальные
+                      импортируют его в свои настройки одним кликом.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setTemplateManagerOpen(true)}
+                  className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Открыть
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Две колонки: жёлтые сохранённые + зелёные подписанные. Показываем
             всегда кроме первого онбординг-экрана. Если конкретный фильтр
             ничего не нашёл — колонки покажут свой собственный empty-state
@@ -1389,6 +1533,36 @@ export default function KPPage() {
           title={`Удалить КП «${deletingKp?.name}»?`}
           description="Запись будет полностью удалена из истории. Действие необратимо. Все доступы, выданные другим пользователям, тоже пропадут."
         />
+
+        {/* Шаблоны КП — модалка вызывается из синей панели над колонками.
+            Должна жить в этом же return, иначе onClick «Открыть» не покажет
+            ничего (диалог в основном редакторе не монтируется при пустом КП).
+            source='list' — создание шаблона требует явного выбора одного из
+            сохранённых КП как источника настроек (потому что юзер сейчас
+            ничего не редактирует, у него только список). */}
+        <KpTemplateManagerDialog
+          open={templateManagerOpen}
+          onOpenChange={setTemplateManagerOpen}
+          source="list"
+          currentSettings={kpSettings}
+          historyEntries={kpHistory.map(e => ({ id: e.id, name: e.name }))}
+          onFetchHistorySettings={async (id) => {
+            try {
+              const resp = await fetch(`/api/kp-history/${id}`)
+              const data = await resp.json()
+              if (data?.success && data?.data?.settings && typeof data.data.settings === 'object') {
+                return data.data.settings as Record<string, any>
+              }
+              return null
+            } catch {
+              return null
+            }
+          }}
+          onApply={(settings) => {
+            const { kpName: _ignored, ...rest } = settings || {}
+            updateSettings(rest)
+          }}
+        />
       </div>
     )
   }
@@ -1430,64 +1604,22 @@ export default function KPPage() {
           {pages.length > 1 && (
             <Badge variant="outline" className="text-gray-500">{pages.length} стр.</Badge>
           )}
-        </div>
 
-        {/* История КП — слева после badges */}
-        {kpHistory.length > 0 && (
-          <div className="relative ml-4">
+          {/* Применить шаблон к текущему КП. Открывает общую модалку —
+              там же управление шаблонами. Право редактирования настроек
+              ровно как у «Сохранить КП», поэтому при view-доступе кнопку
+              прячем (применение бы перезаписало чужие настройки). */}
+          {activeAccessLevel !== "view" && (
             <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-black bg-white border border-yellow-400 hover:bg-yellow-50 rounded-full transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+              onClick={() => setTemplateManagerOpen(true)}
+              className="ml-3 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-black bg-white border border-blue-400 hover:bg-blue-50 rounded-full transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]"
+              title="Применить шаблон к этому КП или открыть управление шаблонами"
             >
-              <History className="h-4 w-4" />
-              История КП ({kpHistory.length})
-              {showHistory ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <FileText className="h-4 w-4 text-blue-600" />
+              Шаблон
             </button>
-            {showHistory && (
-              <div className="absolute top-full mt-1 left-0 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-2 space-y-1 max-h-64 overflow-y-auto">
-                {kpHistory.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-yellow-50 hover:border-yellow-400 border border-transparent transition-colors group"
-                  >
-                    <button
-                      className="flex-1 text-left min-w-0"
-                      disabled={loadingHistoryId === entry.id}
-                      onClick={async () => {
-                        setLoadingHistoryId(entry.id)
-                        const result = await loadFromHistory(entry.id)
-                        if (result.positions?.logoPos) setLogoPos(result.positions.logoPos)
-                        if (result.positions?.managerPos) setManagerPos(result.positions.managerPos)
-                        setLoadingHistoryId(null)
-                        if (result.success) setShowHistory(false)
-                      }}
-                    >
-                      <div className="text-sm font-medium truncate">{entry.name}</div>
-                      <div className="text-xs text-gray-400 flex items-center gap-2">
-                        <span>{new Date(entry.created_at).toLocaleDateString('ru-RU')}</span>
-                        <span>{entry.total_amount.toLocaleString()} тг</span>
-                      </div>
-                    </button>
-                    {loadingHistoryId === entry.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 ml-2 shrink-0" />
-                    ) : (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          await deleteFromHistory(entry.id)
-                        }}
-                        className="ml-2 shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Удалить из истории"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex-1" />
 
@@ -1521,7 +1653,7 @@ export default function KPPage() {
               onClick={async () => {
                 setSavingKP(true)
                 try {
-                  const ok = await saveToHistory({ logoPos, managerPos })
+                  const ok = await saveToHistory({ managerPos })
                   toast({
                     title: ok ? "КП сохранён" : "Не удалось сохранить",
                     description: ok ? "Запись добавлена в историю КП" : "Попробуйте ещё раз",
@@ -1679,7 +1811,15 @@ export default function KPPage() {
                               {new Date().toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}
                             </div>
                             <h2
-                              style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 24, marginTop: logo.enabled ? Math.max(0, logo.width * 0.3) : 0 }}
+                              style={{
+                                fontSize: 20,
+                                fontWeight: 'bold',
+                                textAlign: 'center',
+                                marginBottom: 24,
+                                marginTop: logos.length > 0
+                                  ? Math.max(...logos.map(l => l.height > 0 ? l.height : l.width * 0.4))
+                                  : 0,
+                              }}
                             >
                               {title}
                             </h2>
@@ -1783,58 +1923,68 @@ export default function KPPage() {
                         )}
                       </div>
 
-                      {/* Draggable logo — first page */}
-                      {page.isFirst && logo.enabled && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            left: logoPos.x,
-                            top: logoPos.y,
-                            cursor: dragging === 'logo' ? 'grabbing' : 'grab',
-                            outline: selectedElement === 'logo' ? '2px solid #3b82f6' : 'none',
-                            outlineOffset: 4,
-                            zIndex: 10,
-                          }}
-                          onMouseDown={handleLogoDragStart}
-                          onClick={(e) => { e.stopPropagation(); setSelectedElement('logo') }}
-                        >
-                          <img
-                            src={logoSrc}
-                            alt="Logo"
-                            style={{ width: logo.width, height: logo.height > 0 ? logo.height : 'auto' }}
-                            draggable={false}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                          />
-                          {/* Bottom-right resize handle */}
-                          {selectedElement === 'logo' && (
-                            <div
-                              style={{
-                                position: 'absolute',
-                                width: 18,
-                                height: 18,
-                                background: '#3b82f6',
-                                border: '2px solid white',
-                                borderRadius: '50%',
-                                bottom: -9,
-                                right: -9,
-                                cursor: 'nwse-resize',
-                                zIndex: 20,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                              onMouseDown={(e) => handleLogoResizeStart('bottom-right', e)}
-                            >
-                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ transform: 'rotate(0deg)' }}>
-                                <path d="M1 9L9 1M9 1H3M9 1V7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Draggable logo slots — first page */}
+                      {page.isFirst && logos.map((slot) => {
+                        const isSel = selectedElement === `logo:${slot.id}`
+                        return (
+                          <div
+                            key={slot.id}
+                            style={{
+                              position: 'absolute',
+                              left: slot.x,
+                              top: slot.y,
+                              cursor: dragging === `logo:${slot.id}` ? 'grabbing' : 'grab',
+                              outline: isSel ? '2px solid #3b82f6' : 'none',
+                              outlineOffset: 4,
+                              zIndex: 10,
+                            }}
+                            onMouseDown={(e) => handleLogoSlotDragStart(slot.id, { x: slot.x, y: slot.y }, e)}
+                            onClick={(e) => { e.stopPropagation(); setSelectedElement(`logo:${slot.id}`) }}
+                          >
+                            <img
+                              src={resolveLogoSrc(slot)}
+                              alt="Logo"
+                              style={{ width: slot.width, height: slot.height > 0 ? slot.height : 'auto' }}
+                              draggable={false}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                            {isSel && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  width: 18,
+                                  height: 18,
+                                  background: '#3b82f6',
+                                  border: '2px solid white',
+                                  borderRadius: '50%',
+                                  bottom: -9,
+                                  right: -9,
+                                  cursor: 'nwse-resize',
+                                  zIndex: 20,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                                onMouseDown={(e) => handleLogoSlotResizeStart(slot.id, { width: slot.width, height: slot.height }, 'bottom-right', e)}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                  <path d="M1 9L9 1M9 1H3M9 1V7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
 
-                      {/* Draggable text elements — per page */}
-                      {textElements.filter(el => (el.page ?? 0) === pageIdx).map((el) => (
+                      {/* Draggable text elements. На каждой странице рендерим:
+                          - zone='header' — только на первой странице (page игнорируется)
+                          - zone='free'   — по polю el.page (как раньше)
+                          - zone='footer' — не рендерим тут, появится с этапом колонтитула */}
+                      {textElements.filter(el => {
+                        if (el.zone === 'header') return page.isFirst
+                        if (el.zone === 'footer') return false
+                        return (el.page ?? 0) === pageIdx
+                      }).map((el) => (
                         <div
                           key={el.id}
                           style={{
@@ -1844,6 +1994,9 @@ export default function KPPage() {
                             fontSize: el.fontSize,
                             fontWeight: el.fontWeight,
                             textAlign: el.textAlign,
+                            fontFamily: el.fontFamily || 'Inter',
+                            lineHeight: el.lineHeight || 1.4,
+                            whiteSpace: 'pre-wrap',
                             cursor: editingElement === el.id ? 'text' : (dragging === el.id ? 'grabbing' : 'grab'),
                             outline: selectedElement === el.id ? '2px solid #3b82f6' : '1px dashed transparent',
                             outlineOffset: 2,
@@ -1860,26 +2013,26 @@ export default function KPPage() {
                           onDoubleClick={() => handleDoubleClick(el.id)}
                         >
                           {editingElement === el.id ? (
-                            <div
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(e) => handleBlur(el.id, e.currentTarget.textContent || '')}
-                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur() } }}
-                              className="outline-none border-b-2 border-blue-400 min-w-[60px]"
-                              style={{ fontSize: el.fontSize, fontWeight: el.fontWeight }}
-                              ref={(node) => {
-                                if (node) {
-                                  node.focus()
-                                  const range = document.createRange()
-                                  range.selectNodeContents(node)
-                                  const sel = window.getSelection()
-                                  sel?.removeAllRanges()
-                                  sel?.addRange(range)
-                                }
+                            <textarea
+                              autoFocus
+                              defaultValue={el.text}
+                              onBlur={(e) => handleBlur(el.id, e.currentTarget.value)}
+                              onKeyDown={(e) => {
+                                // Escape — отмена редактирования. Enter оставляем как перенос строки.
+                                if (e.key === 'Escape') { (e.target as HTMLTextAreaElement).blur() }
                               }}
-                            >
-                              {el.text}
-                            </div>
+                              className="outline-none border-b-2 border-blue-400 bg-transparent resize-none"
+                              style={{
+                                fontSize: el.fontSize,
+                                fontWeight: el.fontWeight,
+                                fontFamily: el.fontFamily || 'Inter',
+                                lineHeight: el.lineHeight || 1.4,
+                                textAlign: el.textAlign,
+                                minWidth: 200,
+                                minHeight: 60,
+                                width: '100%',
+                              }}
+                            />
                           ) : (
                             <span>{el.text}</span>
                           )}
@@ -1890,6 +2043,98 @@ export default function KPPage() {
                       {pages.length > 1 && (
                         <div style={{ position: 'absolute', bottom: 16, right: 48, fontSize: 10, color: '#9ca3af' }}>
                           Стр. {pageIdx + 1} из {pages.length}
+                        </div>
+                      )}
+
+                      {/* Running footer (колонтитул) — на всех страницах */}
+                      {footer.enabled && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: footer.height,
+                            borderTop: '1px dashed #d1d5db',
+                            background: 'rgba(249, 250, 251, 0.5)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {footer.elements.map((el) => {
+                            const isSel = selectedElement === `footer:${el.id}`
+                            if (el.type === 'text') {
+                              return (
+                                <div
+                                  key={el.id}
+                                  style={{
+                                    position: 'absolute',
+                                    left: el.x,
+                                    top: el.y,
+                                    fontSize: el.fontSize,
+                                    fontWeight: el.fontWeight,
+                                    textAlign: el.textAlign,
+                                    fontFamily: el.fontFamily || 'Inter',
+                                    lineHeight: el.lineHeight || 1.3,
+                                    whiteSpace: 'pre-wrap',
+                                    cursor: dragging === `footer:${el.id}` ? 'grabbing' : 'grab',
+                                    outline: isSel ? '2px solid #3b82f6' : '1px dashed transparent',
+                                    outlineOffset: 2,
+                                    padding: '1px 3px',
+                                    zIndex: isSel ? 20 : 5,
+                                    userSelect: 'none',
+                                    maxWidth: A4_WIDTH - 16,
+                                  }}
+                                  onMouseDown={(e) => handleFooterElementDragStart(el.id, e)}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedElement(`footer:${el.id}`) }}
+                                >
+                                  {el.text}
+                                </div>
+                              )
+                            }
+                            // image
+                            const imgSrc = el.serverUrl ? getImageUrl(el.serverUrl) : (el.customUrl || '/ui/big_logo.png')
+                            return (
+                              <div
+                                key={el.id}
+                                style={{
+                                  position: 'absolute',
+                                  left: el.x,
+                                  top: el.y,
+                                  cursor: dragging === `footer:${el.id}` ? 'grabbing' : 'grab',
+                                  outline: isSel ? '2px solid #3b82f6' : 'none',
+                                  outlineOffset: 2,
+                                  zIndex: isSel ? 20 : 5,
+                                }}
+                                onMouseDown={(e) => handleFooterElementDragStart(el.id, e)}
+                                onClick={(e) => { e.stopPropagation(); setSelectedElement(`footer:${el.id}`) }}
+                              >
+                                <img
+                                  src={imgSrc}
+                                  alt="footer img"
+                                  style={{ width: el.width, height: el.height > 0 ? el.height : 'auto' }}
+                                  draggable={false}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                />
+                                {isSel && (
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      width: 16,
+                                      height: 16,
+                                      background: '#3b82f6',
+                                      border: '2px solid white',
+                                      borderRadius: '50%',
+                                      bottom: -8,
+                                      right: -8,
+                                      cursor: 'nwse-resize',
+                                      zIndex: 20,
+                                    }}
+                                    onMouseDown={(e) => handleFooterImageResizeStart(el.id, { width: el.width, height: el.height }, e)}
+                                  />
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -1934,11 +2179,7 @@ export default function KPPage() {
                   </Button>
                 ) : (
                   <div className="mt-1 flex items-center gap-1.5 p-2 border border-yellow-200 bg-yellow-50 rounded-md">
-                    {activeClient.organization_type === "individual" ? (
-                      <User className="h-4 w-4 text-yellow-700 shrink-0" />
-                    ) : (
-                      <Building2 className="h-4 w-4 text-yellow-700 shrink-0" />
-                    )}
+                    <User className="h-4 w-4 text-yellow-700 shrink-0" />
                     <button
                       type="button"
                       onClick={() => setClientPickerOpen(true)}
@@ -1957,54 +2198,29 @@ export default function KPPage() {
                         <div className="font-semibold text-sm text-gray-900 pb-1.5 border-b">
                           {activeClient.display_name}
                         </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-gray-500">Тип:</span>
-                          <span className="font-medium text-gray-800">
-                            {activeClient.organization_type === "too" && "ТОО"}
-                            {activeClient.organization_type === "ip" && "ИП"}
-                            {activeClient.organization_type === "individual" && "Физ.лицо"}
-                          </span>
-                        </div>
-                        {activeClient.organization_name && activeClient.organization_type !== "individual" && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-gray-500">Организация:</span>
-                            <span className="font-medium text-gray-800 text-right">{activeClient.organization_name}</span>
-                          </div>
-                        )}
                         {activeClient.full_name && (
                           <div className="flex justify-between gap-2">
                             <span className="text-gray-500">ФИО:</span>
                             <span className="font-medium text-gray-800 text-right">{activeClient.full_name}</span>
                           </div>
                         )}
-                        {activeClient.bin && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-gray-500">БИН:</span>
-                            <span className="font-medium text-gray-800">{activeClient.bin}</span>
-                          </div>
-                        )}
-                        {activeClient.iin && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-gray-500">ИИН:</span>
-                            <span className="font-medium text-gray-800">{activeClient.iin}</span>
-                          </div>
-                        )}
-                        {activeClient.phone && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-gray-500">Телефон:</span>
-                            <span className="font-medium text-gray-800">{activeClient.phone}</span>
-                          </div>
-                        )}
-                        {activeClient.whatsapp && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-gray-500">WhatsApp:</span>
-                            <span className="font-medium text-gray-800">{activeClient.whatsapp}</span>
-                          </div>
-                        )}
-                        {activeClient.note && (
+                        {activeClient.object && (
                           <div className="pt-1.5 border-t">
-                            <div className="text-gray-500 mb-0.5">Заметка:</div>
-                            <div className="text-gray-700 whitespace-pre-wrap">{activeClient.note}</div>
+                            <div className="text-gray-500 mb-0.5">Объект:</div>
+                            <div className="text-gray-700 whitespace-pre-wrap">{activeClient.object}</div>
+                          </div>
+                        )}
+                        {activeClient.contacts && activeClient.contacts.length > 0 && (
+                          <div className="pt-1.5 border-t space-y-1">
+                            <div className="text-gray-500">Контакты:</div>
+                            {activeClient.contacts.map((ct, i) => (
+                              <div key={i} className="flex justify-between gap-2">
+                                <span className="font-medium text-gray-800">{ct.phone}</span>
+                                {ct.note && (
+                                  <span className="text-gray-500 text-right truncate">{ct.note}</span>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </PopoverContent>
@@ -2033,73 +2249,87 @@ export default function KPPage() {
                 />
               </div>
 
-              {/* Logo */}
+              {/* Logos (multi-slot) */}
               <div className="space-y-3">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Логотип</Label>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="logo-enabled"
-                    checked={logo.enabled}
-                    onCheckedChange={(checked) => updateLogo({ enabled: !!checked })}
-                  />
-                  <label htmlFor="logo-enabled" className="text-sm">Показать логотип</label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Логотипы</Label>
+                  <span className="text-[10px] text-gray-400">{logos.length} шт</span>
                 </div>
-                {logo.enabled && (
-                  <>
-                    {/* Current logo preview */}
-                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
-                      <img
-                        src={logoSrc}
-                        alt="Logo"
-                        className="h-8 max-w-[80px] object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/ui/big_logo.png' }}
-                      />
-                      <span className="text-[10px] text-gray-500 truncate flex-1">
-                        {logo.logoFilename || (logo.customUrl ? 'Загруженный' : 'По умолчанию')}
-                      </span>
-                    </div>
 
-                    <Button variant="outline" size="sm" onClick={handleOpenLogoModal} className="w-full text-xs">
-                      <ImageIcon className="h-3 w-3 mr-1" />
-                      Выбрать логотип
-                    </Button>
-
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs w-16 flex-shrink-0">Ширина</Label>
-                      <Slider
-                        value={[logo.width]}
-                        onValueChange={([v]) => updateLogo({ width: v })}
-                        min={30}
-                        max={500}
-                        step={1}
-                        className="flex-1"
-                      />
-                      <span className="text-[10px] text-gray-500 w-8 text-right">{logo.width}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs w-16 flex-shrink-0">Высота</Label>
-                      <Slider
-                        value={[logo.height || 0]}
-                        onValueChange={([v]) => updateLogo({ height: v })}
-                        min={0}
-                        max={400}
-                        step={1}
-                        className="flex-1"
-                      />
-                      <span className="text-[10px] text-gray-500 w-8 text-right">{logo.height || 'авто'}</span>
-                    </div>
-
-                    {(logo.serverUrl || logo.customUrl) && (
-                      <Button
-                        variant="ghost" size="sm"
-                        onClick={() => updateLogo({ serverUrl: undefined, logoFilename: undefined, customUrl: undefined })}
-                        className="w-full text-xs text-red-500"
-                      >
-                        Сбросить на лого по умолчанию
-                      </Button>
-                    )}
-                  </>
+                {logos.length === 0 && (
+                  <p className="text-[11px] text-gray-400">
+                    Нет добавленных логотипов. Нажмите «+ Добавить лого» — слот появится в шапке первой страницы, его можно перетащить и изменить размер.
+                  </p>
                 )}
+
+                {logos.map((slot, idx) => {
+                  const isSel = selectedElement === `logo:${slot.id}`
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`p-2 rounded border space-y-2 ${isSel ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                      onClick={() => setSelectedElement(`logo:${slot.id}`)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={resolveLogoSrc(slot)}
+                          alt="Logo"
+                          className="h-8 max-w-[80px] object-contain bg-white rounded border border-gray-200"
+                          onError={(e) => { (e.target as HTMLImageElement).src = '/ui/big_logo.png' }}
+                        />
+                        <span className="text-[10px] text-gray-500 truncate flex-1">
+                          #{idx + 1} {slot.logoFilename || (slot.customUrl ? 'Загруженный' : 'По умолчанию')}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeLogoSlot(slot.id) }}
+                          className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                          title="Удалить слот"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleOpenLogoModal(slot.id) }}
+                        className="w-full text-xs h-7"
+                      >
+                        <ImageIcon className="h-3 w-3 mr-1" />
+                        Выбрать файл
+                      </Button>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] w-12 flex-shrink-0">Ширина</Label>
+                        <Slider
+                          value={[slot.width]}
+                          onValueChange={([v]) => updateLogoSlot(slot.id, { width: v })}
+                          min={30}
+                          max={500}
+                          step={1}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] text-gray-500 w-8 text-right">{slot.width}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[10px] w-12 flex-shrink-0">Высота</Label>
+                        <Slider
+                          value={[slot.height || 0]}
+                          onValueChange={([v]) => updateLogoSlot(slot.id, { height: v })}
+                          min={0}
+                          max={400}
+                          step={1}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] text-gray-500 w-8 text-right">{slot.height || 'авто'}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <Button variant="outline" size="sm" onClick={handleAddLogo} className="w-full text-xs">
+                  <ImageIcon className="h-3 w-3 mr-1" />
+                  + Добавить лого
+                </Button>
               </div>
 
               {/* Merge toggle */}
@@ -2227,45 +2457,30 @@ export default function KPPage() {
                 })}
               </div>
 
-              {/* Text elements */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Текстовые элементы</Label>
-                  <div className="flex items-center gap-1">
-                    {pages.length > 1 && (
-                      <Select value={String(newTextPage)} onValueChange={(v) => setNewTextPage(parseInt(v))}>
-                        <SelectTrigger className="h-7 text-xs w-20 focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {pages.map((_, i) => (
-                            <SelectItem key={i} value={String(i)}>Стр. {i + 1}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => addTextElement(undefined, newTextPage)} className="h-7 text-xs">
-                      <Plus className="h-3 w-3 mr-1" />
-                      Добавить
-                    </Button>
-                  </div>
-                </div>
-                {textElements.map((el) => (
+              {/* Text elements — три зоны (header / footer / free) */}
+              {(() => {
+                // Локальный рендер карточки настроек одного текст-элемента.
+                // Вынесен внутрь IIFE чтобы переиспользовать между секциями
+                // без дублирования JSX.
+                const renderTextCard = (el: KPTextElement) => (
                   <Card key={el.id} className={`shadow-sm ${selectedElement === el.id ? 'ring-2 ring-blue-400' : ''}`}>
                     <CardContent className="p-2 space-y-1.5">
-                      <div className="flex items-center gap-1">
-                        <Type className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                        <Input
+                      <div className="flex items-start gap-1">
+                        <Type className="h-3 w-3 text-gray-400 flex-shrink-0 mt-2" />
+                        <textarea
                           value={el.text}
                           onChange={(e) => updateTextElement(el.id, { text: e.target.value })}
-                          className="text-xs h-7 flex-1 focus-visible:ring-0 focus-visible:ring-offset-0"
-                          placeholder="Текст..."
+                          className="text-xs flex-1 min-h-[40px] resize-y rounded-md border border-input bg-background px-2 py-1.5 outline-none focus:ring-0"
+                          placeholder="Текст… (поддерживает переносы строк)"
+                          rows={2}
                         />
-                        <Button variant="ghost" size="sm" onClick={() => removeTextElement(el.id)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-600">
+                        <Button variant="ghost" size="sm" onClick={() => removeTextElement(el.id)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 mt-1">
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className="grid gap-1.5" style={{ gridTemplateColumns: pages.length > 1 ? '1fr 1fr 1fr' : '1fr 1fr' }}>
+                      <div className="grid grid-cols-2 gap-1.5">
                         <div>
-                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Шрифт</Label>
+                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Размер</Label>
                           <Input
                             type="number" min={8} max={48} value={el.fontSize}
                             onChange={(e) => updateTextElement(el.id, { fontSize: parseInt(e.target.value) || 14 })}
@@ -2273,7 +2488,7 @@ export default function KPPage() {
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Стиль</Label>
+                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Жирность</Label>
                           <Select value={el.fontWeight} onValueChange={(v) => updateTextElement(el.id, { fontWeight: v as 'normal' | 'bold' })}>
                             <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -2282,7 +2497,41 @@ export default function KPPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        {pages.length > 1 && (
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Шрифт</Label>
+                          <Select value={el.fontFamily || 'Inter'} onValueChange={(v) => updateTextElement(el.id, { fontFamily: v })}>
+                            <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {KP_FONT_FAMILIES.map(f => (
+                                <SelectItem key={f} value={f} style={{ fontFamily: f }}>{f}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Межстрочный</Label>
+                          <Input
+                            type="number" min={1} max={3} step={0.1} value={el.lineHeight ?? 1.4}
+                            onChange={(e) => updateTextElement(el.id, { lineHeight: parseFloat(e.target.value) || 1.4 })}
+                            className="text-xs h-7 w-full focus-visible:ring-0 focus-visible:ring-offset-0"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <Label className="text-[10px] text-gray-400 mb-0.5 block">Выравнивание</Label>
+                          <Select value={el.textAlign} onValueChange={(v) => updateTextElement(el.id, { textAlign: v as 'left' | 'center' | 'right' })}>
+                            <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="left">Слева</SelectItem>
+                              <SelectItem value="center">По центру</SelectItem>
+                              <SelectItem value="right">Справа</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {el.zone === 'free' && pages.length > 1 && (
                           <div>
                             <Label className="text-[10px] text-gray-400 mb-0.5 block">Страница</Label>
                             <Select value={String(el.page ?? 0)} onValueChange={(v) => updateTextElement(el.id, { page: parseInt(v) })}>
@@ -2298,7 +2547,226 @@ export default function KPPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                )
+
+                const headerEls = textElements.filter(el => el.zone === 'header')
+                const freeEls = textElements.filter(el => el.zone === 'free' || !el.zone)
+
+                return (
+                  <>
+                    {/* Шапка */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Текст в шапке</Label>
+                        <Button variant="outline" size="sm" onClick={() => addTextElement(undefined, 0, 'header')} className="h-7 text-xs">
+                          <Plus className="h-3 w-3 mr-1" />
+                          Добавить
+                        </Button>
+                      </div>
+                      {headerEls.length === 0 && (
+                        <p className="text-[11px] text-gray-400">Нет блоков. Нажмите «Добавить» — блок появится в шапке первой страницы.</p>
+                      )}
+                      {headerEls.map(renderTextCard)}
+                    </div>
+
+                    {/* Свободные блоки */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Свободные блоки</Label>
+                        <div className="flex items-center gap-1">
+                          {pages.length > 1 && (
+                            <Select value={String(newTextPage)} onValueChange={(v) => setNewTextPage(parseInt(v))}>
+                              <SelectTrigger className="h-7 text-xs w-20 focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {pages.map((_, i) => (
+                                  <SelectItem key={i} value={String(i)}>Стр. {i + 1}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => addTextElement(undefined, newTextPage, 'free')} className="h-7 text-xs">
+                            <Plus className="h-3 w-3 mr-1" />
+                            Добавить
+                          </Button>
+                        </div>
+                      </div>
+                      {freeEls.length === 0 && (
+                        <p className="text-[11px] text-gray-400">Нет блоков. «Свободный» текст можно перетаскивать по всей странице.</p>
+                      )}
+                      {freeEls.map(renderTextCard)}
+                    </div>
+                  </>
+                )
+              })()}
+
+              {/* Колонтитул */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Колонтитул</Label>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="footer-enabled"
+                      checked={footer.enabled}
+                      onCheckedChange={(checked) => updateFooter({ enabled: !!checked })}
+                    />
+                    <label htmlFor="footer-enabled" className="text-xs cursor-pointer">Показывать</label>
+                  </div>
+                </div>
+
+                {footer.enabled && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] w-16 flex-shrink-0">Высота</Label>
+                      <Slider
+                        value={[footer.height]}
+                        onValueChange={([v]) => updateFooter({ height: v })}
+                        min={30}
+                        max={300}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <span className="text-[10px] text-gray-500 w-10 text-right">{footer.height}px</span>
+                    </div>
+
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => addFooterTextElement()} className="flex-1 h-7 text-xs">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Текст
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleAddFooterImage} className="flex-1 h-7 text-xs">
+                        <ImageIcon className="h-3 w-3 mr-1" />
+                        Картинка
+                      </Button>
+                    </div>
+
+                    {footer.elements.length === 0 && (
+                      <p className="text-[11px] text-gray-400">Нет элементов. Добавьте текст или картинку — они появятся в колонтитуле на каждой странице.</p>
+                    )}
+
+                    {footer.elements.map((el) => {
+                      const isSel = selectedElement === `footer:${el.id}`
+                      if (el.type === 'text') {
+                        return (
+                          <Card key={el.id} className={`shadow-sm ${isSel ? 'ring-2 ring-blue-400' : ''}`}>
+                            <CardContent className="p-2 space-y-1.5">
+                              <div className="flex items-start gap-1">
+                                <Type className="h-3 w-3 text-gray-400 flex-shrink-0 mt-2" />
+                                <textarea
+                                  value={el.text}
+                                  onChange={(e) => updateFooterElement(el.id, { text: e.target.value })}
+                                  className="text-xs flex-1 min-h-[36px] resize-y rounded-md border border-input bg-background px-2 py-1.5 outline-none focus:ring-0"
+                                  placeholder="Текст колонтитула…"
+                                  rows={2}
+                                />
+                                <Button variant="ghost" size="sm" onClick={() => removeFooterElement(el.id)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 mt-1">
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <Label className="text-[10px] text-gray-400 mb-0.5 block">Размер</Label>
+                                  <Input
+                                    type="number" min={6} max={36} value={el.fontSize}
+                                    onChange={(e) => updateFooterElement(el.id, { fontSize: parseInt(e.target.value) || 10 })}
+                                    className="text-xs h-7 w-full focus-visible:ring-0 focus-visible:ring-offset-0"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-gray-400 mb-0.5 block">Жирность</Label>
+                                  <Select value={el.fontWeight} onValueChange={(v) => updateFooterElement(el.id, { fontWeight: v as 'normal' | 'bold' })}>
+                                    <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="normal">Обычный</SelectItem>
+                                      <SelectItem value="bold">Жирный</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <Label className="text-[10px] text-gray-400 mb-0.5 block">Шрифт</Label>
+                                  <Select value={el.fontFamily || 'Inter'} onValueChange={(v) => updateFooterElement(el.id, { fontFamily: v })}>
+                                    <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {KP_FONT_FAMILIES.map(f => (
+                                        <SelectItem key={f} value={f} style={{ fontFamily: f }}>{f}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-gray-400 mb-0.5 block">Выравнивание</Label>
+                                  <Select value={el.textAlign} onValueChange={(v) => updateFooterElement(el.id, { textAlign: v as 'left' | 'center' | 'right' })}>
+                                    <SelectTrigger className="h-7 text-xs w-full focus:ring-0 focus:ring-offset-0"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="left">Слева</SelectItem>
+                                      <SelectItem value="center">По центру</SelectItem>
+                                      <SelectItem value="right">Справа</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      }
+                      // image card
+                      const imgSrc = el.serverUrl ? getImageUrl(el.serverUrl) : (el.customUrl || '/ui/big_logo.png')
+                      return (
+                        <Card key={el.id} className={`shadow-sm ${isSel ? 'ring-2 ring-blue-400' : ''}`}>
+                          <CardContent className="p-2 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={imgSrc}
+                                alt="footer img"
+                                className="h-8 max-w-[80px] object-contain bg-white rounded border border-gray-200"
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/ui/big_logo.png' }}
+                              />
+                              <span className="text-[10px] text-gray-500 truncate flex-1">
+                                {el.logoFilename || (el.customUrl ? 'Загруженный' : 'Не выбран')}
+                              </span>
+                              <Button variant="ghost" size="sm" onClick={() => removeFooterElement(el.id)} className="h-6 w-6 p-0 text-gray-400 hover:text-red-600">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <Button
+                              variant="outline" size="sm"
+                              onClick={() => handleOpenFooterImageGallery(el.id)}
+                              className="w-full text-xs h-7"
+                            >
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              Выбрать файл
+                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Label className="text-[10px] w-12 flex-shrink-0">Ширина</Label>
+                              <Slider
+                                value={[el.width]}
+                                onValueChange={([v]) => updateFooterElement(el.id, { width: v })}
+                                min={20}
+                                max={400}
+                                step={1}
+                                className="flex-1"
+                              />
+                              <span className="text-[10px] text-gray-500 w-8 text-right">{el.width}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label className="text-[10px] w-12 flex-shrink-0">Высота</Label>
+                              <Slider
+                                value={[el.height || 0]}
+                                onValueChange={([v]) => updateFooterElement(el.id, { height: v })}
+                                min={0}
+                                max={300}
+                                step={1}
+                                className="flex-1"
+                              />
+                              <span className="text-[10px] text-gray-500 w-8 text-right">{el.height || 'авто'}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </>
+                )}
               </div>
 
               {/* Footer note */}
@@ -2356,44 +2824,70 @@ export default function KPPage() {
 
       </PanelGroup>
 
-      {/* Logo selection modal */}
-      {showLogoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowLogoModal(false)}>
+      {/* Image gallery modal — обслуживает и слоты лого, и картинки колонтитула */}
+      {galleryTarget && (() => {
+        // Текущий выбранный файл — нужен для подсветки активного.
+        // Для лого берём из logos[], для footer-image из footer.elements.
+        let currentFilename: string | undefined = undefined
+        let isDefaultSelected = false
+        if (galleryTarget.kind === 'logo') {
+          const slot = logos.find(s => s.id === galleryTarget.id)
+          currentFilename = slot?.logoFilename
+          isDefaultSelected = !slot?.serverUrl && !slot?.customUrl
+        } else {
+          const el = footer.elements.find(x => x.id === galleryTarget.id)
+          if (el && el.type === 'image') {
+            currentFilename = el.logoFilename
+            isDefaultSelected = !el.serverUrl && !el.customUrl
+          }
+        }
+        const handleClickDefault = () => {
+          if (galleryTarget.kind === 'logo') {
+            updateLogoSlot(galleryTarget.id, { serverUrl: undefined, logoFilename: undefined, customUrl: undefined })
+          } else {
+            updateFooterElement(galleryTarget.id, { serverUrl: undefined, logoFilename: undefined, customUrl: undefined })
+          }
+          setGalleryTarget(null)
+        }
+        const title = galleryTarget.kind === 'logo' ? 'Выбор логотипа' : 'Картинка в колонтитуле'
+        return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setGalleryTarget(null)}>
           <div className="bg-white rounded-xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h3 className="text-sm font-semibold">Выбор логотипа</h3>
-              <button onClick={() => setShowLogoModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-sm font-semibold">{title}</h3>
+              <button onClick={() => setGalleryTarget(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              {/* Default logo option */}
-              <div
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer mb-3 transition-colors ${
-                  !logo.serverUrl && !logo.customUrl ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => { updateLogo({ serverUrl: undefined, logoFilename: undefined, customUrl: undefined }); setShowLogoModal(false) }}
-              >
-                <img src="/ui/big_logo.png" alt="Default" className="h-10 max-w-[100px] object-contain" />
-                <span className="text-sm flex-1">По умолчанию</span>
-                {!logo.serverUrl && !logo.customUrl && <Check className="h-4 w-4 text-blue-500" />}
-              </div>
+              {/* Default option (только для лого — у footer-image «по умолчанию» = пусто) */}
+              {galleryTarget.kind === 'logo' && (
+                <div
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer mb-3 transition-colors ${
+                    isDefaultSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={handleClickDefault}
+                >
+                  <img src="/ui/big_logo.png" alt="Default" className="h-10 max-w-[100px] object-contain" />
+                  <span className="text-sm flex-1">По умолчанию</span>
+                  {isDefaultSelected && <Check className="h-4 w-4 text-blue-500" />}
+                </div>
+              )}
 
-              {/* User logos */}
               {logosLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                 </div>
               ) : userLogos.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4">Нет загруженных логотипов</p>
+                <p className="text-xs text-gray-400 text-center py-4">Нет загруженных файлов</p>
               ) : (
                 <div className="space-y-2">
                   {userLogos.map((item) => (
                     <div
                       key={item.filename}
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        logo.logoFilename === item.filename ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                        currentFilename === item.filename ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => handleSelectLogo(item)}
                     >
@@ -2404,7 +2898,7 @@ export default function KPPage() {
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                       />
                       <span className="text-xs text-gray-700 truncate flex-1">{item.filename}</span>
-                      {logo.logoFilename === item.filename && <Check className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                      {currentFilename === item.filename && <Check className="h-4 w-4 text-blue-500 flex-shrink-0" />}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteLogo(item.filename) }}
                         className="text-gray-300 hover:text-red-500 flex-shrink-0"
@@ -2429,13 +2923,14 @@ export default function KPPage() {
                 {logoUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
                 Загрузить новый
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowLogoModal(false)} className="text-xs">
+              <Button variant="outline" size="sm" onClick={() => setGalleryTarget(null)} className="text-xs">
                 Закрыть
               </Button>
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Модалка шаринга в основном (не-empty) состоянии — например когда
           КП открыт и мы хотим поделиться им из шапки calculator/page. */}
@@ -2461,16 +2956,32 @@ export default function KPPage() {
         onPicked={(c) => {
           setActiveClient({
             id: c.id,
-            organization_type: c.organization_type,
             display_name: c.display_name,
-            organization_name: c.organization_name,
             full_name: c.full_name,
-            bin: c.bin,
-            iin: c.iin,
-            phone: c.phone,
-            whatsapp: c.whatsapp,
-            note: c.note,
+            object: c.object,
+            contacts: c.contacts,
           })
+        }}
+      />
+
+      {/* Шаблоны КП — общий пул на всех системных юзеров. Применение
+          шаблона = разовое копирование settings (без kpName) в локальные
+          kpSettings. Сам шаблон остаётся read-only при импорте.
+          source='editor' — юзер работает над конкретным КП, поэтому
+          «Создать на основе текущего» берёт настройки именно открытого
+          сейчас КП (kpSettings) без выбора. */}
+      <KpTemplateManagerDialog
+        open={templateManagerOpen}
+        onOpenChange={setTemplateManagerOpen}
+        source="editor"
+        currentSettings={kpSettings}
+        onApply={(settings) => {
+          // kpName из шаблона игнорируем — это идентификатор конкретного
+          // КП, а не часть «фирменного бланка». Top-level поля
+          // (columns/logos/footer/textElements/…) перезаписываются полностью
+          // через спред в updateSettings — это семантика «заменить, а не слить».
+          const { kpName: _ignored, ...rest } = settings || {}
+          updateSettings(rest)
         }}
       />
     </div>

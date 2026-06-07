@@ -3,18 +3,19 @@
 import { cookies } from "next/headers"
 import { API_BASE_URL } from "@/lib/api-address"
 
-export type KpClientOrgType = "too" | "ip" | "individual"
+// Один контакт клиента: телефон + произвольная заметка (например
+// «WhatsApp», «секретарь», «после 18:00»). У одного клиента может быть
+// несколько контактов.
+export interface KpClientContact {
+  phone: string
+  note: string
+}
 
 export interface KpClient {
   id: number
-  organization_type: KpClientOrgType
-  organization_name: string | null
   full_name: string | null
-  bin: string | null
-  iin: string | null
-  phone: string | null
-  whatsapp: string | null
-  note: string | null
+  object: string | null
+  contacts: KpClientContact[]
   display_name: string
   created_by: number | null
   created_at: string
@@ -22,14 +23,9 @@ export interface KpClient {
 }
 
 export interface KpClientInput {
-  organization_type: KpClientOrgType
-  organization_name?: string | null
-  full_name?: string | null
-  bin?: string | null
-  iin?: string | null
-  phone?: string | null
-  whatsapp?: string | null
-  note?: string | null
+  full_name: string
+  object?: string | null
+  contacts?: KpClientContact[]
 }
 
 async function authedFetch(path: string, init?: RequestInit) {
@@ -108,7 +104,6 @@ export async function deleteKpClient(
   try {
     const res = await authedFetch(`/api/kp-clients/${id}`, { method: "DELETE" })
     if (res.status === 204 || res.ok) {
-      // 204 — на всякий, но Flask отдаёт 200
       return { success: true }
     }
     const data = await res.json().catch(() => ({}))
