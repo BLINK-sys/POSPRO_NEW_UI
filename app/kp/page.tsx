@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users, User, Info, Building2, GripVertical } from 'lucide-react'
+import { Trash2, Plus, Minus, FileText, Search, Upload, Type, X, Download, Loader2, History, ChevronDown, ChevronUp, ImageIcon, Check, Calculator, Save, LogOut, FileSignature, Share2, Filter, Users, User, Info, Building2, GripVertical, AlertCircle } from 'lucide-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -24,6 +24,7 @@ import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, KPTextElement, KP_FONT_FAMILIES, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
 import { formatProductPrice } from '@/lib/utils'
+import { computeContractPerUnit } from '@/lib/calculator-shared'
 import { getImageUrl } from '@/lib/image-utils'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -497,8 +498,10 @@ export default function KPPage() {
     kpHistory, historyLoading, activeHistoryId, fetchHistory, saveToHistory, loadFromHistory, deleteFromHistory,
     activeAccessLevel, isSuperAdmin, hasOtherVisible, historyFilter, setHistoryFilter,
     activeClient, setActiveClient,
+    calculatorData, activeSignedAt,
   } = useKP()
   const router = useRouter()
+  const { toast } = useToast()
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLTableElement>(null)
   // DnD-сенсоры: pointer (с минимальной дистанцией чтобы не сбивать клики
@@ -524,6 +527,55 @@ export default function KPPage() {
   // независимо — она остаётся выбранной даже когда модалка закрыта.
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false)
+  // Модалка статуса синхронизации цен с корп.расчётником (обратный поток).
+  const [priceSyncDialogOpen, setPriceSyncDialogOpen] = useState(false)
+
+  // Расхождение «KP цена ↔ Calculator контрактная цена». Считается из
+  // calculatorData.items — там лежит снимок калькулятора (включая ручные
+  // правки). Если для kpId есть calc-item и его contractPerUnit отличается
+  // от kpItem.price → расхождение. Для подписанного КП не показываем
+  // (там snapshot обязателен).
+  const priceOutOfSyncItems = useMemo(() => {
+    if (activeSignedAt) return []
+    const calcItems = (calculatorData?.items || []) as any[]
+    if (calcItems.length === 0) return []
+    const out: { kpId: string; name: string; kpPrice: number; calcPrice: number }[] = []
+    for (const kpItem of kpItems) {
+      const calc = calcItems.find(c => c.kpId === kpItem.kpId)
+      if (!calc) continue
+      const calcContractPerUnit = computeContractPerUnit({
+        costPriceKzt: calc.costPriceKzt || 0,
+        vatEnabled: calc.vatEnabled !== false,
+        deliveryPerUnit: calc.deliveryPerUnit || 0,
+        costPerUnitOverride: calc.costPerUnitOverride ?? null,
+        contractPerUnitOverride: calc.contractPerUnitOverride ?? null,
+      })
+      const kpPrice = kpItem.price || 0
+      // Округление до целого тенге — копейки в калькуляторе из-за курсов
+      // дают «фантомное» расхождение, которое менеджеру не интересно.
+      if (Math.round(calcContractPerUnit) !== Math.round(kpPrice)) {
+        out.push({
+          kpId: kpItem.kpId,
+          name: kpItem.name,
+          kpPrice: Math.round(kpPrice),
+          calcPrice: Math.round(calcContractPerUnit),
+        })
+      }
+    }
+    return out
+  }, [kpItems, calculatorData, activeSignedAt])
+
+  // Применить контрактные цены калькулятора к kpItem.price.
+  const handleSyncPricesFromCalc = useCallback(() => {
+    for (const it of priceOutOfSyncItems) {
+      updateItem(it.kpId, { price: it.calcPrice })
+    }
+    setPriceSyncDialogOpen(false)
+    toast({
+      title: 'Цены синхронизированы',
+      description: `Обновлено товаров: ${priceOutOfSyncItems.length}. Цены из расчётника применены к КП.`,
+    })
+  }, [priceOutOfSyncItems, updateItem, toast])
   // Локальный фильтр карточек по клиенту. "all" = не фильтруем, число = id
   // конкретного клиента. Применяется поверх historyFilter (mine/shared/all).
   const [clientFilter, setClientFilter] = useState<number | "all">("all")
@@ -556,7 +608,6 @@ export default function KPPage() {
   // снести подписанный контракт. Храним id+имя удаляемой записи.
   const [deletingKp, setDeletingKp] = useState<{ id: number; name: string } | null>(null)
   const [deletingInProgress, setDeletingInProgress] = useState(false)
-  const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logoUploadRef = useRef<HTMLInputElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
@@ -1632,6 +1683,37 @@ export default function KPPage() {
             >
               <Calculator className="h-4 w-4" />
               Корп. расчётник
+            </button>
+          )}
+
+          {/* Индикатор расхождения цен между КП и калькулятором (обратный поток).
+              Зелёный = цены совпадают, красный с числом = есть расхождения.
+              Показывается только если уже есть calculatorData (юзер открывал
+              расчётник) и КП не подписан. */}
+          {kpCount > 0 && !activeSignedAt && calculatorData && activeAccessLevel !== "view" && (
+            <button
+              onClick={() => setPriceSyncDialogOpen(true)}
+              className={
+                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)] " +
+                (priceOutOfSyncItems.length > 0
+                  ? "bg-red-50 border border-red-400 text-red-700 hover:bg-red-100"
+                  : "bg-green-50 border border-green-400 text-green-700 hover:bg-green-100")
+              }
+              title={priceOutOfSyncItems.length > 0
+                ? `Цены КП расходятся с калькулятором: ${priceOutOfSyncItems.length}`
+                : 'Цены КП совпадают с калькулятором'}
+            >
+              {priceOutOfSyncItems.length > 0 ? (
+                <>
+                  <AlertCircle className="h-4 w-4" />
+                  Цены ({priceOutOfSyncItems.length})
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Цены
+                </>
+              )}
             </button>
           )}
 
@@ -2984,6 +3066,91 @@ export default function KPPage() {
           updateSettings(rest)
         }}
       />
+
+      {/* Модалка синхронизации цен с корп.расчётником. Открывается из кнопки
+          «Цены» в шапке. Показывает таблицу `KP цена → Calc цена` и кнопки
+          «Игнорировать»/«Синхронизировать». Синхронизация переносит цены
+          из калькулятора в KPItem.price. */}
+      {priceSyncDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPriceSyncDialogOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[640px] max-w-[95vw] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                {priceOutOfSyncItems.length > 0 ? (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    Цены КП расходятся с расчётником
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-5 w-5 text-green-600" />
+                    Цены синхронизированы
+                  </>
+                )}
+              </h3>
+              <button onClick={() => setPriceSyncDialogOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 text-sm text-gray-700">
+              {priceOutOfSyncItems.length > 0 ? (
+                <>
+                  <p>
+                    В корп.расчётнике для <b>{priceOutOfSyncItems.length}</b> {priceOutOfSyncItems.length === 1 ? 'товара' : 'товаров'} итоговая
+                    контрактная цена отличается от той, что сейчас в КП (поле «Цена за ед.»).
+                    Нажмите <b>«Синхронизировать»</b>, чтобы перенести цены из расчётника
+                    в товары КП — клиент увидит ровно ту цену, что показывает расчётник.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Это обратный поток: после правок в /calculator цены в КП-документе
+                    обновляются. Все остальные настройки расчётника (cost, доставка, налоги)
+                    остаются как есть.
+                  </p>
+
+                  <div className="pt-2">
+                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">
+                      Расхождения ({priceOutOfSyncItems.length})
+                    </Label>
+                    <ul className="space-y-2">
+                      {priceOutOfSyncItems.map(it => (
+                        <li key={it.kpId} className="text-xs p-2 rounded-lg border border-gray-200 bg-gray-50">
+                          <div className="font-medium text-gray-900 mb-1 line-clamp-2">{it.name}</div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <span>КП:&nbsp;<s className="text-red-500 font-mono">{it.kpPrice.toLocaleString('ru-RU')} ₸</s></span>
+                            <span className="text-gray-400">→</span>
+                            <span>Расчётник:&nbsp;<b className="text-green-700 font-mono">{it.calcPrice.toLocaleString('ru-RU')} ₸</b></span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  Цены товаров в КП совпадают с расчётником. Расхождений нет.
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t flex justify-end gap-2">
+              {priceOutOfSyncItems.length > 0 ? (
+                <>
+                  <Button variant="outline" onClick={() => setPriceSyncDialogOpen(false)}>
+                    Игнорировать
+                  </Button>
+                  <Button onClick={handleSyncPricesFromCalc} className="bg-green-600 hover:bg-green-700 text-white">
+                    <Check className="h-4 w-4 mr-1" />
+                    Синхронизировать
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setPriceSyncDialogOpen(false)} className="rounded-full">Закрыть</Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

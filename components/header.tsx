@@ -975,8 +975,8 @@ export default function Header() {
                       <FileText className="h-5 w-5" />
                       <span className="hidden xl:inline text-sm font-medium">Собрать КП</span>
                       {kpCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                          {kpCount > 99 ? '99+' : kpCount}
+                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-[10px] leading-none font-medium min-w-5 h-5 px-1 rounded-full inline-flex items-center justify-center">
+                          {kpCount > 999 ? '999+' : kpCount}
                         </span>
                       )}
                     </Link>

@@ -4,11 +4,12 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock, Calculator as CalculatorIcon } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft, Check, FileSignature, Lock, Calculator as CalculatorIcon, AlertCircle, Package, Truck, PieChart } from 'lucide-react'
 import { CalcCostOverrideDialog, applyRounding } from '@/components/calc-cost-override-dialog'
 import { ProductCostNoteDialog } from '@/components/product-cost-note-dialog'
 import { updateProductCost } from '@/app/actions/product-costs'
 import { StickyNote } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, WarehousePriceOption } from '@/context/kp-context'
 import { useRouter } from 'next/navigation'
@@ -204,6 +205,14 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
     const vatEnabled = selectedWp?.vat_enabled !== false
     const vatMul = vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
 
+    // Товар без поставщика — менеджер выбрал товар в КП, но не привязал
+    // его к складу. Чтобы строка не была «пустой» (cost=0 → contract=0),
+    // подтягиваем розничную цену из КП в contractPerUnitOverride. Менеджер
+    // потом руками заполнит себестоимость через модалку «Зафиксировать»
+    // (соответствующая ячейка подсвечена оранжевым).
+    const hasNoSupplier = !selectedWp
+    const contractFromKp = hasNoSupplier && item.price > 0 ? item.price : null
+
     return {
       kpId: item.kpId,
       productId: item.id,
@@ -219,7 +228,7 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       deliveryPerUnit: calculatedDelivery,
       costPerUnitOverride: null,
       costOverrideStructured: null,
-      contractPerUnitOverride: null,
+      contractPerUnitOverride: contractFromKp,
       supplierName: selectedWp?.supplier_name || item.supplier_name || '',
       warehouseName: selectedWp?.warehouse_name || '',
       warehousePwcId: selectedWp?.pwc_id,
@@ -249,6 +258,63 @@ export default function CalculatorPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([])
   // Открытая модалка «Зафиксировать себестоимость». kpId === null = закрыта.
   const [costOverrideDialogKpId, setCostOverrideDialogKpId] = useState<string | null>(null)
+  // Модалка статуса синхронизации с КП.
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false)
+
+  // Якоря для боковой sticky-навигации (Товары / Доставка / Расходы и Итог).
+  const productsRef = useRef<HTMLDivElement>(null)
+  const deliveryRef = useRef<HTMLTableRowElement>(null)
+  const summaryRef = useRef<HTMLDivElement>(null)
+  const scrollToSection = useCallback((ref: React.RefObject<HTMLElement>) => {
+    if (!ref.current) return
+    // Учитываем фиксированную шапку (~96px) чтобы заголовок раздела не оказался под ней.
+    const top = ref.current.getBoundingClientRect().top + window.scrollY - 110
+    window.scrollTo({ top, behavior: 'smooth' })
+  }, [])
+
+  // Scroll-spy: подсвечиваем активную секцию в боковой навигации. Активная
+  // = самая нижняя из тех, чей верх уже прошёл линию `offset` от верха
+  // viewport'a (≈ нижняя кромка фиксированной шапки + запас).
+  // Плюс: `showSideNav` скрывает панель если страница вся помещается в
+  // viewport (нечего скроллить — навигация бесполезна).
+  const [activeSection, setActiveSection] = useState<'products' | 'delivery' | 'summary'>('products')
+  const [showSideNav, setShowSideNav] = useState(false)
+  useEffect(() => {
+    const handle = () => {
+      // Скрываем панель если документ короче viewport'a (вся страница видна).
+      // Запас 20px на случай если document.scrollHeight чуть-чуть больше
+      // viewport из-за скроллбара/паддингов, а реально проскроллить нельзя.
+      const docHeight = document.documentElement.scrollHeight
+      const viewHeight = window.innerHeight
+      setShowSideNav(docHeight > viewHeight + 20)
+
+      const offset = 150
+      const sections: Array<{ id: 'products' | 'delivery' | 'summary'; el: HTMLElement | null }> = [
+        { id: 'products', el: productsRef.current },
+        { id: 'delivery', el: deliveryRef.current },
+        { id: 'summary', el: summaryRef.current },
+      ]
+      let next: 'products' | 'delivery' | 'summary' = 'products'
+      for (const s of sections) {
+        if (!s.el) continue
+        if (s.el.getBoundingClientRect().top <= offset) next = s.id
+      }
+      // Edge case: страница короткая и последний раздел не дотягивается
+      // до offset'a даже скроллом до низа. Когда юзер доскроллил до конца
+      // документа (с допуском 5px), считаем активной последнюю секцию.
+      const atBottom = window.scrollY + viewHeight >= docHeight - 5
+      if (atBottom && summaryRef.current) next = 'summary'
+
+      setActiveSection(prev => prev === next ? prev : next)
+    }
+    handle()
+    window.addEventListener('scroll', handle, { passive: true })
+    window.addEventListener('resize', handle)
+    return () => {
+      window.removeEventListener('scroll', handle)
+      window.removeEventListener('resize', handle)
+    }
+  }, [items.length, expenses.length])
   // Открытая модалка «Примечание склада». Хранит kpId редактируемой строки.
   const [warehouseNoteKpId, setWarehouseNoteKpId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -262,6 +328,160 @@ export default function CalculatorPage() {
   // Только просмотр — расшарили с уровнем 'view'. Скрываем «Сохранить»,
   // «Контракт подписан» и любые другие записывающие действия.
   const isViewOnly = activeAccessLevel === "view"
+
+  // Расхождение с КП: менеджер сменил поставщика/склад в /kp, но в калькуляторе
+  // остался snapshot со старым выбором. Сравниваем `pwc_id` (уникальный для пары
+  // склад × товар) — если он отличается, строка расходится. Не считаем для
+  // подписанного КП (там snapshot обязателен) и для строк с
+  // addedAfterSign=true (тоже часть «замороженного» контракта).
+  const outOfSyncItems = useMemo(() => {
+    if (isSigned) return []
+    const out: { kpId: string; name: string; oldSupplier: string; newSupplier: string }[] = []
+    for (const item of items) {
+      if (item.addedAfterSign) continue
+      const kpItem = kpItems.find(k => k.kpId === item.kpId)
+      if (!kpItem) continue
+      const currentWp = kpItem.warehousePrices?.find(
+        wp => wp.warehouse_id === kpItem.selectedWarehouseId
+      ) || kpItem.warehousePrices?.[0]
+      if (!currentWp) continue
+      // pwc_id — самый надёжный идентификатор. Если у KP-warehousePrice
+      // вообще нет pwc_id (старые записи до миграции), fallback на сравнение
+      // имени поставщика + склада.
+      const currentPwcId = currentWp.pwc_id
+      const savedPwcId = item.warehousePwcId
+      const matchByPwc = currentPwcId != null && savedPwcId != null && currentPwcId === savedPwcId
+      const matchByName = currentPwcId == null && savedPwcId == null &&
+        (currentWp.supplier_name || '') === item.supplierName &&
+        (currentWp.warehouse_name || '') === item.warehouseName
+      if (!matchByPwc && !matchByName) {
+        out.push({
+          kpId: item.kpId,
+          name: item.name,
+          oldSupplier: `${item.supplierName || '—'} / ${item.warehouseName || '—'}`,
+          newSupplier: `${currentWp.supplier_name || '—'} / ${currentWp.warehouse_name || '—'}`,
+        })
+      }
+    }
+    return out
+  }, [items, kpItems, isSigned])
+
+  // Синхронизация: перезатираем warehouse-зависимые поля из свежих kpItems.
+  // Ручные override (costPerUnitOverride, costOverrideStructured) НЕ трогаем —
+  // юзер их явно зафиксировал. Остальные user-edited поля (paymentDate, note и т.д.)
+  // тоже остаются. После синка автоматически применяем курсы — если у новых
+  // валют их ещё нет в currencyRates, подгружаем из каталога. Иначе юзер
+  // увидел бы строки в RUB/USD и пересчёт показал бы 0.
+  const handleSyncWithKp = useCallback(async () => {
+    // Сначала собираем новый набор (валют, items'ов) до setItems.
+    const newSelections = kpItems.map(kpItem => {
+      const wp = kpItem.warehousePrices?.find(
+        w => w.warehouse_id === kpItem.selectedWarehouseId
+      ) || kpItem.warehousePrices?.[0]
+      return { kpItem, wp }
+    })
+    const neededForeignCodes = new Set<string>()
+    newSelections.forEach(({ wp }) => {
+      if (wp && wp.currency_code && wp.currency_code !== 'KZT') {
+        neededForeignCodes.add(wp.currency_code)
+      }
+    })
+
+    // Подгружаем недостающие курсы. Если у нас уже есть актуальный курс
+    // для всех валют — пропускаем сетевой запрос.
+    let mergedRates = currencyRates
+    const missing = Array.from(neededForeignCodes).filter(code => !currencyRates[code] || currencyRates[code] === 0)
+    if (missing.length > 0) {
+      try {
+        await refreshRates().catch(() => {})
+        const currencies = await getCurrencies()
+        const fresh: Record<string, number> = {}
+        currencies.forEach(c => {
+          if (neededForeignCodes.has(c.code) && c.rate_to_tenge > 0) {
+            fresh[c.code] = c.rate_to_tenge
+          }
+        })
+        mergedRates = { ...currencyRates, ...fresh }
+        setCurrencyRates(mergedRates)
+      } catch (e) {
+        console.error('Не удалось подгрузить курсы при синхронизации:', e)
+      }
+    }
+
+    // Теперь обновляем items, сразу пересчитывая costPriceKzt по доступным
+    // курсам. Это убирает шаг «нажмите Пересчитать» — после синка цены сразу
+    // правильные в KZT.
+    setItems(prev => prev.map(item => {
+      const kpItem = kpItems.find(k => k.kpId === item.kpId)
+      if (!kpItem) return item
+      if (item.addedAfterSign) return item
+      const currentWp = kpItem.warehousePrices?.find(
+        wp => wp.warehouse_id === kpItem.selectedWarehouseId
+      ) || kpItem.warehousePrices?.[0]
+
+      // Поставщик исчез (товар стал «retail-only») → подтягиваем розничную
+      // цену из КП в contractPerUnitOverride. Cost обнуляем, ячейка
+      // в калькуляторе подсветится оранжевым (нужно зафиксировать вручную).
+      if (!currentWp) {
+        const contractFromKp = (kpItem.price || 0) > 0 ? kpItem.price : null
+        return {
+          ...item,
+          costPrice: 0,
+          currencyCode: 'KZT',
+          costPriceKzt: 0,
+          vatEnabled: true,
+          deliveryPerUnit: 0,
+          supplierName: kpItem.supplier_name || '',
+          warehouseName: '',
+          warehousePwcId: undefined,
+          warehouseNote: null,
+          // Подтягиваем KP-цену только если не было явной ручной правки
+          contractPerUnitOverride: item.contractPerUnitOverride ?? contractFromKp,
+        }
+      }
+
+      const newCostPrice = currentWp.cost_price || 0
+      const newCurrencyCode = currentWp.currency_code || 'KZT'
+      const newVatEnabled = currentWp.vat_enabled !== false
+      const newCalculatedDelivery = Math.ceil(currentWp.calculated_delivery || 0)
+      const vatMul = newVatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
+      // costPriceKzt пересчитываем СРАЗУ если есть курс — иначе оставляем
+      // 0 и UI покажет фрагмент в исходной валюте, юзер сможет ввести курс вручную.
+      let newCostPriceKzt: number
+      if (newCurrencyCode === 'KZT') {
+        newCostPriceKzt = newCostPrice * vatMul
+      } else {
+        const rate = mergedRates[newCurrencyCode] || 0
+        newCostPriceKzt = rate > 0 ? newCostPrice * rate * vatMul : 0
+      }
+
+      return {
+        ...item,
+        costPrice: newCostPrice,
+        currencyCode: newCurrencyCode,
+        costPriceKzt: newCostPriceKzt,
+        vatEnabled: newVatEnabled,
+        deliveryPerUnit: newCalculatedDelivery,
+        supplierName: currentWp.supplier_name || kpItem.supplier_name || '',
+        warehouseName: currentWp.warehouse_name || '',
+        warehousePwcId: currentWp.pwc_id,
+        warehouseNote: currentWp.note ?? null,
+        // Ручные правки не трогаем
+      }
+    }))
+
+    // Если все валюты имеют курсы — флаг «Курсы применены». Иначе
+    // оставляем юзеру шанс ввести курс вручную и нажать «Пересчитать».
+    const allRatesOk = Array.from(neededForeignCodes).every(code => (mergedRates[code] || 0) > 0)
+    setRatesApplied(neededForeignCodes.size === 0 || allRatesOk)
+
+    toast({
+      title: 'Синхронизировано',
+      description: allRatesOk || neededForeignCodes.size === 0
+        ? 'Данные складов обновлены из КП. Ручные правки сохранены.'
+        : 'Данные складов обновлены, но не для всех валют есть курсы. Введите курс и нажмите «Пересчитать».',
+    })
+  }, [kpItems, currencyRates, toast])
 
   // Init: load from saved calculatorData or build from KP items
   // Also merge in any new KP items not yet in calculator
@@ -616,6 +836,51 @@ export default function CalculatorPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
+      {/* Боковая навигация — фиксированная по левому краю viewport'a, по центру
+          вертикально. Скрыта на узких экранах (md и меньше) чтобы не мешать,
+          и ниже шапки сайта. Каждая кнопка скроллит к якорю своей секции.
+          Активная подсвечивается жёлтым (scroll-spy). Если страница не
+          скроллится (вся видна сразу) — панель не показывается вообще. */}
+      {showSideNav && (() => {
+        const navItemCls = (active: boolean) => cn(
+          "flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-xl transition-colors text-center",
+          active
+            ? "bg-brand-yellow text-black font-semibold ring-2 ring-yellow-500"
+            : "hover:bg-yellow-50 text-gray-700 hover:text-black",
+        )
+        return (
+          <nav className="hidden lg:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col gap-2 bg-white rounded-2xl border shadow-lg p-2">
+            <button
+              type="button"
+              onClick={() => scrollToSection(productsRef)}
+              className={navItemCls(activeSection === 'products')}
+              title="Перейти к таблице товаров"
+            >
+              <Package className="h-5 w-5" />
+              <span className="text-[10px] leading-tight">Товары</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection(deliveryRef)}
+              className={navItemCls(activeSection === 'delivery')}
+              title="Перейти к секции доставки"
+            >
+              <Truck className="h-5 w-5" />
+              <span className="text-[10px] leading-tight">Доставка</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection(summaryRef)}
+              className={navItemCls(activeSection === 'summary')}
+              title="Перейти к расходам и итогам"
+            >
+              <PieChart className="h-5 w-5" />
+              <span className="text-[10px] leading-tight">Расходы<br />и&nbsp;Итог</span>
+            </button>
+          </nav>
+        )
+      })()}
+
       {/* Header */}
       <div className="max-w-[1600px] mx-auto mb-4">
         <div className="flex items-center gap-3 mb-4">
@@ -705,11 +970,43 @@ export default function CalculatorPage() {
           {ratesApplied && (
             <span className="text-xs text-green-600 self-end pb-1">Курсы применены</span>
           )}
+
+          {/* Кнопка-индикатор синхронизации с КП — толкаем вправо через ml-auto.
+              Зелёная = всё синхронизировано, красная = есть расхождения.
+              Скрываем для подписанного КП и view-доступа — там синхронизация
+              не имеет смысла. */}
+          {!isSigned && !isViewOnly && (
+            <button
+              type="button"
+              onClick={() => setSyncDialogOpen(true)}
+              className={cn(
+                "ml-auto self-end inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium border transition-colors [box-shadow:2px_3px_6px_rgba(0,0,0,0.15)]",
+                outOfSyncItems.length > 0
+                  ? "bg-red-50 border-red-400 text-red-700 hover:bg-red-100"
+                  : "bg-green-50 border-green-400 text-green-700 hover:bg-green-100",
+              )}
+              title={outOfSyncItems.length > 0
+                ? `Данные расходятся с КП: ${outOfSyncItems.length} ${outOfSyncItems.length === 1 ? 'товар' : 'товаров'}`
+                : 'Все данные синхронизированы с КП'}
+            >
+              {outOfSyncItems.length > 0 ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Синхронизация ({outOfSyncItems.length})
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Синхронизировано
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Main table */}
-      <div className="max-w-[1600px] mx-auto overflow-x-auto">
+      <div ref={productsRef} className="max-w-[1600px] mx-auto overflow-x-auto scroll-mt-28">
         <table className="w-full border-collapse text-[10px] bg-white rounded-xl border shadow-sm table-auto">
           <thead>
             <tr className="bg-gray-100">
@@ -775,8 +1072,16 @@ export default function CalculatorPage() {
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractNoVat * item.quantity) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractVat * item.quantity) : '—'}</td>
 
-                  {/* Себестоимость — За ед. EDITABLE + кнопка структурного override */}
-                  <td className="border px-0 py-0 bg-green-50/30">
+                  {/* Себестоимость — За ед. EDITABLE + кнопка структурного override.
+                      Подсветка: товар без поставщика и без ручной фиксации
+                      cost → оранжевый фон + пульсирующая кнопка-калькулятор
+                      → менеджеру очевидно «надо открыть Зафиксировать». */}
+                  {(() => {
+                    const noSupplier = !item.supplierName && !item.warehouseName
+                    const noCostFixed = item.costPerUnitOverride === null && !item.costOverrideStructured
+                    const needsAttention = noSupplier && noCostFixed
+                    return (
+                  <td className={`border px-0 py-0 ${needsAttention ? 'bg-orange-100' : 'bg-green-50/30'}`}>
                     {item.currencyCode !== 'KZT' && !ratesApplied && item.costPerUnitOverride === null ? (
                       <div className="flex items-center justify-between gap-1 px-1">
                         <span className="text-orange-500 text-[10px]">{fmt(item.costPrice)} {item.currencyCode}</span>
@@ -802,7 +1107,7 @@ export default function CalculatorPage() {
                             updateItem(item.kpId, 'costPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
                           }}
                           className="flex-1 min-w-0 bg-transparent outline-none text-center text-[10px] px-1 h-7"
-                          placeholder="—"
+                          placeholder={needsAttention ? 'Заполните' : '—'}
                         />
                         <button
                           type="button"
@@ -810,15 +1115,23 @@ export default function CalculatorPage() {
                           className={`shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md border ${
                             item.costOverrideStructured
                               ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-300'
-                              : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 border-gray-200 bg-white'
+                              : needsAttention
+                                ? 'bg-orange-500 text-white hover:bg-orange-600 border-orange-600 animate-pulse'
+                                : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 border-gray-200 bg-white'
                           }`}
-                          title={item.costOverrideStructured ? 'Изменить структурную фиксацию' : 'Зафиксировать вручную (себестоимость × курс × НДС)'}
+                          title={
+                            item.costOverrideStructured ? 'Изменить структурную фиксацию'
+                            : needsAttention ? 'Нет поставщика — зафиксируйте себестоимость вручную'
+                            : 'Зафиксировать вручную (себестоимость × курс × НДС)'
+                          }
                         >
                           <CalculatorIcon className="h-4 w-4" />
                         </button>
                       </div>
                     )}
                   </td>
+                    )
+                  })()}
                   <td className="border px-1 py-1 text-center bg-green-50/30 font-medium">{hasCost ? fmt(r.costTotal) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-green-50/30">{hasCost ? fmt(r.costTotalNoVat) : '—'}</td>
                   <td className="border px-1 py-1 bg-green-50/30">
@@ -879,7 +1192,7 @@ export default function CalculatorPage() {
             })}
 
             {/* Delivery section — name takes most space, delivery input on the right */}
-            <tr className="bg-yellow-50/50">
+            <tr ref={deliveryRef} className="bg-yellow-50/50">
               <td colSpan={16} className="border px-2 py-2 font-medium text-gray-600">Доставка за ед. (₸)</td>
             </tr>
             <tr className="bg-yellow-50/30">
@@ -922,7 +1235,7 @@ export default function CalculatorPage() {
       </div>
 
       {/* Bottom section: Expenses + Summary */}
-      <div className="max-w-[1600px] mx-auto mt-6 grid grid-cols-2 gap-6">
+      <div ref={summaryRef} className="max-w-[1600px] mx-auto mt-6 grid grid-cols-2 gap-6 scroll-mt-28">
         {/* Расходы по проекту */}
         <div className="bg-white rounded-xl border shadow-sm p-4">
           <div className="flex items-center justify-between mb-3">
@@ -1041,6 +1354,98 @@ export default function CalculatorPage() {
           />
         )
       })()}
+
+      {/* Sync status modal — открывается из кнопки в шапке. Показывает список
+          расхождений с КП и две кнопки: Игнорировать (просто закрыть) и
+          Синхронизировать (запустить handleSyncWithKp + закрыть). Если расхождений
+          нет — простая «зелёная» версия с одной кнопкой «Закрыть». */}
+      {syncDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSyncDialogOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[640px] max-w-[95vw] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                {outOfSyncItems.length > 0 ? (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    Синхронизация с КП
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-5 w-5 text-green-600" />
+                    Синхронизировано с КП
+                  </>
+                )}
+              </h3>
+              <button onClick={() => setSyncDialogOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 text-sm text-gray-700">
+              {outOfSyncItems.length > 0 ? (
+                <>
+                  <p>
+                    У <b>{outOfSyncItems.length}</b> {outOfSyncItems.length === 1 ? 'товара' : 'товаров'} в КП поменялся поставщик или склад,
+                    но в калькуляторе остались данные старого выбора. Нажмите <b>«Синхронизировать»</b>,
+                    чтобы пересчитать поставщика, склад, цену и валюту по данным КП.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Ручные правки себестоимости через модалку «Зафиксировать» сохранятся.
+                    Курсы валют для новых поставщиков подгрузятся автоматически.
+                  </p>
+
+                  <div className="pt-2">
+                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">
+                      Расхождения ({outOfSyncItems.length})
+                    </Label>
+                    <ul className="space-y-2">
+                      {outOfSyncItems.map(it => (
+                        <li key={it.kpId} className="text-xs p-2 rounded-lg border border-gray-200 bg-gray-50">
+                          <div className="font-medium text-gray-900 mb-1">{it.name}</div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <s className="text-red-500">{it.oldSupplier}</s>
+                            <span className="text-gray-400">→</span>
+                            <b className="text-green-700">{it.newSupplier}</b>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  Все данные складов в калькуляторе совпадают с текущим выбором в КП. Расхождений нет.
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t flex justify-end gap-2">
+              {outOfSyncItems.length > 0 ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSyncDialogOpen(false)}
+                  >
+                    Игнорировать
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      await handleSyncWithKp()
+                      setSyncDialogOpen(false)
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Синхронизировать
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setSyncDialogOpen(false)} className="rounded-full">Закрыть</Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Help modal */}
       {showHelp && (
@@ -1181,6 +1586,90 @@ export default function CalculatorPage() {
                   <li>Можно править строки руками и добавлять новые товары. Новые строки помечаются голубым бейджем «+ после подписания» — они захватывают актуальные данные на момент добавления</li>
                   <li>В истории на странице КП подписанные контракты переезжают в зелёную колонку «Подписанные контракты»</li>
                 </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-indigo-700 mb-1">Боковая навигация слева</h4>
+                <p>
+                  Фиксированная по левому краю экрана панель с тремя кнопками: <b>Товары</b>,
+                  <b> Доставка</b>, <b>Расходы и Итог</b>. Клик скроллит к соответствующему
+                  разделу с плавной анимацией и учётом высоты шапки сайта.
+                </p>
+                <p className="mt-2">
+                  Активная кнопка подсвечивается жёлтым в зависимости от того, какой раздел
+                  сейчас находится у верха экрана — удобно ориентироваться в длинных КП.
+                  Панель скрыта на узких экранах (планшет, мобильный) чтобы не мешать таблице.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-red-700 mb-1">Синхронизация с КП (поставщик / склад)</h4>
+                <p>
+                  Калькулятор хранит свой <b>снимок</b> данных по каждому товару — поставщика,
+                  склад, цену, валюту, ручные правки. Если менеджер вернулся в <b>/kp</b> и сменил
+                  у товара поставщика или склад, в калькуляторе данные не обновляются автоматически —
+                  ручные правки могли бы потеряться.
+                </p>
+                <p className="mt-2">
+                  Вместо этого в шапке справа от «Пересчитать» появляется кнопка-индикатор:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-2">
+                  <li><b>«✓ Синхронизировано»</b> (зелёная) — все товары в калькуляторе совпадают с текущим выбором в КП</li>
+                  <li><b>«⚠ Синхронизация (N)»</b> (красная) — есть расхождения. Клик открывает модалку</li>
+                </ul>
+                <p className="mt-2">
+                  В модалке показан список расхождений: <code>имя товара: <s>старый поставщик / склад</s> → новый поставщик / склад</code>.
+                  Две кнопки:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-1">
+                  <li><b>Игнорировать</b> — просто закрыть, оставить как есть (snapshot калькулятора не трогается)</li>
+                  <li><b>Синхронизировать</b> — пересчитать поставщика, склад, цену, валюту по данным КП. <b>Ручные правки</b> (модалка «Зафиксировать», `costPerUnitOverride`) <b>сохранятся</b>. Курсы валют для новых поставщиков подгрузятся автоматически с Halyk Bank</li>
+                </ul>
+                <p className="mt-2 text-gray-500">
+                  Для подписанного КП кнопка скрыта — там snapshot обязателен (часть «замороженного» контракта).
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-orange-700 mb-1">Товар без поставщика — особое поведение</h4>
+                <p>
+                  Если в КП добавили товар, но <b>не привязали к складу</b> (не выбран поставщик),
+                  калькулятор сам подтягивает <b>розничную цену из КП</b> в поле «Цена за ед.»
+                  блока «Сумма контракта». Так строка не пустеет и менеджер сразу видит итог.
+                </p>
+                <p className="mt-2">
+                  Ячейка «За ед. (₸)» в блоке Себестоимости при этом подсвечивается <b>оранжевым</b>,
+                  а кнопка-калькулятор рядом начинает <b>пульсировать</b> — это сигнал
+                  «себестоимость не задана, заполните вручную через "Зафиксировать"». Без cost'a
+                  прибыль/маржа считаются неверно (cost = 0 → расчётник думает что всё прибыль).
+                </p>
+                <p className="mt-2 text-gray-500">
+                  Когда нажмёшь «Зафиксировать» и введёшь cost × курс × НДС, подсветка пропадёт.
+                  Если потом в /kp товару привяжешь склад — кнопка «Синхронизировать»
+                  предложит обновить данные.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-purple-700 mb-1">Обратная синхронизация цен (на странице КП)</h4>
+                <p>
+                  После всех правок в калькуляторе (контрактная цена через override, ручная себестоимость,
+                  курсы) вернись в <b>/kp</b>. В шапке появится кнопка <b>«Цены»</b> с тем же индикатором:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-2">
+                  <li><b>Зелёная «Цены»</b> — цены товаров в КП совпадают с контрактной ценой расчётника</li>
+                  <li><b>Красная «Цены (N)»</b> — есть товары где цена в КП-документе отличается от той, что насчитал калькулятор</li>
+                </ul>
+                <p className="mt-2">
+                  Клик → модалка со списком: <code>КП: 150 000 ₸ → Расчётник: 180 000 ₸</code>.
+                  По «Синхронизировать» цены из расчётника переносятся в товары КП —
+                  клиент увидит в PDF ровно то, что посчитал калькулятор. По «Игнорировать»
+                  цены в КП остаются как были.
+                </p>
+                <p className="mt-2 text-gray-500">
+                  Это обратный поток: калькулятор → КП. Поток «КП → калькулятор» обрабатывается
+                  кнопкой синхронизации поставщика выше.
+                </p>
               </div>
 
               <div>
