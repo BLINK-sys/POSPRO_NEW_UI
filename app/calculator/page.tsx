@@ -151,6 +151,9 @@ interface CalcItem {
   // оператор мог редактировать каждый компонент и видеть откуда цифра.
   costOverrideStructured: { amount: number; rate: number; vat: number } | null
   contractPerUnitOverride: number | null // manual override for contract price per unit
+  // Per-row наценка %. null = используется глобальная (state marginPercent).
+  // Число = эта строка использует свою наценку, перебивая глобальную.
+  marginOverride: number | null
   supplierName: string
   warehouseName: string
   // PWC.id + note прокидываются из ProductWarehouseCost. Если note есть —
@@ -229,6 +232,7 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       costPerUnitOverride: null,
       costOverrideStructured: null,
       contractPerUnitOverride: contractFromKp,
+      marginOverride: null,
       supplierName: selectedWp?.supplier_name || item.supplier_name || '',
       warehouseName: selectedWp?.warehouse_name || '',
       warehousePwcId: selectedWp?.pwc_id,
@@ -253,11 +257,26 @@ export default function CalculatorPage() {
 
   const [items, setItems] = useState<CalcItem[]>([])
   const [vatRate, setVatRate] = useState(16)
+  // Глобальная наценка в %. Применяется ко всем строкам, у которых
+  // CalcItem.marginOverride === null. Дефолт 16% — типичная торговая
+  // наценка, синхронна с предыдущим поведением (когда умножали ×1.16×1.16).
+  const [marginPercent, setMarginPercent] = useState(16)
   const [currencyRates, setCurrencyRates] = useState<Record<string, number>>({})
   const [ratesApplied, setRatesApplied] = useState(false)
   const [expenses, setExpenses] = useState<ExpenseItem[]>([])
   // Открытая модалка «Зафиксировать себестоимость». kpId === null = закрыта.
   const [costOverrideDialogKpId, setCostOverrideDialogKpId] = useState<string | null>(null)
+  // Открытая модалка «Наценка для строки». kpId === null = закрыта.
+  // marginDialogValue — контролируемое значение инпута. Инициализируется
+  // при открытии модалки. Управление через document.getElementById было
+  // нестабильно (shadcn Input может не пробросить id на нативный input).
+  const [marginDialogKpId, setMarginDialogKpId] = useState<string | null>(null)
+  const [marginDialogValue, setMarginDialogValue] = useState<string>('')
+  const openMarginDialog = useCallback((kpId: string) => {
+    const it = items.find(i => i.kpId === kpId)
+    setMarginDialogValue(it?.marginOverride != null ? String(it.marginOverride) : '')
+    setMarginDialogKpId(kpId)
+  }, [items])
   // Модалка статуса синхронизации с КП.
   const [syncDialogOpen, setSyncDialogOpen] = useState(false)
 
@@ -491,11 +510,14 @@ export default function CalculatorPage() {
     if (isFromHistory) {
       // Restore saved state — keep saved currency rates.
       // Старые сохранённые items имели поле vatRate (число) — конвертируем в vatEnabled.
+      // marginOverride отсутствует в записях старше релиза наценки — дефолт null.
       const savedItems: CalcItem[] = calculatorData.items.map((raw: any) => ({
         ...raw,
         vatEnabled: migrateVatField(raw),
+        marginOverride: raw.marginOverride ?? null,
       }))
       if (calculatorData.vatRate !== undefined) setVatRate(calculatorData.vatRate)
+      if (calculatorData.marginPercent !== undefined) setMarginPercent(calculatorData.marginPercent)
       if (calculatorData.currencyRates) setCurrencyRates(calculatorData.currencyRates)
       if (calculatorData.ratesApplied !== undefined) setRatesApplied(calculatorData.ratesApplied)
       if (calculatorData.expenses) setExpenses(calculatorData.expenses)
@@ -572,14 +594,15 @@ export default function CalculatorPage() {
     ratesApplied,
     items,
     expenses,
-  }), [vatRate, currencyRates, ratesApplied, items, expenses])
+    marginPercent,
+  }), [vatRate, currencyRates, ratesApplied, items, expenses, marginPercent])
 
   // Auto-save to context on every change (survives page navigation)
   const initialized = useRef(false)
   useEffect(() => {
     if (!initialized.current) { initialized.current = true; return }
     setCalculatorData(buildSaveData())
-  }, [vatRate, currencyRates, ratesApplied, items, expenses]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vatRate, currencyRates, ratesApplied, items, expenses, marginPercent]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save calculator data (auto-saves KP to history if needed)
   const handleSave = useCallback(async () => {
@@ -682,6 +705,10 @@ export default function CalculatorPage() {
     const delivery = item.deliveryPerUnit
     const costVatMul = item.vatEnabled ? CONTRACT_VAT_RATE / 100 : 0
     const contractVatMul = CONTRACT_VAT_RATE / 100  // всегда 16%
+    // Наценка на строку: индивидуальная (marginOverride) если задана,
+    // иначе глобальная из шапки (marginPercent).
+    const effectiveMarginPct = item.marginOverride !== null ? item.marginOverride : marginPercent
+    const marginMul = 1 + effectiveMarginPct / 100
 
     // Себестоимость (override or auto).
     // costPriceKzt уже включает НДС iff item.vatEnabled — см. buildCalcItems.
@@ -694,19 +721,33 @@ export default function CalculatorPage() {
     const costTotalVat = costVat * item.quantity
 
     // Сумма контракта (override or auto). Контракт всегда с 16%.
+    // displayMarginPct/Source — что показать в бейдже «Наценка %» в строке.
     let contractPerUnit: number
     let contractNoVat: number
     let contractVat: number
+    let displayMarginPct: number  // % который виден на бейдже
+    let marginSource: 'global' | 'row-override' | 'price-override'
     if (item.contractPerUnitOverride !== null) {
+      // Ручная цена — вычисляем фактическую маржу из неё, чтобы менеджер
+      // видел сколько % получилось после ручной правки. Бейдж становится
+      // оранжевым (источник 'price-override').
       contractPerUnit = item.contractPerUnitOverride
       contractNoVat = contractPerUnit / (1 + contractVatMul)
       contractVat = contractPerUnit - contractNoVat
+      const base = costNoVat + delivery
+      const actualMarginMul = base > 0 ? contractNoVat / base : 1
+      displayMarginPct = Math.round((actualMarginMul - 1) * 1000) / 10  // округление до 0.1%
+      marginSource = 'price-override'
     } else {
-      // База контракта = «без НДС себестоимости» + доставка. Так контракт
-      // всегда с 16% независимо от того с НДС или без склад.
-      contractNoVat = costNoVat + delivery
+      // Формула: ((cost без НДС + delivery) × (1 + наценка%/100)) × 1.16
+      // Первый множитель — торговая наценка фирмы (наша прибыль до НДС).
+      // Второй — отчётный НДС 16%, всегда применяется один раз.
+      const baseWithMargin = (costNoVat + delivery) * marginMul
+      contractNoVat = baseWithMargin
       contractVat = contractNoVat * contractVatMul
       contractPerUnit = contractNoVat + contractVat
+      displayMarginPct = effectiveMarginPct
+      marginSource = item.marginOverride !== null ? 'row-override' : 'global'
     }
     const contractTotal = contractPerUnit * item.quantity
 
@@ -717,8 +758,9 @@ export default function CalculatorPage() {
     const origCostNoVat = origCostPerUnit / (1 + costVatMul)
     const origCostVat = origCostPerUnit - origCostNoVat
 
-    // Пересчёт контракта на основе оригинальной себестоимости (для сравнения)
-    let origContractNoVat = origCostNoVat + delivery
+    // Пересчёт контракта на основе оригинальной себестоимости (для сравнения).
+    // Используем ту же формулу с наценкой что и для нового контракта.
+    let origContractNoVat = (origCostNoVat + delivery) * marginMul
     let origContractVat = origContractNoVat * contractVatMul
     let origContractPerUnit = origContractNoVat + origContractVat
     if (item.contractPerUnitOverride !== null) {
@@ -744,8 +786,11 @@ export default function CalculatorPage() {
       costChanged,
       diffContractPerUnit, diffContractTotal, diffContractNoVat, diffContractVat,
       diffCostPerUnit, diffCostTotal, diffCostNoVat, diffCostVat,
+      effectiveMarginPct,
+      displayMarginPct,
+      marginSource,
     }
-  }, [])
+  }, [marginPercent])
 
   // ── Totals ─────────────────────────────────────
   const totals = useMemo(() => {
@@ -940,7 +985,20 @@ export default function CalculatorPage() {
               type="number"
               value={vatRate}
               onChange={e => setVatRate(parseFloat(e.target.value) || 0)}
-              className="w-24 h-8 text-sm"
+              className="w-24 h-8 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-200"
+            />
+          </div>
+
+          {/* Margin % — глобальная наценка. Применяется ко всем строкам где
+              CalcItem.marginOverride === null (т.е. не задана своя). */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-500">Наценка (%)</Label>
+            <Input
+              type="number"
+              value={marginPercent}
+              onChange={e => setMarginPercent(parseFloat(e.target.value) || 0)}
+              className="w-24 h-8 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-200"
+              title="Глобальная торговая наценка. Можно перебить для конкретной строки в самой таблице."
             />
           </div>
 
@@ -955,7 +1013,7 @@ export default function CalculatorPage() {
                   value={currencyRates[code] || ''}
                   onChange={e => setCurrencyRates(prev => ({ ...prev, [code]: parseFloat(e.target.value) || 0 }))}
                   placeholder="0.00"
-                  className="w-28 h-8 text-sm"
+                  className="w-28 h-8 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-200"
                 />
               </div>
             </div>
@@ -1055,18 +1113,42 @@ export default function CalculatorPage() {
                   </td>
                   <td className="border px-1 py-1 text-center">{item.quantity}</td>
 
-                  {/* Сумма контракта — Цена за ед. EDITABLE */}
+                  {/* Сумма контракта — Цена за ед. EDITABLE + бейдж наценки.
+                      Бейдж справа показывает эффективную наценку строки.
+                      Серый = используется глобальная (из шапки). Жёлтый = задана
+                      своя через модалку. Клик по бейджу открывает редактор. */}
                   <td className="border px-0 py-0 bg-blue-50/30">
-                    <input
-                      type="number"
-                      value={item.contractPerUnitOverride !== null ? item.contractPerUnitOverride : (hasCost ? Math.ceil(r.contractPerUnit) : '')}
-                      onChange={e => {
-                        const v = e.target.value
-                        updateItem(item.kpId, 'contractPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
-                      }}
-                      className="w-full bg-transparent outline-none text-center text-[10px] px-1 h-6"
-                      placeholder="—"
-                    />
+                    <div className="flex items-center gap-0.5 px-0.5">
+                      <input
+                        type="number"
+                        value={item.contractPerUnitOverride !== null ? item.contractPerUnitOverride : (hasCost ? Math.ceil(r.contractPerUnit) : '')}
+                        onChange={e => {
+                          const v = e.target.value
+                          updateItem(item.kpId, 'contractPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
+                        }}
+                        className="flex-1 min-w-0 bg-transparent outline-none border-0 focus:outline-none focus:ring-0 text-center text-[10px] px-1 h-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        placeholder="—"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openMarginDialog(item.kpId)}
+                        title={
+                          r.marginSource === 'price-override' ? `Фактическая наценка ${r.displayMarginPct}% (вычислена из ручной «Цена за ед.»). Чтобы вернуться к формуле — сотрите ручную цену.`
+                          : r.marginSource === 'row-override' ? `Своя наценка ${r.displayMarginPct}% (перебивает глобальную ${marginPercent}%). Клик чтобы изменить или сбросить.`
+                          : `Глобальная наценка ${r.displayMarginPct}%. Клик чтобы задать свою для этой строки.`
+                        }
+                        className={cn(
+                          "shrink-0 inline-flex items-center justify-center h-5 px-1 rounded-md text-[9px] font-medium border whitespace-nowrap",
+                          r.marginSource === 'price-override'
+                            ? "bg-orange-100 text-orange-900 border-orange-300 hover:bg-orange-200"
+                            : r.marginSource === 'row-override'
+                              ? "bg-yellow-100 text-yellow-900 border-yellow-300 hover:bg-yellow-200"
+                              : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                        )}
+                      >
+                        {r.displayMarginPct}%
+                      </button>
+                    </div>
                   </td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30 font-medium">{hasCost ? fmt(r.contractTotal) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractNoVat * item.quantity) : '—'}</td>
@@ -1106,7 +1188,7 @@ export default function CalculatorPage() {
                             updateItem(item.kpId, 'costOverrideStructured', null)
                             updateItem(item.kpId, 'costPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
                           }}
-                          className="flex-1 min-w-0 bg-transparent outline-none text-center text-[10px] px-1 h-7"
+                          className="flex-1 min-w-0 bg-transparent outline-none border-0 focus:outline-none focus:ring-0 text-center text-[10px] px-1 h-7 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           placeholder={needsAttention ? 'Заполните' : '—'}
                         />
                         <button
@@ -1340,6 +1422,85 @@ export default function CalculatorPage() {
         )
       })()}
 
+      {/* Per-row margin override modal. Простая inline-форма: одно поле
+          «Наценка %» с подсказкой про глобальную, кнопка «Сбросить»
+          (вернуться к глобальной) и «Применить». */}
+      {marginDialogKpId && (() => {
+        const item = items.find(i => i.kpId === marginDialogKpId)
+        if (!item) return null
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setMarginDialogKpId(null)}>
+            <div className="bg-white rounded-xl shadow-2xl w-[420px] max-w-[95vw] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="text-base font-semibold">Наценка для строки</h3>
+                <button onClick={() => setMarginDialogKpId(null)} className="text-gray-400 hover:text-gray-600">
+                  <XIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                <p className="text-xs text-gray-500">
+                  Товар: <b>{item.name}</b>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Глобальная наценка в шапке: <b>{marginPercent}%</b>. Если для этой строки нужна другая
+                  (например премиум-маржа или скидка для VIP-клиента), задайте её здесь.
+                  «Сбросить» вернёт строку к глобальной.
+                </p>
+                {item.contractPerUnitOverride !== null && (
+                  <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-2">
+                    ⚠ У этой строки задана ручная <b>«Цена за ед.»</b> = {item.contractPerUnitOverride.toLocaleString('ru-RU')} ₸.
+                    Пока она стоит, наценка ниже <b>не применяется</b> — контрактная цена берётся напрямую из ручного ввода.
+                    Сотрите значение в ячейке «Цена за ед.» чтобы вернуться к формуле с наценкой.
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Наценка для этой строки (%)</Label>
+                  <Input
+                    type="number"
+                    value={marginDialogValue}
+                    onChange={e => setMarginDialogValue(e.target.value)}
+                    placeholder={`Глобальная (${marginPercent}%)`}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const v = marginDialogValue.trim()
+                        const parsed = v === '' ? null : parseFloat(v)
+                        updateItem(item.kpId, 'marginOverride', Number.isFinite(parsed as number) ? parsed : null)
+                        setMarginDialogKpId(null)
+                      }
+                    }}
+                    autoFocus
+                    className="h-9 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-gray-200"
+                  />
+                </div>
+              </div>
+              <div className="px-6 py-3 border-t flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    updateItem(item.kpId, 'marginOverride', null)
+                    setMarginDialogKpId(null)
+                  }}
+                  className="text-gray-600"
+                >
+                  Сбросить на глобальную
+                </Button>
+                <Button
+                  onClick={() => {
+                    const v = marginDialogValue.trim()
+                    const parsed = v === '' ? null : parseFloat(v)
+                    updateItem(item.kpId, 'marginOverride', Number.isFinite(parsed as number) ? parsed : null)
+                    setMarginDialogKpId(null)
+                  }}
+                  className="bg-brand-yellow text-black hover:bg-yellow-500"
+                >
+                  Применить
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Warehouse note modal — переиспользуем ProductCostNoteDialog. */}
       {warehouseNoteKpId && (() => {
         const item = items.find(i => i.kpId === warehouseNoteKpId)
@@ -1473,17 +1634,41 @@ export default function CalculatorPage() {
                 <ul className="list-disc pl-5 space-y-1">
                   <li><b>Курс валюты</b> — автоматически подтягивается с Halyk Bank (продажа для бизнеса + 1%) при создании нового расчётника. Можно изменить вручную и нажать «Пересчитать»</li>
                   <li><b>Ставка НДС</b> — справочное поле. Контракт всё равно считается по 16%</li>
+                  <li><b>Наценка (%)</b> — глобальная торговая наценка фирмы. По умолчанию 16%. Применяется ко всем строкам, у которых не задана своя (per-row override). Меняешь это число — все строки пересчитываются мгновенно</li>
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-semibold text-blue-700 mb-1">Сумма контракта (что платит клиент) — всегда с 16% НДС</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>Цена за ед.</b> = (Себестоимость без НДС + Доставка) × 1.16. Редактируется вручную</li>
+                  <li><b>Цена за ед.</b> = ((Себестоимость без НДС + Доставка) × (1 + Наценка%/100)) × 1.16
+                    <ul className="list-[circle] pl-5 mt-1">
+                      <li>Первый множитель — торговая наценка фирмы (наша прибыль до НДС)</li>
+                      <li>Второй множитель — отчётный НДС 16%, всегда применяется один раз</li>
+                      <li>Редактируется вручную — ручной ввод перебивает формулу (`contractPerUnitOverride`)</li>
+                    </ul>
+                  </li>
                   <li><b>Итого</b> = Цена за ед. × Кол-во</li>
                   <li><b>Без НДС</b> = Цена за ед. / 1.16 × Кол-во</li>
                   <li><b>НДС</b> = Итого − Без НДС</li>
                 </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-emerald-700 mb-1">Наценка для строки (per-row override)</h4>
+                <p className="mb-2">
+                  Справа от поля «Цена за ед.» в каждой строке есть маленький бейдж
+                  с эффективным процентом наценки (например <b>16%</b>). Клик
+                  открывает мини-модалку «Наценка для строки».
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><b>Серый бейдж</b> = используется глобальная наценка из шапки</li>
+                  <li><b>Жёлтый бейдж</b> = у этой строки задана своя наценка, она перебивает глобальную</li>
+                  <li>Кнопка <b>«Сбросить на глобальную»</b> в модалке — обнуляет per-row override, строка снова берёт значение из шапки</li>
+                </ul>
+                <p className="mt-2">
+                  Используется когда у одной партии нужна другая маржа: например для премиум-товара 30%, а для расходников 10%. Глобальная при этом остаётся как «дефолт для остальных».
+                </p>
               </div>
 
               <div>
