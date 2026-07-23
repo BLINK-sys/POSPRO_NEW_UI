@@ -787,7 +787,10 @@ export default function CalculatorPage() {
 
     // Розница: единая формула для всех типов склада. НДС извлекается из
     // результата (мы плательщики, всё продаём с 16% НДС).
-    const contractPerUnit = (costPerUnit + delivery) * marginMul
+    // Округляется ВВЕРХ до сотни — чтобы совпадать с формулой на витрине
+    // (`ceil(... / 100) * 100` в WarehouseFormula.formula, см. pricing_presets.py).
+    const contractPerUnitRaw = (costPerUnit + delivery) * marginMul
+    const contractPerUnit = Math.ceil(contractPerUnitRaw / 100) * 100
     const contractVat = contractPerUnit * CONTRACT_VAT_EXTRACT  // = ×16/116
     const contractNoVat = contractPerUnit - contractVat
     const contractTotal = contractPerUnit * item.quantity
@@ -807,7 +810,7 @@ export default function CalculatorPage() {
     const origCostNoVat = item.vatEnabled ? origCostPerUnit - origCostVat : origCostPerUnit
 
     // Пересчёт контракта на основе оригинальной себестоимости (для сравнения).
-    const origContractPerUnit = (origCostPerUnit + delivery) * marginMul
+    const origContractPerUnit = Math.ceil(((origCostPerUnit + delivery) * marginMul) / 100) * 100
     const origContractVat = origContractPerUnit * CONTRACT_VAT_EXTRACT
     const origContractNoVat = origContractPerUnit - origContractVat
     const origContractTotal = origContractPerUnit * item.quantity
@@ -1203,10 +1206,12 @@ export default function CalculatorPage() {
                             // Пустое поле = сброс на глобальную наценку.
                             updateItem(item.kpId, 'marginOverride', null)
                           } else {
-                            const price = parseFloat(raw)
-                            if (Number.isFinite(price) && baseForMargin > 0) {
+                            const rawPrice = parseFloat(raw)
+                            if (Number.isFinite(rawPrice) && baseForMargin > 0) {
+                              // Округляем введённое к 100 вверх — цены везде кратны 100 (виtrina + расчётник).
+                              // Иначе ввод 1001 подскочил бы до 1100 при следующем ceil, а ввод 992 → до 1000.
+                              const price = Math.ceil(rawPrice / 100) * 100
                               // Обратный расчёт: marginMul = price / (закуп + доставка).
-                              // Храним с полной точностью, чтобы Math.ceil на цене не «плыл».
                               const pct = ((price / baseForMargin) - 1) * 100
                               updateItem(item.kpId, 'marginOverride', pct)
                             }
@@ -1790,11 +1795,12 @@ export default function CalculatorPage() {
               <div>
                 <h4 className="font-semibold text-blue-700 mb-1">Сумма контракта (что платит клиент) — всегда с 16% НДС</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>Цена за ед.</b> = (Себестоимость в KZT + Доставка) × коэф_наценки
+                  <li><b>Цена за ед.</b> = <code>ceil((Себестоимость в KZT + Доставка) × коэф_наценки / 100) × 100</code>
                     <ul className="list-[circle] pl-5 mt-1">
                       <li>Себестоимость в KZT берётся «как на складе»: для РФ = закуп × курс × 1.16; для КЗ с НДС = закуп (уже с НДС); для КЗ без НДС = закуп (без НДС)</li>
                       <li>коэф_наценки = 1 + Наценка%/100. Значение по умолчанию каждой строки — из переменной <b>коэф_наценки</b> склада товара; глобальный из шапки — fallback</li>
-                      <li><b>Можно редактировать вручную</b> — вписал новую цену, наценка пересчитывается обратно: `%новая = (цена / (закуп+доставка) − 1) × 100`. Бейдж наценки становится жёлтым и показывает новый процент</li>
+                      <li><b>Округление ВВЕРХ до 100 ₸</b> — цены везде кратны 100 (и на витрине, и в корп.расчётнике). Например 991.98 → 1 000, 1 001 → 1 100. Это одна и та же формула что на карточке товара на сайте (`WarehouseFormula.formula`)</li>
+                      <li><b>Можно редактировать вручную</b> — вписал новую цену, наценка пересчитывается обратно: `%новая = (цена / (закуп+доставка) − 1) × 100`. Введённое значение <b>тоже округляется вверх до сотни</b> при blur, чтобы не было прыжков</li>
                       <li>Сброс на глобальную (через модалку наценки → «Сбросить на глобальную») возвращает цену к расчётной по глобальной наценке из шапки</li>
                     </ul>
                   </li>
