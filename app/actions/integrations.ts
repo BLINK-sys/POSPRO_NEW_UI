@@ -45,6 +45,12 @@ export interface IntegrationCard {
   settings: IntegrationSettings
   last_run: IntegrationRun | null
   active_run: IntegrationRun | null
+  pending_command?: {
+    id: number
+    command: string
+    created_by: string | null
+    created_at: string
+  } | null
 }
 
 export interface IntegrationDetail {
@@ -53,6 +59,29 @@ export interface IntegrationDetail {
   settings: IntegrationSettings
   active_run: IntegrationRun | null
   history: IntegrationRun[]
+}
+
+// Snapshot от SSE-стрима (детальная страница). Расширен по сравнению с
+// IntegrationDetail: включает other_running (соседняя интеграция сейчас
+// работает — в этом случае наш trigger встанет в очередь).
+export interface IntegrationSnapshot {
+  type: IntegrationType
+  online: boolean
+  settings: IntegrationSettings
+  active_run: IntegrationRun | null
+  last_run: IntegrationRun | null
+  pending_command: {
+    id: number
+    command: string
+    created_by: string | null
+    created_at: string
+  } | null
+  other_running: {
+    type: IntegrationType
+    run_id: number
+    phase: string | null
+    started_at: string | null
+  } | null
 }
 
 // ── Helpers ──────────────────────────────────────

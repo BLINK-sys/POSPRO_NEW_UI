@@ -116,6 +116,10 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
   const [activeRun, setActiveRun] = useState<IntegrationRun | null>(initial.active_run)
   const [history, setHistory] = useState<IntegrationRun[]>(initial.history)
   const [pendingCommand, setPendingCommand] = useState<any>(null)
+  // Соседняя интеграция (другой тип) сейчас работает — приходит из SSE snapshot.
+  // Если да, значит наш trigger встанет в глобальную FIFO очередь воркера
+  // (не запустится параллельно). Меняем UX кнопки соответственно.
+  const [otherRunning, setOtherRunning] = useState<{ type: IntegrationType; run_id: number; phase: string | null } | null>(null)
 
   // Форма расписания (локальный черновик)
   const [draftEnabled, setDraftEnabled] = useState(initial.settings.enabled)
@@ -155,6 +159,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
         if (data.settings) setSettings(data.settings)
         setActiveRun(data.active_run ?? null)
         setPendingCommand(data.pending_command ?? null)
+        setOtherRunning(data.other_running ?? null)
       } catch (e) {
         console.error("SSE parse error:", e)
       }
@@ -493,14 +498,32 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           <p className="text-sm text-gray-600 mb-4">
             Кнопка ниже поставит команду в очередь. Воркер на локальном сервере проверяет очередь каждые ~10 сек
             и запустит выгрузку. Прогресс появится в верхнем блоке автоматически.
+            {otherRunning && (
+              <>
+                <br /><span className="text-amber-700">
+                  ⚠ Сейчас идёт выгрузка <b>{TYPE_LABELS[otherRunning.type]}</b> —
+                  ваш запуск встанет в очередь и стартует автоматически после её завершения.
+                  Параллельно две выгрузки не запускаются (нагрузка на локальный сервер).
+                </span>
+              </>
+            )}
           </p>
           <Button
             onClick={handleTrigger}
             disabled={triggering || hasActiveRun || !!pendingCommand || !online}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full"
+            className={cn(
+              "text-white rounded-full",
+              otherRunning
+                ? "bg-amber-500 hover:bg-amber-600"
+                : "bg-emerald-500 hover:bg-emerald-600",
+            )}
           >
             {triggering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-            Запустить сейчас
+            {pendingCommand
+              ? "В очереди…"
+              : otherRunning
+                ? `Запустить после завершения ${TYPE_LABELS[otherRunning.type]}`
+                : "Запустить сейчас"}
           </Button>
           {!online && (
             <p className="mt-2 text-xs text-red-600">Локальный сервер оффлайн — команда не будет получена.</p>

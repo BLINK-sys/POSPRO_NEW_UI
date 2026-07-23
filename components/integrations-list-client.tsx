@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { listIntegrations, type IntegrationCard } from "@/app/actions/integrations"
-import { CheckCircle2, XCircle, Loader2, Play, ArrowRight } from "lucide-react"
+import { CheckCircle2, XCircle, Loader2, Play, ArrowRight, Clock } from "lucide-react"
 
 const TYPE_LABELS: Record<string, string> = {
   bio: "BIO — bioshop.ru",
@@ -57,11 +57,16 @@ export default function IntegrationsListClient({ initial }: { initial: Integrati
     return () => { stopped = true; clearInterval(id) }
   }, [])
 
+  // Определяем — кто-то из соседей сейчас работает? Нужно чтобы pending_command
+  // одной карточки был показан как «в очереди после X».
+  const currentRunning = cards.find(c => c.active_run)
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {cards.map(card => {
         const activeRun = card.active_run
         const lastRun = card.last_run
+        const isQueued = !activeRun && card.pending_command && currentRunning && currentRunning.type !== card.type
         return (
           <Link
             key={card.type}
@@ -102,6 +107,14 @@ export default function IntegrationsListClient({ initial }: { initial: Integrati
                     <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
                     <span className="font-medium text-blue-900">Идёт выгрузка</span>
                     <span className="text-xs text-blue-700">этап: {activeRun.phase || "—"}</span>
+                  </div>
+                </div>
+              ) : isQueued ? (
+                <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    <span className="font-medium text-amber-900">В очереди</span>
+                    <span className="text-xs text-amber-700">после завершения соседней выгрузки</span>
                   </div>
                 </div>
               ) : lastRun ? (
