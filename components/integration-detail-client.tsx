@@ -1,0 +1,445 @@
+"use client"
+
+import { useEffect, useState, useCallback, useRef } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import {
+  ArrowLeft, CheckCircle2, XCircle, Loader2, Play, Save,
+  Clock, AlertCircle, WifiOff, Wifi, Calendar,
+} from "lucide-react"
+import {
+  type IntegrationDetail,
+  type IntegrationRun,
+  type IntegrationType,
+  type ScheduleMode,
+  type ScheduleData,
+  triggerIntegration,
+  updateIntegrationSettings,
+} from "@/app/actions/integrations"
+
+const TYPE_LABELS: Record<IntegrationType, string> = {
+  bio: "BIO — bioshop.ru",
+  equip: "Equip — equip.me",
+}
+
+const WEEKDAYS = [
+  { key: "mon", label: "Пн" },
+  { key: "tue", label: "Вт" },
+  { key: "wed", label: "Ср" },
+  { key: "thu", label: "Чт" },
+  { key: "fri", label: "Пт" },
+  { key: "sat", label: "Сб" },
+  { key: "sun", label: "Вс" },
+]
+
+const PHASE_LABELS: Record<string, string> = {
+  starting: "Запуск",
+  fetch_categories: "Сбор: категории",
+  fetch_brands: "Сбор: бренды",
+  fetch_products: "Сбор: товары",
+  upload_categories: "Выгрузка в магазин: категории",
+  upload_brands: "Выгрузка в магазин: бренды",
+  upload_products: "Выгрузка в магазин: товары",
+  done: "Завершено",
+}
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "medium" })
+}
+
+function fmtDuration(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const sec = Math.round((end - start) / 1000)
+  if (sec < 60) return `${sec} сек`
+  if (sec < 3600) return `${Math.floor(sec / 60)} мин ${sec % 60} сек`
+  return `${Math.floor(sec / 3600)} ч ${Math.floor((sec % 3600) / 60)} мин`
+}
+
+function statusColor(status: string) {
+  return status === "success" ? "text-emerald-700 bg-emerald-100 border-emerald-200" :
+         status === "failed"  ? "text-red-700 bg-red-100 border-red-200" :
+         status === "running" ? "text-blue-700 bg-blue-100 border-blue-200" :
+                                "text-gray-700 bg-gray-100 border-gray-200"
+}
+
+interface Props {
+  type: IntegrationType
+  initial: IntegrationDetail
+}
+
+export default function IntegrationDetailClient({ type, initial }: Props) {
+  const router = useRouter()
+  const { toast } = useToast()
+
+  // Общее состояние
+  const [online, setOnline] = useState(initial.online)
+  const [settings, setSettings] = useState(initial.settings)
+  const [activeRun, setActiveRun] = useState<IntegrationRun | null>(initial.active_run)
+  const [history, setHistory] = useState<IntegrationRun[]>(initial.history)
+  const [pendingCommand, setPendingCommand] = useState<any>(null)
+
+  // Форма расписания (локальный черновик)
+  const [draftEnabled, setDraftEnabled] = useState(initial.settings.enabled)
+  const [draftMode, setDraftMode] = useState<ScheduleMode>(initial.settings.schedule_mode)
+  const [draftDays, setDraftDays] = useState<string[]>(
+    initial.settings.schedule_mode === "weekly" && Array.isArray((initial.settings.schedule_data as any).days)
+      ? ((initial.settings.schedule_data as any).days as string[])
+      : []
+  )
+  const [draftIntervalDays, setDraftIntervalDays] = useState<number>(
+    initial.settings.schedule_mode === "interval" && typeof (initial.settings.schedule_data as any).days === "number"
+      ? ((initial.settings.schedule_data as any).days as number)
+      : 14
+  )
+  const [draftTime, setDraftTime] = useState<string>(
+    (initial.settings.schedule_data as any).time || "03:00"
+  )
+  const [draftAnchor, setDraftAnchor] = useState<string>(
+    initial.settings.schedule_mode === "interval" && (initial.settings.schedule_data as any).anchor
+      ? ((initial.settings.schedule_data as any).anchor as string)
+      : new Date().toISOString().slice(0, 10)
+  )
+
+  const [saving, setSaving] = useState(false)
+  const [triggering, setTriggering] = useState(false)
+
+  // ── SSE подключение ─────────────────────────────
+  const esRef = useRef<EventSource | null>(null)
+  useEffect(() => {
+    const es = new EventSource(`/api/admin/integrations/${type}/stream`)
+    esRef.current = es
+
+    const handleSnapshot = (raw: string) => {
+      try {
+        const data = JSON.parse(raw)
+        setOnline(data.online ?? false)
+        if (data.settings) setSettings(data.settings)
+        setActiveRun(data.active_run ?? null)
+        setPendingCommand(data.pending_command ?? null)
+      } catch (e) {
+        console.error("SSE parse error:", e)
+      }
+    }
+
+    es.addEventListener("initial", (e) => handleSnapshot((e as MessageEvent).data))
+    es.addEventListener("update", (e) => handleSnapshot((e as MessageEvent).data))
+    es.onerror = () => {
+      // ошибка соединения — не спамим тостом, EventSource сам ретраит
+    }
+
+    return () => {
+      es.close()
+      esRef.current = null
+    }
+  }, [type])
+
+  // Когда activeRun финиширует — обновим историю (перезагрузим страницу)
+  const prevActiveIdRef = useRef<number | null>(initial.active_run?.id ?? null)
+  useEffect(() => {
+    if (prevActiveIdRef.current && !activeRun) {
+      router.refresh()
+    }
+    prevActiveIdRef.current = activeRun?.id ?? null
+  }, [activeRun, router])
+
+  // ── Actions ─────────────────────────────────────
+  const handleSaveSettings = useCallback(async () => {
+    setSaving(true)
+    const scheduleData: ScheduleData =
+      draftMode === "weekly"
+        ? { days: draftDays, time: draftTime }
+        : { days: draftIntervalDays, time: draftTime, anchor: draftAnchor }
+    const res = await updateIntegrationSettings(type, {
+      enabled: draftEnabled,
+      schedule_mode: draftMode,
+      schedule_data: scheduleData,
+    })
+    setSaving(false)
+    if (res.success && res.data) {
+      setSettings(res.data)
+      toast({ title: "Сохранено", description: "Расписание обновлено" })
+    } else {
+      toast({ title: "Ошибка", description: res.message || "Не удалось сохранить", variant: "destructive" })
+    }
+  }, [type, draftEnabled, draftMode, draftDays, draftIntervalDays, draftTime, draftAnchor, toast])
+
+  const handleTrigger = useCallback(async () => {
+    setTriggering(true)
+    const res = await triggerIntegration(type)
+    setTriggering(false)
+    if (res.success) {
+      toast({ title: "Команда отправлена", description: res.message || "Воркер подхватит в ближайшие секунды" })
+    } else {
+      toast({ title: "Ошибка", description: res.message || "Не удалось запустить", variant: "destructive" })
+    }
+  }, [type, toast])
+
+  const toggleDay = (day: string) => {
+    setDraftDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
+
+  const hasActiveRun = !!activeRun
+  const settingsChanged =
+    draftEnabled !== settings.enabled ||
+    draftMode !== settings.schedule_mode ||
+    JSON.stringify(
+      draftMode === "weekly"
+        ? { days: draftDays, time: draftTime }
+        : { days: draftIntervalDays, time: draftTime, anchor: draftAnchor }
+    ) !== JSON.stringify(settings.schedule_data)
+
+  return (
+    <div className="p-6 max-w-6xl">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <Link href="/admin/integrations" className="text-gray-500 hover:text-gray-800">
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <h1 className="text-2xl font-semibold">{TYPE_LABELS[type]}</h1>
+
+        {/* Online индикатор реалтайм через SSE */}
+        <div className={cn(
+          "ml-4 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border",
+          online ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"
+        )}>
+          {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+          {online ? "Локальный сервер онлайн" : "Локальный сервер оффлайн"}
+        </div>
+      </div>
+      <p className="text-sm text-gray-500 mb-6 ml-8">
+        Реалтайм подключение по SSE — статус, прогресс и настройки обновляются автоматически.
+      </p>
+
+      {/* Реалтайм прогресс */}
+      {activeRun && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+            <div>
+              <div className="text-sm font-semibold text-blue-900">Идёт выгрузка</div>
+              <div className="text-xs text-blue-700">
+                Запущена {fmtDate(activeRun.started_at)} · длится {fmtDuration(activeRun.started_at, null)} · {activeRun.trigger === "manual" ? `запустил ${activeRun.triggered_by || "админ"}` : "по расписанию"}
+              </div>
+            </div>
+          </div>
+          <div className="text-sm text-blue-900 mb-2">
+            Этап: <b>{PHASE_LABELS[activeRun.phase || ""] || activeRun.phase || "—"}</b>
+          </div>
+          {activeRun.progress && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              {Object.entries(activeRun.progress).map(([k, v]) => (
+                <div key={k} className="bg-white/60 rounded px-2 py-1">
+                  <div className="text-gray-600">{k}</div>
+                  <div className="font-medium">{String(v)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pendingCommand && !activeRun && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-900 flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Команда «Запустить сейчас» в очереди. Воркер должен подхватить в течение 10 секунд.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Расписание */}
+        <div className="bg-white rounded-xl border shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="h-4 w-4 text-gray-600" />
+            <h3 className="font-semibold">Расписание автозапуска</h3>
+          </div>
+
+          <div className="flex items-center gap-3 mb-4">
+            <Switch checked={draftEnabled} onCheckedChange={setDraftEnabled} />
+            <Label className="cursor-pointer">Автозапуск включён</Label>
+          </div>
+
+          {/* Режим расписания */}
+          <div className="mb-3">
+            <Label className="text-xs text-gray-500 mb-2 block">Режим</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={draftMode === "weekly" ? "default" : "outline"}
+                onClick={() => setDraftMode("weekly")}
+                className={draftMode === "weekly" ? "bg-yellow-400 hover:bg-yellow-500 text-black" : ""}
+              >
+                По дням недели
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={draftMode === "interval" ? "default" : "outline"}
+                onClick={() => setDraftMode("interval")}
+                className={draftMode === "interval" ? "bg-yellow-400 hover:bg-yellow-500 text-black" : ""}
+              >
+                Каждые N дней
+              </Button>
+            </div>
+          </div>
+
+          {draftMode === "weekly" && (
+            <div className="mb-3">
+              <Label className="text-xs text-gray-500 mb-2 block">Дни недели</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKDAYS.map(d => {
+                  const on = draftDays.includes(d.key)
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      onClick={() => toggleDay(d.key)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                        on ? "bg-yellow-100 border-yellow-300 text-yellow-900"
+                           : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {draftDays.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">Выберите хотя бы один день</p>
+              )}
+            </div>
+          )}
+
+          {draftMode === "interval" && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">Каждые N дней</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={draftIntervalDays}
+                  onChange={e => setDraftIntervalDays(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500 mb-1 block">Первый запуск</Label>
+                <Input
+                  type="date"
+                  value={draftAnchor}
+                  onChange={e => setDraftAnchor(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <Label className="text-xs text-gray-500 mb-1 block">Время (24ч)</Label>
+            <Input
+              type="time"
+              value={draftTime}
+              onChange={e => setDraftTime(e.target.value)}
+              className="w-32"
+            />
+          </div>
+
+          <Button
+            onClick={handleSaveSettings}
+            disabled={saving || !settingsChanged || (draftMode === "weekly" && draftDays.length === 0)}
+            className="bg-yellow-400 hover:bg-yellow-500 text-black rounded-full"
+          >
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+            Сохранить
+          </Button>
+
+          {!settings.enabled && (
+            <div className="mt-3 text-xs text-gray-500 flex items-start gap-1">
+              <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+              Автозапуск сейчас выключен — воркер игнорирует расписание, но кнопка «Запустить сейчас» работает.
+            </div>
+          )}
+        </div>
+
+        {/* Ручной запуск */}
+        <div className="bg-white rounded-xl border shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Play className="h-4 w-4 text-gray-600" />
+            <h3 className="font-semibold">Ручной запуск</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Кнопка ниже поставит команду в очередь. Воркер на локальном сервере проверяет очередь каждые ~10 сек
+            и запустит выгрузку. Прогресс появится в верхнем блоке автоматически.
+          </p>
+          <Button
+            onClick={handleTrigger}
+            disabled={triggering || hasActiveRun || !!pendingCommand || !online}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full"
+          >
+            {triggering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+            Запустить сейчас
+          </Button>
+          {!online && (
+            <p className="mt-2 text-xs text-red-600">Локальный сервер оффлайн — команда не будет получена.</p>
+          )}
+          {hasActiveRun && (
+            <p className="mt-2 text-xs text-gray-500">Уже идёт выгрузка — дождитесь завершения.</p>
+          )}
+        </div>
+      </div>
+
+      {/* История */}
+      <div className="bg-white rounded-xl border shadow-sm p-5 mt-4">
+        <h3 className="font-semibold mb-3">История выгрузок</h3>
+        {history.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">Ещё нет запусков.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-500 border-b">
+                  <th className="text-left py-2 px-2">Начало</th>
+                  <th className="text-left py-2 px-2">Длительность</th>
+                  <th className="text-left py-2 px-2">Триггер</th>
+                  <th className="text-left py-2 px-2">Этап</th>
+                  <th className="text-left py-2 px-2">Статус</th>
+                  <th className="text-left py-2 px-2">Ошибка</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(r => (
+                  <tr key={r.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="py-2 px-2">{fmtDate(r.started_at)}</td>
+                    <td className="py-2 px-2 text-gray-600">
+                      {r.finished_at ? fmtDuration(r.started_at, r.finished_at) : "…"}
+                    </td>
+                    <td className="py-2 px-2 text-gray-600">
+                      {r.trigger === "manual" ? `Вручную (${r.triggered_by || "—"})` : "По расписанию"}
+                    </td>
+                    <td className="py-2 px-2 text-gray-600">{PHASE_LABELS[r.phase || ""] || r.phase || "—"}</td>
+                    <td className="py-2 px-2">
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusColor(r.status))}>
+                        {r.status === "success" ? "Успех" : r.status === "failed" ? "Ошибка" : r.status === "running" ? "Идёт" : r.status}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2 text-xs text-red-600 max-w-md truncate">
+                      {r.error || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

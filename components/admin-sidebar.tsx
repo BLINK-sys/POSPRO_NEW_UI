@@ -20,6 +20,7 @@ import {
   Share2,
   Activity,
   MonitorSmartphone,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -231,6 +232,15 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
 
           {hasAccess("catalog") && (
             <NavItem href="/admin/suppliers" icon={Truck} label="Поставщики" active={isActive("/admin/suppliers")} />
+          )}
+
+          {hasAccess("catalog") && (
+            <NavItem
+              href="/admin/integrations"
+              icon={RefreshCw}
+              label="Автоматическая выгрузка"
+              active={isActive("/admin/integrations")}
+            />
           )}
 
           {hasAccess("pages") && (
