@@ -150,9 +150,12 @@ interface CalcItem {
   // ВСЕГДА равен результату умножения. Храним components отдельно чтобы
   // оператор мог редактировать каждый компонент и видеть откуда цифра.
   costOverrideStructured: { amount: number; rate: number; vat: number } | null
-  contractPerUnitOverride: number | null // manual override for contract price per unit
   // Per-row наценка %. null = используется глобальная (state marginPercent).
   // Число = эта строка использует свою наценку, перебивая глобальную.
+  // Значение по умолчанию берётся из переменной коэф_наценки склада товара
+  // при добавлении в КП (см. `marginPercentFromCoef`). Ручной ввод розницы
+  // (contractPerUnitOverride) убран сознательно — если у товара нет данных
+  // склада, розница не рассчитывается вообще (менеджер обязан привязать склад).
   marginOverride: number | null
   supplierName: string
   warehouseName: string
@@ -176,6 +179,12 @@ interface CalcItem {
 // в настройки. Себестоимость завязана на warehouse.vat_enabled (см. CalcItem.vatEnabled).
 const CONTRACT_VAT_RATE = 16
 const DEFAULT_VAT_RATE = 16
+const CONTRACT_VAT_MUL = CONTRACT_VAT_RATE / 100                    // 0.16
+const CONTRACT_VAT_EXTRACT = CONTRACT_VAT_MUL / (1 + CONTRACT_VAT_MUL)  // ≈ 0.1379 (×16/116)
+// Порог коэффициента наценки для КЗ-без-НДС: ниже этого прибыль ≤ 0
+// (весь НДС розницы уходит в бюджет + КПН со всей розницы без вычета).
+// Формула: коэф ≥ 1 / (1 - 1/(5·(1+VAT)) - VAT/(1+VAT)) ≈ 1.45 при VAT=16%.
+const NOVAT_BREAKEVEN_MARGIN_PCT = 45
 
 // Преобразует устаревшее поле vatRate (число 0|16) из ранее сохранённых
 // КП в булевый vatEnabled. Используется при загрузке из localStorage / kp_history.
@@ -194,6 +203,28 @@ interface ExpenseItem {
 }
 
 // ── Helpers ──────────────────────────────────────
+// Инициализация per-row наценки из переменной коэф_наценки склада.
+// margin_coef — множитель (например 1.16 = +16%). Переводим в проценты
+// для UI (менеджеры видят «16 %», не «1.16»). null → используется
+// глобальная наценка из шапки корп.расчётника.
+function marginPercentFromCoef(coef: number | null | undefined): number | null {
+  if (coef == null || !Number.isFinite(coef)) return null
+  return Math.round((coef - 1) * 1000) / 10  // 1.16 → 16, 1.45 → 45
+}
+
+// Приведение закупочной цены к KZT по правилам склада:
+//   • KZT + vat=on  (КЗ с НДС): cost_price уже с НДС → как есть
+//   • KZT + vat=off (КЗ без НДС / ИП упрощёнка): cost_price без НДС → как есть
+//   • не-KZT + vat=on (РФ импорт): × rate × 1.16 (курс + НДС на закупе сверху)
+//   • не-KZT + vat=off: × rate (без начисления НДС на закупе)
+// Возвращает 0 если для не-KZT ещё не задан курс.
+function computeCostPriceKzt(costPrice: number, currencyCode: string, vatEnabled: boolean, rate: number): number {
+  if (currencyCode === 'KZT') return costPrice
+  if (!rate || rate <= 0) return 0
+  const vatMul = vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
+  return costPrice * rate * vatMul
+}
+
 function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
   return kpItems.map(item => {
     const selectedWp = item.warehousePrices?.find(
@@ -206,15 +237,17 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
     // НДС-флаг наследуется от склада. selectedWp может быть undefined
     // (товар без выбранного склада) — тогда дефолт «с НДС».
     const vatEnabled = selectedWp?.vat_enabled !== false
-    const vatMul = vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
 
-    // Товар без поставщика — менеджер выбрал товар в КП, но не привязал
-    // его к складу. Чтобы строка не была «пустой» (cost=0 → contract=0),
-    // подтягиваем розничную цену из КП в contractPerUnitOverride. Менеджер
-    // потом руками заполнит себестоимость через модалку «Зафиксировать»
-    // (соответствующая ячейка подсвечена оранжевым).
-    const hasNoSupplier = !selectedWp
-    const contractFromKp = hasNoSupplier && item.price > 0 ? item.price : null
+    // costPriceKzt — сумма в KZT «как принято на этом типе склада»:
+    //   • KZT + vat=on  (КЗ с НДС): cost_price уже с НДС включённым → как есть
+    //   • KZT + vat=off (КЗ без НДС, ИП/упрощёнка): cost_price без НДС → как есть
+    //   • не-KZT (импорт, РФ): считается в handleApplyRates: cost × rate × 1.16
+    //     (курс + НДС на закупе накидывается сверху)
+    let costPriceKzt = 0
+    if (currencyCode === 'KZT') {
+      costPriceKzt = costPrice
+    }
+    // Non-KZT остаётся 0 пока не применён курс. handleApplyRates дозаполнит.
 
     return {
       kpId: item.kpId,
@@ -224,15 +257,14 @@ function buildCalcItems(kpItems: KPItem[]): CalcItem[] {
       quantity: item.quantity,
       costPrice,
       currencyCode,
-      // For KZT we apply VAT immediately. For non-KZT this happens in
-      // handleApplyRates after the FX rate is set.
-      costPriceKzt: currencyCode === 'KZT' ? costPrice * vatMul : 0,
+      costPriceKzt,
       vatEnabled,
       deliveryPerUnit: calculatedDelivery,
       costPerUnitOverride: null,
       costOverrideStructured: null,
-      contractPerUnitOverride: contractFromKp,
-      marginOverride: null,
+      // Инициализируем per-row наценку значением переменной коэф_наценки
+      // со склада товара. Менеджер может изменить или сбросить на глобальную.
+      marginOverride: marginPercentFromCoef(selectedWp?.margin_coef),
       supplierName: selectedWp?.supplier_name || item.supplier_name || '',
       warehouseName: selectedWp?.warehouse_name || '',
       warehousePwcId: selectedWp?.pwc_id,
@@ -274,7 +306,13 @@ export default function CalculatorPage() {
   const [marginDialogValue, setMarginDialogValue] = useState<string>('')
   const openMarginDialog = useCallback((kpId: string) => {
     const it = items.find(i => i.kpId === kpId)
-    setMarginDialogValue(it?.marginOverride != null ? String(it.marginOverride) : '')
+    // Округляем до 0.01% при показе — marginOverride может быть 17.0422… после
+    // ручного ввода цены, но для модалки такая точность не нужна.
+    setMarginDialogValue(
+      it?.marginOverride != null
+        ? String(Math.round(it.marginOverride * 100) / 100)
+        : ''
+    )
     setMarginDialogKpId(kpId)
   }, [items])
   // Модалка статуса синхронизации с КП.
@@ -336,10 +374,18 @@ export default function CalculatorPage() {
   }, [items.length, expenses.length])
   // Открытая модалка «Примечание склада». Хранит kpId редактируемой строки.
   const [warehouseNoteKpId, setWarehouseNoteKpId] = useState<string | null>(null)
+  // Локальный буфер для инпута «Цена за ед.» пока строка редактируется —
+  // иначе controlled value перебивает пустую строку расчётной ценой, и юзер
+  // не может очистить первую цифру, чтобы напечатать другую сумму.
+  const [editingPriceKpId, setEditingPriceKpId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
   const [showSignConfirm, setShowSignConfirm] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  type HelpTab = 'settings' | 'contract' | 'margin' | 'cost' | 'delivery' | 'notes' | 'totals' | 'signed' | 'sync' | 'nosupplier' | 'nav'
+  const [showHelpTab, setShowHelpTab] = useState<HelpTab>('settings')
+  const [novatVatInfoOpen, setNovatVatInfoOpen] = useState(false)
 
   // Активный КП подписан → весь UI знает что мы в режиме «снимок».
   // Подписать можно только сохранённое КП (нужен activeHistoryId).
@@ -438,11 +484,9 @@ export default function CalculatorPage() {
         wp => wp.warehouse_id === kpItem.selectedWarehouseId
       ) || kpItem.warehousePrices?.[0]
 
-      // Поставщик исчез (товар стал «retail-only») → подтягиваем розничную
-      // цену из КП в contractPerUnitOverride. Cost обнуляем, ячейка
-      // в калькуляторе подсветится оранжевым (нужно зафиксировать вручную).
+      // Поставщик исчез (товар без склада) — розница не рассчитывается,
+      // всё обнуляем. Менеджер должен вернуться в /kp и привязать склад.
       if (!currentWp) {
-        const contractFromKp = (kpItem.price || 0) > 0 ? kpItem.price : null
         return {
           ...item,
           costPrice: 0,
@@ -454,8 +498,6 @@ export default function CalculatorPage() {
           warehouseName: '',
           warehousePwcId: undefined,
           warehouseNote: null,
-          // Подтягиваем KP-цену только если не было явной ручной правки
-          contractPerUnitOverride: item.contractPerUnitOverride ?? contractFromKp,
         }
       }
 
@@ -463,16 +505,8 @@ export default function CalculatorPage() {
       const newCurrencyCode = currentWp.currency_code || 'KZT'
       const newVatEnabled = currentWp.vat_enabled !== false
       const newCalculatedDelivery = Math.ceil(currentWp.calculated_delivery || 0)
-      const vatMul = newVatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
-      // costPriceKzt пересчитываем СРАЗУ если есть курс — иначе оставляем
-      // 0 и UI покажет фрагмент в исходной валюте, юзер сможет ввести курс вручную.
-      let newCostPriceKzt: number
-      if (newCurrencyCode === 'KZT') {
-        newCostPriceKzt = newCostPrice * vatMul
-      } else {
-        const rate = mergedRates[newCurrencyCode] || 0
-        newCostPriceKzt = rate > 0 ? newCostPrice * rate * vatMul : 0
-      }
+      const rate = newCurrencyCode === 'KZT' ? 1 : (mergedRates[newCurrencyCode] || 0)
+      const newCostPriceKzt = computeCostPriceKzt(newCostPrice, newCurrencyCode, newVatEnabled, rate)
 
       return {
         ...item,
@@ -485,7 +519,9 @@ export default function CalculatorPage() {
         warehouseName: currentWp.warehouse_name || '',
         warehousePwcId: currentWp.pwc_id,
         warehouseNote: currentWp.note ?? null,
-        // Ручные правки не трогаем
+        // Наценку строки переустанавливаем из переменной нового склада —
+        // менеджер поменял склад, значит и коэф_наценки тоже мог другой.
+        marginOverride: marginPercentFromCoef(currentWp.margin_coef),
       }
     }))
 
@@ -529,9 +565,9 @@ export default function CalculatorPage() {
         .filter(kpItem => !savedKpIds.has(kpItem.kpId))
         .map(kpItem => {
           const item = buildCalcItems([kpItem])[0]
-          if (item.currencyCode !== 'KZT' && savedRates[item.currencyCode]) {
-            const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
-            item.costPriceKzt = item.costPrice * savedRates[item.currencyCode] * vatMul
+          if (item.currencyCode !== 'KZT') {
+            const rate = savedRates[item.currencyCode] || 0
+            item.costPriceKzt = computeCostPriceKzt(item.costPrice, item.currencyCode, item.vatEnabled, rate)
           }
           return item
         })
@@ -573,12 +609,15 @@ export default function CalculatorPage() {
           })
           if (Object.keys(rates).length > 0) {
             setCurrencyRates(rates)
-            setItems(prev => prev.map(item => {
-              const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
-              if (item.currencyCode === 'KZT') return { ...item, costPriceKzt: item.costPrice * vatMul }
-              const rate = rates[item.currencyCode] || 0
-              return { ...item, costPriceKzt: item.costPrice * rate * vatMul }
-            }))
+            setItems(prev => prev.map(item => ({
+              ...item,
+              costPriceKzt: computeCostPriceKzt(
+                item.costPrice,
+                item.currencyCode,
+                item.vatEnabled,
+                item.currencyCode === 'KZT' ? 1 : (rates[item.currencyCode] || 0),
+              ),
+            })))
             setRatesApplied(true)
           }
         }
@@ -635,17 +674,20 @@ export default function CalculatorPage() {
     return Array.from(codes).sort()
   }, [items])
 
-  // Apply currency rates. Per-item VAT (vatEnabled) determines whether
-  // costPriceKzt gets multiplied by 1.16 or stays «как есть».
+  // Apply currency rates. Логика приведения к KZT — в computeCostPriceKzt:
+  // для KZT-складов cost_price идёт как есть (флаг vat_enabled управляет
+  // извлечением/начислением НДС на стороне корп.расчётника, а не здесь).
+  // Для не-KZT (импорт РФ и т.п.) применяется курс + НДС на закупе.
   const handleApplyRates = useCallback(() => {
-    setItems(prev => prev.map(item => {
-      const vatMul = item.vatEnabled ? 1 + DEFAULT_VAT_RATE / 100 : 1
-      if (item.currencyCode === 'KZT') {
-        return { ...item, costPriceKzt: item.costPrice * vatMul }
-      }
-      const rate = currencyRates[item.currencyCode] || 0
-      return { ...item, costPriceKzt: item.costPrice * rate * vatMul }
-    }))
+    setItems(prev => prev.map(item => ({
+      ...item,
+      costPriceKzt: computeCostPriceKzt(
+        item.costPrice,
+        item.currencyCode,
+        item.vatEnabled,
+        item.currencyCode === 'KZT' ? 1 : (currencyRates[item.currencyCode] || 0),
+      ),
+    })))
     setRatesApplied(true)
   }, [currencyRates])
 
@@ -696,78 +738,78 @@ export default function CalculatorPage() {
   }, [])
 
   // ── Calculations ───────────────────────────────
-  // Контрактная сторона ВСЕГДА с 16% НДС (CONTRACT_VAT_RATE).
-  // Сторона себестоимости — с НДС если item.vatEnabled, иначе «как есть».
-  // Это даёт менеджеру возможность отдельно управлять налогом со склада
-  // (например импорт без НДС), не ломая контракт с клиентом.
+  // Единая формула для всех типов складов (РФ / КЗ с НДС / КЗ без НДС):
+  //   розница = (costPriceKzt + доставка) × коэф_наценки
+  // costPriceKzt уже приведён к KZT правильно (см. computeCostPriceKzt):
+  //   • РФ (импорт):     cost × rate × 1.16  → закуп с НДС в KZT
+  //   • КЗ с НДС:        cost «как есть»     → закуп с НДС включённым
+  //   • КЗ без НДС/ИП:   cost «как есть»     → закуп без НДС
+  //
+  // На контрактной стороне мы всегда извлекаем 16% НДС из розницы
+  // (мы плательщики НДС, продаём с НДС независимо от типа склада).
+  // Различия по типам склада проявляются только в блоке налогов (см. totals):
+  //   • КЗ без НДС: КПН считается со всей розницы_без_НДС без вычета
+  //     закупа/доставки (нет входных документов / упрощёнка).
 
   const calcRow = useCallback((item: CalcItem) => {
     const delivery = item.deliveryPerUnit
-    const costVatMul = item.vatEnabled ? CONTRACT_VAT_RATE / 100 : 0
-    const contractVatMul = CONTRACT_VAT_RATE / 100  // всегда 16%
     // Наценка на строку: индивидуальная (marginOverride) если задана,
     // иначе глобальная из шапки (marginPercent).
     const effectiveMarginPct = item.marginOverride !== null ? item.marginOverride : marginPercent
     const marginMul = 1 + effectiveMarginPct / 100
 
-    // Себестоимость (override or auto).
-    // costPriceKzt уже включает НДС iff item.vatEnabled — см. buildCalcItems.
+    // Себестоимость (override or auto). costPriceKzt хранится «как есть»
+    // из БД (для vat=on — уже с НДС; для vat=off — без НДС).
     const costPerUnit = item.costPerUnitOverride !== null ? item.costPerUnitOverride : item.costPriceKzt
-    const costTotal = costPerUnit * item.quantity
-    // При vatEnabled=false costVatMul=0 → costNoVat == costPerUnit, costVat == 0
-    const costNoVat = costPerUnit / (1 + costVatMul)
-    const costVat = costPerUnit - costNoVat
+
+    // НДС себестоимости — флаг vat_enabled управляет только этой колонкой:
+    //   • vat=on  («НДС уже в себестоимости»)  → ИЗВЛЕКАЕМ  через ×16/116
+    //   • vat=off («НДС не в стоимости»)       → НАКИДЫВАЕМ ×16% сверху (визуально)
+    // Формула розницы работает от costPerUnit (без манипуляций).
+    let costVat: number, costNoVat: number, costPerUnitWithVat: number
+    if (item.vatEnabled) {
+      costVat = costPerUnit * CONTRACT_VAT_EXTRACT  // ×16/116
+      costNoVat = costPerUnit - costVat
+      costPerUnitWithVat = costPerUnit              // сумма уже с НДС
+    } else {
+      costVat = costPerUnit * CONTRACT_VAT_MUL      // ×16% накидка
+      costNoVat = costPerUnit
+      costPerUnitWithVat = costPerUnit + costVat    // закуп + накидка
+    }
+    const costTotal = costPerUnit * item.quantity            // фактически уплачено поставщику
+    const costTotalWithVat = costPerUnitWithVat * item.quantity  // «Итого с НДС» для UI-колонки
     const costTotalNoVat = costNoVat * item.quantity
     const costTotalVat = costVat * item.quantity
 
-    // Сумма контракта (override or auto). Контракт всегда с 16%.
-    // displayMarginPct/Source — что показать в бейдже «Наценка %» в строке.
-    let contractPerUnit: number
-    let contractNoVat: number
-    let contractVat: number
-    let displayMarginPct: number  // % который виден на бейдже
-    let marginSource: 'global' | 'row-override' | 'price-override'
-    if (item.contractPerUnitOverride !== null) {
-      // Ручная цена — вычисляем фактическую маржу из неё, чтобы менеджер
-      // видел сколько % получилось после ручной правки. Бейдж становится
-      // оранжевым (источник 'price-override').
-      contractPerUnit = item.contractPerUnitOverride
-      contractNoVat = contractPerUnit / (1 + contractVatMul)
-      contractVat = contractPerUnit - contractNoVat
-      const base = costNoVat + delivery
-      const actualMarginMul = base > 0 ? contractNoVat / base : 1
-      displayMarginPct = Math.round((actualMarginMul - 1) * 1000) / 10  // округление до 0.1%
-      marginSource = 'price-override'
-    } else {
-      // Формула: ((cost без НДС + delivery) × (1 + наценка%/100)) × 1.16
-      // Первый множитель — торговая наценка фирмы (наша прибыль до НДС).
-      // Второй — отчётный НДС 16%, всегда применяется один раз.
-      const baseWithMargin = (costNoVat + delivery) * marginMul
-      contractNoVat = baseWithMargin
-      contractVat = contractNoVat * contractVatMul
-      contractPerUnit = contractNoVat + contractVat
-      displayMarginPct = effectiveMarginPct
-      marginSource = item.marginOverride !== null ? 'row-override' : 'global'
-    }
+    // Вычитаемый НДС для налоговой формулы. При vat=off накидка НЕ идёт
+    // в вычет — у ИП упрощёнки нет входного НДС к зачёту.
+    const deductibleCostVat = item.vatEnabled ? costVat : 0
+
+    // Розница: единая формула для всех типов склада. НДС извлекается из
+    // результата (мы плательщики, всё продаём с 16% НДС).
+    const contractPerUnit = (costPerUnit + delivery) * marginMul
+    const contractVat = contractPerUnit * CONTRACT_VAT_EXTRACT  // = ×16/116
+    const contractNoVat = contractPerUnit - contractVat
     const contractTotal = contractPerUnit * item.quantity
+    // effectiveMarginPct — точное значение (может быть 17.0422 после ручного
+    // ввода цены). Для бейджа округляем до 0.1% — компактно, но при этом
+    // marginOverride хранит полную точность, чтобы Math.ceil на цене не «плыл».
+    const displayMarginPct = Math.round(effectiveMarginPct * 10) / 10
+    const marginSource: 'global' | 'row-override' = item.marginOverride !== null ? 'row-override' : 'global'
 
     // Разница (показывать только если себестоимость изменена вручную)
     const costChanged = item.costPerUnitOverride !== null
     const origCostPerUnit = item.costPriceKzt
     const origCostTotal = origCostPerUnit * item.quantity
-    const origCostNoVat = origCostPerUnit / (1 + costVatMul)
-    const origCostVat = origCostPerUnit - origCostNoVat
+    const origCostVat = item.vatEnabled
+      ? origCostPerUnit * CONTRACT_VAT_EXTRACT   // извлекаем
+      : origCostPerUnit * CONTRACT_VAT_MUL       // накидываем
+    const origCostNoVat = item.vatEnabled ? origCostPerUnit - origCostVat : origCostPerUnit
 
     // Пересчёт контракта на основе оригинальной себестоимости (для сравнения).
-    // Используем ту же формулу с наценкой что и для нового контракта.
-    let origContractNoVat = (origCostNoVat + delivery) * marginMul
-    let origContractVat = origContractNoVat * contractVatMul
-    let origContractPerUnit = origContractNoVat + origContractVat
-    if (item.contractPerUnitOverride !== null) {
-      origContractPerUnit = item.contractPerUnitOverride
-      origContractNoVat = origContractPerUnit / (1 + contractVatMul)
-      origContractVat = origContractPerUnit - origContractNoVat
-    }
+    const origContractPerUnit = (origCostPerUnit + delivery) * marginMul
+    const origContractVat = origContractPerUnit * CONTRACT_VAT_EXTRACT
+    const origContractNoVat = origContractPerUnit - origContractVat
     const origContractTotal = origContractPerUnit * item.quantity
 
     // Diff: новое - оригинальное (по всем колонкам)
@@ -782,6 +824,13 @@ export default function CalculatorPage() {
 
     return {
       costPerUnit, costTotal, costNoVat, costVat, costTotalNoVat, costTotalVat,
+      // costPerUnitWithVat/costTotalWithVat — «сумма с НДС»: для vat=on совпадает
+      // с costPerUnit/costTotal, для vat=off включает накидку. UI использует их
+      // для отображения «Итого» в колонке себестоимости.
+      costPerUnitWithVat, costTotalWithVat,
+      // deductibleCostVat — сколько НДС себестоимости можно принять к зачёту.
+      // Для vat=off = 0 (у ИП упрощёнки нет входного НДС к вычету).
+      deductibleCostVat,
       contractPerUnit, contractTotal, contractNoVat, contractVat,
       costChanged,
       diffContractPerUnit, diffContractTotal, diffContractNoVat, diffContractVat,
@@ -796,10 +845,18 @@ export default function CalculatorPage() {
   const totals = useMemo(() => {
     let contractTotalSum = 0
     let contractVatSum = 0
-    let contractNoVatSum = 0      // ← новое: «Без НДС контракта»
+    let contractNoVatSum = 0
     let costTotalSum = 0
+    // costVatSum — для UI-итога (сумма всех «НДС себес» по всем строкам,
+    // включая накидку для vat=off).
     let costVatSum = 0
-    let costNoVatSumTaxable = 0   // ← новое: «Без НДС себестоимости» БЕЗ учёта VAT-off строк
+    // costVatSumDeductible — только для налоговой формулы: НДС который можно
+    // принять к зачёту. Для vat=off = 0 (нет входного НДС).
+    let costVatSumDeductible = 0
+    // Суммы «...taxable» участвуют в базе КПН — только для vat=on строк.
+    let costNoVatSumTaxable = 0
+    let deliveryTaxableSum = 0
+    // deliveryTotalSum — для UI-отображения итого доставки (все строки).
     let deliveryTotalSum = 0
 
     items.forEach(item => {
@@ -808,23 +865,28 @@ export default function CalculatorPage() {
       contractVatSum += r.contractVat * item.quantity
       contractNoVatSum += r.contractNoVat * item.quantity
       costTotalSum += r.costTotal
-      costVatSum += r.costVat * item.quantity
-      // Task 4: VAT-off строки НЕ участвуют в costNoVatSumTaxable.
-      // Их «Без НДС себестоимости» равен Итого, но они не участвуют в /5
-      // компоненте налогов (Task 3).
+      const rowCostVat = r.costVat * item.quantity
+      costVatSum += rowCostVat
+      costVatSumDeductible += r.deductibleCostVat * item.quantity
+      const rowDelivery = (item.deliveryPerUnit || 0) * item.quantity
+      deliveryTotalSum += rowDelivery
+      // vat=off (КЗ без НДС / ИП упрощёнка): в базу КПН НЕ вычитается ни
+      // закуп (нет входных документов), ни доставка.
       if (item.vatEnabled) {
         costNoVatSumTaxable += r.costTotalNoVat
+        deliveryTaxableSum += rowDelivery
       }
-      deliveryTotalSum += (item.deliveryPerUnit || 0) * item.quantity
     })
 
     const expensesTotal = expenses.reduce((sum, e) => sum + (e.amount || 0), 0)
-    // Task 3 — новая формула:
-    // Налоги = (НДС контракта − НДС себестоимости)
-    //        + (((Без НДС контракта − Без НДС себестоимости) − Итого доставка) / 5)
-    // Где «Без НДС себестоимости» НЕ включает VAT-off строки (Task 4).
-    const taxes = (contractVatSum - costVatSum)
-      + ((contractNoVatSum - costNoVatSumTaxable - deliveryTotalSum) / 5)
+    // Налоги = (НДС контракта − НДС себестоимости к вычету)
+    //        + (((Без НДС контракта − Без НДС себестоимости − Доставка) / 5)
+    // Для vat=off строк:
+    //   • costVatSumDeductible не растёт → contractVat в бюджет полностью
+    //   • costNoVatSumTaxable не растёт → база КПН = вся розница без НДС
+    //   • deliveryTaxableSum не растёт → доставка не вычитается из базы КПН
+    const taxes = (contractVatSum - costVatSumDeductible)
+      + ((contractNoVatSum - costNoVatSumTaxable - deliveryTaxableSum) / 5)
 
     return {
       contractTotalSum, costTotalSum, expensesTotal, taxes, deliveryTotalSum,
@@ -1113,34 +1175,65 @@ export default function CalculatorPage() {
                   </td>
                   <td className="border px-1 py-1 text-center">{item.quantity}</td>
 
-                  {/* Сумма контракта — Цена за ед. EDITABLE + бейдж наценки.
+                  {/* Сумма контракта — Цена за ед. РЕДАКТИРУЕМАЯ + бейдж наценки.
+                      Ручной ввод розницы → обратный пересчёт наценки: вписал
+                      1300 при базе (закуп+доставка)=1100 → marginOverride = 18.2%.
+                      Сброс на глобальную через модалку → возврат к расчётной цене.
                       Бейдж справа показывает эффективную наценку строки.
-                      Серый = используется глобальная (из шапки). Жёлтый = задана
-                      своя через модалку. Клик по бейджу открывает редактор. */}
+                      Серый = глобальная (из шапки). Жёлтый = своя через модалку.
+                      Красный (только на КЗ-без-НДС) = коэф ниже безубыточного порога. */}
+                  {(() => {
+                    const isNovatLow = !item.vatEnabled && r.effectiveMarginPct < NOVAT_BREAKEVEN_MARGIN_PCT
+                    const baseForMargin = r.costPerUnit + item.deliveryPerUnit
+                    return (
                   <td className="border px-0 py-0 bg-blue-50/30">
                     <div className="flex items-center gap-0.5 px-0.5">
                       <input
                         type="number"
-                        value={item.contractPerUnitOverride !== null ? item.contractPerUnitOverride : (hasCost ? Math.ceil(r.contractPerUnit) : '')}
-                        onChange={e => {
-                          const v = e.target.value
-                          updateItem(item.kpId, 'contractPerUnitOverride', v === '' ? null : parseFloat(v) || 0)
+                        disabled={!hasCost}
+                        value={editingPriceKpId === item.kpId ? editingPriceValue : (hasCost ? String(Math.ceil(r.contractPerUnit)) : '')}
+                        onFocus={() => {
+                          setEditingPriceKpId(item.kpId)
+                          setEditingPriceValue(hasCost ? String(Math.ceil(r.contractPerUnit)) : '')
                         }}
-                        className="flex-1 min-w-0 bg-transparent outline-none border-0 focus:outline-none focus:ring-0 text-center text-[10px] px-1 h-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        placeholder="—"
+                        onChange={e => setEditingPriceValue(e.target.value)}
+                        onBlur={() => {
+                          const raw = editingPriceValue.trim()
+                          if (raw === '') {
+                            // Пустое поле = сброс на глобальную наценку.
+                            updateItem(item.kpId, 'marginOverride', null)
+                          } else {
+                            const price = parseFloat(raw)
+                            if (Number.isFinite(price) && baseForMargin > 0) {
+                              // Обратный расчёт: marginMul = price / (закуп + доставка).
+                              // Храним с полной точностью, чтобы Math.ceil на цене не «плыл».
+                              const pct = ((price / baseForMargin) - 1) * 100
+                              updateItem(item.kpId, 'marginOverride', pct)
+                            }
+                          }
+                          setEditingPriceKpId(null)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { (e.target as HTMLInputElement).blur() }
+                          if (e.key === 'Escape') { setEditingPriceKpId(null) }
+                        }}
+                        placeholder={hasCost ? '' : '—'}
+                        className="flex-1 min-w-0 bg-transparent outline-none border-0 focus:outline-none focus:ring-0 text-center text-[10px] px-1 h-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none disabled:text-gray-400"
                       />
                       <button
                         type="button"
                         onClick={() => openMarginDialog(item.kpId)}
                         title={
-                          r.marginSource === 'price-override' ? `Фактическая наценка ${r.displayMarginPct}% (вычислена из ручной «Цена за ед.»). Чтобы вернуться к формуле — сотрите ручную цену.`
-                          : r.marginSource === 'row-override' ? `Своя наценка ${r.displayMarginPct}% (перебивает глобальную ${marginPercent}%). Клик чтобы изменить или сбросить.`
-                          : `Глобальная наценка ${r.displayMarginPct}%. Клик чтобы задать свою для этой строки.`
+                          isNovatLow
+                            ? `⚠ На складе «Без НДС» коэф ${(1 + r.effectiveMarginPct / 100).toFixed(2)} даёт убыток. Безубыточный порог — коэф ≥ 1.45 (наценка ≥ ${NOVAT_BREAKEVEN_MARGIN_PCT}%).`
+                            : r.marginSource === 'row-override'
+                              ? `Своя наценка ${r.displayMarginPct}% (перебивает глобальную ${marginPercent}%). Клик чтобы изменить или сбросить.`
+                              : `Глобальная наценка ${r.displayMarginPct}%. Клик чтобы задать свою для этой строки.`
                         }
                         className={cn(
                           "shrink-0 inline-flex items-center justify-center h-5 px-1 rounded-md text-[9px] font-medium border whitespace-nowrap",
-                          r.marginSource === 'price-override'
-                            ? "bg-orange-100 text-orange-900 border-orange-300 hover:bg-orange-200"
+                          isNovatLow
+                            ? "bg-red-100 text-red-900 border-red-300 hover:bg-red-200 animate-pulse"
                             : r.marginSource === 'row-override'
                               ? "bg-yellow-100 text-yellow-900 border-yellow-300 hover:bg-yellow-200"
                               : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
@@ -1150,6 +1243,8 @@ export default function CalculatorPage() {
                       </button>
                     </div>
                   </td>
+                    )
+                  })()}
                   <td className="border px-1 py-1 text-center bg-blue-50/30 font-medium">{hasCost ? fmt(r.contractTotal) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractNoVat * item.quantity) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-blue-50/30">{hasCost ? fmt(r.contractVat * item.quantity) : '—'}</td>
@@ -1214,19 +1309,20 @@ export default function CalculatorPage() {
                   </td>
                     )
                   })()}
-                  <td className="border px-1 py-1 text-center bg-green-50/30 font-medium">{hasCost ? fmt(r.costTotal) : '—'}</td>
+                  <td className="border px-1 py-1 text-center bg-green-50/30 font-medium">{hasCost ? fmt(r.costTotalWithVat) : '—'}</td>
                   <td className="border px-1 py-1 text-center bg-green-50/30">{hasCost ? fmt(r.costTotalNoVat) : '—'}</td>
                   <td className="border px-1 py-1 bg-green-50/30">
                     <div className="flex items-center justify-center gap-1.5">
-                      {item.vatEnabled ? (
-                        <span className="text-[10px] text-gray-700">{hasCost ? fmt(r.costTotalVat) : '—'}</span>
-                      ) : (
-                        <span
-                          className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap"
-                          title="Склад работает без НДС — НДС не начисляется на себестоимость, и эта строка не участвует в сумме «Без НДС себестоимости» при подсчёте налогов. Контракт всегда с 16% НДС."
+                      <span className="text-[10px] text-gray-700">{hasCost ? fmt(r.costTotalVat) : '—'}</span>
+                      {!item.vatEnabled && hasCost && (
+                        <button
+                          type="button"
+                          onClick={() => setNovatVatInfoOpen(true)}
+                          className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-100 text-orange-700 border border-orange-300 hover:bg-orange-200 text-[9px] font-bold leading-none"
+                          title="Что это за НДС для склада без НДС?"
                         >
-                          без НДС
-                        </span>
+                          ?
+                        </button>
                       )}
                     </div>
                   </td>
@@ -1372,6 +1468,10 @@ export default function CalculatorPage() {
               <span className="text-sm font-bold text-green-700">{fmt(totals.costTotalSum)} ₸</span>
             </div>
             <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Доставка:</span>
+              <span className="text-sm font-bold text-yellow-700">{fmt(totals.deliveryTotalSum)} ₸</span>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Расходы по проекту:</span>
               <span className="text-sm font-bold">{fmt(totals.expensesTotal)} ₸</span>
             </div>
@@ -1382,12 +1482,19 @@ export default function CalculatorPage() {
             <div className="pt-3 border-t flex justify-between items-center">
               <span className="text-sm font-semibold">Маржа (прибыль):</span>
               <span className="text-base font-bold text-emerald-600">
-                {fmt(totals.contractTotalSum - totals.costTotalSum - totals.expensesTotal - totals.taxes)} ₸
-                {totals.contractTotalSum > 0 && (
-                  <span className="text-xs font-normal text-emerald-500 ml-1">
-                    ({((totals.contractTotalSum - totals.costTotalSum - totals.expensesTotal - totals.taxes) / totals.contractTotalSum * 100).toFixed(1)}%)
-                  </span>
-                )}
+                {(() => {
+                  // Доставка ВКЛЮЧЕНА в цену контракта (клиент за неё платит),
+                  // а мы её оплачиваем перевозчику → вычитаем как реальный расход.
+                  const profit = totals.contractTotalSum - totals.costTotalSum - totals.deliveryTotalSum - totals.expensesTotal - totals.taxes
+                  return <>
+                    {fmt(profit)} ₸
+                    {totals.contractTotalSum > 0 && (
+                      <span className="text-xs font-normal text-emerald-500 ml-1">
+                        ({(profit / totals.contractTotalSum * 100).toFixed(1)}%)
+                      </span>
+                    )}
+                  </>
+                })()}
               </span>
             </div>
           </div>
@@ -1446,11 +1553,11 @@ export default function CalculatorPage() {
                   (например премиум-маржа или скидка для VIP-клиента), задайте её здесь.
                   «Сбросить» вернёт строку к глобальной.
                 </p>
-                {item.contractPerUnitOverride !== null && (
-                  <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-2">
-                    ⚠ У этой строки задана ручная <b>«Цена за ед.»</b> = {item.contractPerUnitOverride.toLocaleString('ru-RU')} ₸.
-                    Пока она стоит, наценка ниже <b>не применяется</b> — контрактная цена берётся напрямую из ручного ввода.
-                    Сотрите значение в ячейке «Цена за ед.» чтобы вернуться к формуле с наценкой.
+                {!item.vatEnabled && (item.marginOverride ?? marginPercent) < NOVAT_BREAKEVEN_MARGIN_PCT && (
+                  <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
+                    ⚠ Строка на складе <b>«Без НДС»</b> (ИП / упрощёнка), а коэф ниже <b>{NOVAT_BREAKEVEN_MARGIN_PCT}%</b> —
+                    в такой конфигурации весь НДС розницы и КПН со всей суммы уйдут в бюджет, и товар уйдёт в убыток.
+                    Безубыточный порог ~<b>{NOVAT_BREAKEVEN_MARGIN_PCT}%</b> (коэф ≥ 1.45).
                   </div>
                 )}
                 <div className="space-y-1">
@@ -1609,51 +1716,96 @@ export default function CalculatorPage() {
       )}
 
       {/* Help modal */}
-      {showHelp && (
+      {showHelp && (() => {
+        const tabs: Array<{ id: HelpTab; label: string; color: string }> = [
+          { id: 'settings',   label: 'Настройки в шапке',      color: 'text-gray-900'  },
+          { id: 'contract',   label: 'Сумма контракта',        color: 'text-blue-700'  },
+          { id: 'margin',     label: 'Наценка для строки',     color: 'text-emerald-700' },
+          { id: 'cost',       label: 'Себестоимость',          color: 'text-green-700' },
+          { id: 'delivery',   label: 'Доставка',               color: 'text-yellow-700' },
+          { id: 'notes',      label: 'Примечания к строке',    color: 'text-yellow-600' },
+          { id: 'totals',     label: 'Итоги и налоги',         color: 'text-gray-900'  },
+          { id: 'signed',     label: 'Контракт подписан',      color: 'text-green-700' },
+          { id: 'sync',       label: 'Синхронизация с КП',     color: 'text-red-700'   },
+          { id: 'nosupplier', label: 'Товар без поставщика',   color: 'text-orange-700' },
+          { id: 'nav',        label: 'Навигация и сохранение', color: 'text-indigo-700' },
+        ]
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowHelp(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-2xl w-[70vw] h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h3 className="text-base font-semibold">Справка по расчётам</h3>
               <button onClick={() => setShowHelp(false)} className="text-gray-400 hover:text-gray-600">
                 <XIcon className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5 text-sm text-gray-700">
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Как НДС попадает в строку</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>НДС <b>контрактной стороны всегда 16%</b> — глобальное правило, не настраивается в строке</li>
-                  <li>НДС <b>себестоимости наследуется от склада</b> товара. У склада есть переключатель «Работает с НДС» (по умолчанию включён). При выключении товары из этого склада попадают в расчётник без НДС-разделения себестоимости</li>
-                  <li>В строке без НДС в колонке «НДС себестоимости» вместо суммы — оранжевый бейдж «без НДС». Управлять этим из расчётника нельзя — настройка живёт у склада</li>
+            <div className="flex-1 flex overflow-hidden">
+              {/* Sidebar с табами */}
+              <div className="w-64 shrink-0 border-r overflow-y-auto py-2 bg-gray-50/50">
+                <ul className="space-y-0.5 px-2">
+                  {tabs.map(t => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => setShowHelpTab(t.id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                          showHelpTab === t.id
+                            ? "bg-yellow-100 text-gray-900 font-medium border border-yellow-300"
+                            : "text-gray-600 hover:bg-gray-100"
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               </div>
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto px-8 py-6 text-sm text-gray-700">
 
+              {showHelpTab === 'settings' && (<>
               <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Настройки сверху</h4>
+                <h4 className="font-semibold text-gray-900 mb-1">Настройки в шапке</h4>
                 <ul className="list-disc pl-5 space-y-1">
                   <li><b>Курс валюты</b> — автоматически подтягивается с Halyk Bank (продажа для бизнеса + 1%) при создании нового расчётника. Можно изменить вручную и нажать «Пересчитать»</li>
                   <li><b>Ставка НДС</b> — справочное поле. Контракт всё равно считается по 16%</li>
                   <li><b>Наценка (%)</b> — глобальная торговая наценка фирмы. По умолчанию 16%. Применяется ко всем строкам, у которых не задана своя (per-row override). Меняешь это число — все строки пересчитываются мгновенно</li>
                 </ul>
               </div>
+              <div className="mt-4">
+                <h4 className="font-semibold text-gray-900 mb-1">Как НДС попадает в строку</h4>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>НДС <b>контрактной стороны всегда 16%</b> — глобальное правило, не настраивается в строке</li>
+                  <li>НДС <b>себестоимости наследуется от склада</b> товара. У склада есть переключатель «НДС уже в стоимости закупа»:</li>
+                  <ul className="list-[circle] pl-8 space-y-1">
+                    <li><b>Включено</b> — расчётник извлекает НДС ×16/116 из закупа, принимает к вычету</li>
+                    <li><b>Выключено</b> — расчётник накидывает НДС ×16% сверху (визуально), к вычету НЕ принимается (ИП упрощёнка / нет входных документов)</li>
+                  </ul>
+                </ul>
+              </div>
+              </>)}
 
+              {showHelpTab === 'contract' && (<>
               <div>
                 <h4 className="font-semibold text-blue-700 mb-1">Сумма контракта (что платит клиент) — всегда с 16% НДС</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>Цена за ед.</b> = ((Себестоимость без НДС + Доставка) × (1 + Наценка%/100)) × 1.16
+                  <li><b>Цена за ед.</b> = (Себестоимость в KZT + Доставка) × коэф_наценки
                     <ul className="list-[circle] pl-5 mt-1">
-                      <li>Первый множитель — торговая наценка фирмы (наша прибыль до НДС)</li>
-                      <li>Второй множитель — отчётный НДС 16%, всегда применяется один раз</li>
-                      <li>Редактируется вручную — ручной ввод перебивает формулу (`contractPerUnitOverride`)</li>
+                      <li>Себестоимость в KZT берётся «как на складе»: для РФ = закуп × курс × 1.16; для КЗ с НДС = закуп (уже с НДС); для КЗ без НДС = закуп (без НДС)</li>
+                      <li>коэф_наценки = 1 + Наценка%/100. Значение по умолчанию каждой строки — из переменной <b>коэф_наценки</b> склада товара; глобальный из шапки — fallback</li>
+                      <li><b>Можно редактировать вручную</b> — вписал новую цену, наценка пересчитывается обратно: `%новая = (цена / (закуп+доставка) − 1) × 100`. Бейдж наценки становится жёлтым и показывает новый процент</li>
+                      <li>Сброс на глобальную (через модалку наценки → «Сбросить на глобальную») возвращает цену к расчётной по глобальной наценке из шапки</li>
                     </ul>
                   </li>
                   <li><b>Итого</b> = Цена за ед. × Кол-во</li>
-                  <li><b>Без НДС</b> = Цена за ед. / 1.16 × Кол-во</li>
+                  <li><b>Без НДС</b> = Цена за ед. × 100/116 — извлекается из результата</li>
                   <li><b>НДС</b> = Итого − Без НДС</li>
                 </ul>
               </div>
+              </>)}
 
+              {showHelpTab === 'margin' && (<>
               <div>
                 <h4 className="font-semibold text-emerald-700 mb-1">Наценка для строки (per-row override)</h4>
                 <p className="mb-2">
@@ -1664,30 +1816,46 @@ export default function CalculatorPage() {
                 <ul className="list-disc pl-5 space-y-1">
                   <li><b>Серый бейдж</b> = используется глобальная наценка из шапки</li>
                   <li><b>Жёлтый бейдж</b> = у этой строки задана своя наценка, она перебивает глобальную</li>
+                  <li><b>Красный пульсирующий бейдж</b> = строка на складе «Без НДС» (ИП/упрощёнка), а коэф ниже безубыточного порога {NOVAT_BREAKEVEN_MARGIN_PCT}%. При такой конфигурации весь НДС розницы и КПН со всей суммы уйдут в бюджет, товар — в убыток. Ставь коэф ≥ 1.45</li>
                   <li>Кнопка <b>«Сбросить на глобальную»</b> в модалке — обнуляет per-row override, строка снова берёт значение из шапки</li>
                 </ul>
                 <p className="mt-2">
-                  Используется когда у одной партии нужна другая маржа: например для премиум-товара 30%, а для расходников 10%. Глобальная при этом остаётся как «дефолт для остальных».
+                  При добавлении товара в КП наценка строки автоматически берётся из переменной <b>коэф_наценки</b> склада (её ставит админ при настройке склада). Менеджер может её изменить или сбросить на глобальную из шапки.
+                </p>
+                <p className="mt-2">
+                  <b>Второй способ задать свою наценку — ввести цену в поле «Цена за ед.» напрямую.</b> Наценка автоматически пересчитается назад из введённой суммы, бейдж станет жёлтым и покажет новый процент. Сброс через модалку → цена вернётся к расчётной.
                 </p>
               </div>
+              </>)}
 
+              {showHelpTab === 'cost' && (<>
               <div>
-                <h4 className="font-semibold text-green-700 mb-1">Себестоимость (наши затраты) — зависит от склада</h4>
+                <h4 className="font-semibold text-green-700 mb-1">Себестоимость (наши затраты)</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>За ед. (₸)</b>:
+                  <li><b>За ед. (₸)</b> — сумма закупа в тенге «как хранится в БД»:
                     <ul className="list-[circle] pl-5 mt-1">
-                      <li>Склад с НДС → Себестоимость поставщика × Курс × 1.16</li>
-                      <li>Склад без НДС → Себестоимость поставщика × Курс (без надбавки)</li>
+                      <li><b>РФ / импорт</b> (валюта склада ≠ KZT): закуп × курс × 1.16 (при флаге «НДС уже в стоимости» на импорте)</li>
+                      <li><b>КЗ с НДС</b> (KZT, флаг «НДС уже в стоимости»): закуп «как есть» — сумма уже с НДС включённым</li>
+                      <li><b>КЗ без НДС</b> (KZT, флаг «НДС не в стоимости»): закуп «как есть» — сумма без НДС</li>
                     </ul>
-                    Редактируется вручную, либо через модалку «Зафиксировать» (см. ниже)
                   </li>
-                  <li><b>Итого</b> = За ед. × Кол-во</li>
-                  <li><b>Без НДС</b>: для строки с НДС = За ед. / 1.16 × Кол-во; для строки без НДС = равно Итого</li>
-                  <li><b>НДС</b>: для строки с НДС = (За ед. − Без НДС) × Кол-во; для строки без НДС — оранжевый бейдж «без НДС»</li>
+                  <li><b>Без НДС</b>:
+                    <ul className="list-[circle] pl-5 mt-1">
+                      <li>Флаг «НДС уже в стоимости»: За ед. × 100/116 × Кол-во (<b>извлекаем</b>)</li>
+                      <li>Флаг «НДС не в стоимости»: равно За ед. × Кол-во</li>
+                    </ul>
+                  </li>
+                  <li><b>НДС</b>:
+                    <ul className="list-[circle] pl-5 mt-1">
+                      <li>Флаг «НДС уже в стоимости»: (За ед. − Без НДС) × Кол-во — <b>извлечённый</b> НДС, принимается к вычету при расчёте налогов</li>
+                      <li>Флаг «НДС не в стоимости»: За ед. × 16% × Кол-во — <b>накинутый</b> НДС (визуально), к вычету НЕ принимается (нет входных документов)</li>
+                    </ul>
+                  </li>
+                  <li><b>Итого</b> = Без НДС + НДС. Для «НДС уже в стоимости» = За ед. × Кол-во; для «НДС не в стоимости» = (За ед. + НДС) × Кол-во (с накидкой)</li>
                 </ul>
               </div>
 
-              <div>
+              <div className="mt-6">
                 <h4 className="font-semibold text-emerald-700 mb-1">«Зафиксировать» — структурный override себестоимости</h4>
                 <p className="mb-2">
                   Кнопка с иконкой калькулятора рядом с полем «За ед. (₸)» открывает модалку
@@ -1711,6 +1879,13 @@ export default function CalculatorPage() {
                 </p>
               </div>
 
+              <div className="mt-6">
+                <h4 className="font-semibold text-orange-600 mb-1">Строка разницы (Δ)</h4>
+                <p>Появляется только когда вручную изменена <b>За ед.</b> в себестоимости. Показывает разницу между новым и оригинальным значением по всем колонкам.</p>
+              </div>
+              </>)}
+
+              {showHelpTab === 'delivery' && (<>
               <div>
                 <h4 className="font-semibold text-yellow-700 mb-1">Доставка</h4>
                 <ul className="list-disc pl-5 space-y-1">
@@ -1719,12 +1894,9 @@ export default function CalculatorPage() {
                   <li><b>Итого доставка</b> = сумма «Доставка сумма» по всем строкам — используется в формуле налогов</li>
                 </ul>
               </div>
+              </>)}
 
-              <div>
-                <h4 className="font-semibold text-orange-600 mb-1">Строка разницы (Δ)</h4>
-                <p>Появляется только когда вручную изменена <b>За ед.</b> в себестоимости. Показывает разницу между новым и оригинальным значением по всем колонкам.</p>
-              </div>
-
+              {showHelpTab === 'notes' && (<>
               <div>
                 <h4 className="font-semibold text-yellow-600 mb-1">Два примечания у строки</h4>
                 <ul className="list-disc pl-5 space-y-1">
@@ -1745,23 +1917,34 @@ export default function CalculatorPage() {
                   чтобы расчётник подтянул свежую информацию.
                 </p>
               </div>
+              </>)}
 
+              {showHelpTab === 'totals' && (<>
               <div>
                 <h4 className="font-semibold text-gray-900 mb-1">Итоги</h4>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li><b>Сумма контракта</b> = сумма всех «Итого» по контракту</li>
-                  <li><b>Сумма закупа</b> = сумма всех «Итого» по себестоимости</li>
-                  <li><b>Расходы по проекту</b> = сумма всех добавленных расходов</li>
-                  <li><b>Налоги</b> = (НДС контракта − НДС себестоимости) + (((Без НДС контракта − Без НДС себестоимости) − Итого доставка) / 5)
+                  <li><b>Сумма контракта</b> = сумма всех «Итого» по контракту (то, что клиент платит нам)</li>
+                  <li><b>Сумма закупа</b> = сумма всех «Итого» по себестоимости (что мы платим поставщикам)</li>
+                  <li><b>Доставка</b> = сумма всех «Доставка сумма» (что мы платим перевозчику). Клиент за доставку платит внутри цены контракта, но перевозчику эти деньги идут дальше — поэтому доставка вычитается из маржи</li>
+                  <li><b>Расходы по проекту</b> = сумма всех дополнительно добавленных расходов (Газель, монтаж и т.п.)</li>
+                  <li><b>Налоги</b> = (НДС контракта − НДС себестоимости к вычету) + (((Без НДС контракта − Без НДС себестоимости) − Доставка налогооблагаемая) / 5)
                     <ul className="list-[circle] pl-5 mt-1">
-                      <li><b>Без НДС контракта</b> — сумма всех «Без НДС» по контракту (все строки)</li>
-                      <li><b>Без НДС себестоимости</b> — сумма «Без НДС» по себестоимости только тех строк, где склад работает с НДС. Строки с VAT-off складом исключаются — у них налогооблагаемой наценки нет, /5 на них не считается</li>
+                      <li>Первый блок = НДС к уплате в бюджет. Для строк «Без НДС» (флаг «НДС не в стоимости») входного НДС нет к зачёту → весь НДС розницы полностью уходит в бюджет</li>
+                      <li>Второй блок = КПН 20% (= /5) от налоговой базы. Для строк «С НДС» из базы вычитаются закуп без НДС и доставка. Для строк «Без НДС» (ИП / упрощёнка) вычетов нет — база КПН равна всей розничной сумме без НДС</li>
+                      <li><b>Доставка налогооблагаемая</b> — сумма доставок только по строкам «С НДС». Для «Без НДС» не вычитается — нет входных документов</li>
                     </ul>
                   </li>
-                  <li><b>Маржа</b> = Сумма контракта − Сумма закупа − Расходы − Налоги. В скобках процент от суммы контракта</li>
+                  <li><b>Маржа (прибыль)</b> = Сумма контракта − Сумма закупа − <b>Доставка</b> − Расходы − Налоги.
+                    Это <b>реальная прибыль в кармане</b>. В скобках процент от суммы контракта.
+                    <br />⚠ <b>Важно понимать разницу с наценкой</b>: наценка 16% в шапке даёт розницу = (закуп + доставка) × 1.16.
+                    Маржа % ≠ наценка %, потому что: (а) знаменатель другой (контракт vs себестоимость+доставка), (б) налоги съедают часть прибыли,
+                    (в) расходы съедают ещё часть. При наценке 16% реальная маржа обычно 5-10%, а не 16%.
+                  </li>
                 </ul>
               </div>
+              </>)}
 
+              {showHelpTab === 'signed' && (<>
               <div>
                 <h4 className="font-semibold text-green-700 mb-1">Контракт подписан</h4>
                 <ul className="list-disc pl-5 space-y-1">
@@ -1772,7 +1955,9 @@ export default function CalculatorPage() {
                   <li>В истории на странице КП подписанные контракты переезжают в зелёную колонку «Подписанные контракты»</li>
                 </ul>
               </div>
+              </>)}
 
+              {showHelpTab === 'nav' && (<>
               <div>
                 <h4 className="font-semibold text-indigo-700 mb-1">Боковая навигация слева</h4>
                 <p>
@@ -1787,6 +1972,13 @@ export default function CalculatorPage() {
                 </p>
               </div>
 
+              <div className="mt-6">
+                <h4 className="font-semibold text-gray-900 mb-1">Сохранение</h4>
+                <p>Данные расчётника автоматически сохраняются в памяти при переходах между страницами. Кнопка <b>Сохранить</b> в шапке записывает текущее состояние на сервер вместе с КП.</p>
+              </div>
+              </>)}
+
+              {showHelpTab === 'sync' && (<>
               <div>
                 <h4 className="font-semibold text-red-700 mb-1">Синхронизация с КП (поставщик / склад)</h4>
                 <p>
@@ -1815,6 +2007,29 @@ export default function CalculatorPage() {
                 </p>
               </div>
 
+              <div className="mt-6">
+                <h4 className="font-semibold text-purple-700 mb-1">Обратная синхронизация цен (на странице КП)</h4>
+                <p>
+                  После всех правок в калькуляторе (контрактная цена через override, ручная себестоимость,
+                  курсы) вернись в <b>/kp</b>. В шапке появится кнопка <b>«Цены»</b> с тем же индикатором:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-2">
+                  <li><b>Зелёная «Цены»</b> — цены товаров в КП совпадают с контрактной ценой расчётника</li>
+                  <li><b>Красная «Цены (N)»</b> — есть товары где цена в КП-документе отличается от той, что насчитал калькулятор</li>
+                </ul>
+                <p className="mt-2">
+                  Клик → модалка со списком: <code>КП: 150 000 ₸ → Расчётник: 180 000 ₸</code>.
+                  По «Синхронизировать» цены из расчётника переносятся в товары КП —
+                  клиент увидит в PDF ровно то, что посчитал калькулятор. По «Игнорировать»
+                  цены в КП остаются как были.
+                </p>
+                <p className="mt-2 text-gray-500">
+                  Это обратный поток: калькулятор → КП. Поток «КП → калькулятор» — блок выше.
+                </p>
+              </div>
+              </>)}
+
+              {showHelpTab === 'nosupplier' && (<>
               <div>
                 <h4 className="font-semibold text-orange-700 mb-1">Товар без поставщика — особое поведение</h4>
                 <p>
@@ -1834,37 +2049,54 @@ export default function CalculatorPage() {
                   предложит обновить данные.
                 </p>
               </div>
+              </>)}
 
-              <div>
-                <h4 className="font-semibold text-purple-700 mb-1">Обратная синхронизация цен (на странице КП)</h4>
-                <p>
-                  После всех правок в калькуляторе (контрактная цена через override, ручная себестоимость,
-                  курсы) вернись в <b>/kp</b>. В шапке появится кнопка <b>«Цены»</b> с тем же индикатором:
-                </p>
-                <ul className="list-disc pl-5 space-y-1 mt-2">
-                  <li><b>Зелёная «Цены»</b> — цены товаров в КП совпадают с контрактной ценой расчётника</li>
-                  <li><b>Красная «Цены (N)»</b> — есть товары где цена в КП-документе отличается от той, что насчитал калькулятор</li>
+              </div>
+            </div>
+          </div>
+        </div>
+        )
+      })()}
+
+      {/* Модалка «Что за НДС при флаге "НДС не в стоимости"» — открывается
+          из "?" в колонке НДС себестоимости у строк на складе без НДС. */}
+      {novatVatInfoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setNovatVatInfoOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[540px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 text-xs font-bold">?</span>
+                НДС себестоимости — накидка (склад «без НДС»)
+              </h3>
+              <button onClick={() => setNovatVatInfoOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 text-sm text-gray-700 space-y-3">
+              <p>
+                Товар из склада с флагом <b>«НДС не в стоимости закупа»</b>. Закупочная цена в БД <b>без НДС</b> —
+                поставщик его не включил (ИП на упрощёнке, оплата по наличке, нет входных документов и т.п.).
+              </p>
+              <p>
+                Расчётник <b>накидывает НДС ×16% сверху</b> закупа <b>только для отображения</b> —
+                чтобы менеджер видел «сколько было бы НДС если бы поставщик его начислил».
+              </p>
+              <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
+                <div className="font-semibold text-orange-900 mb-1">Важно для расчёта налогов</div>
+                <ul className="list-disc pl-5 space-y-1 text-orange-900/90">
+                  <li>Этот НДС <b>НЕ принимается к вычету</b> — у нас нет входной счёт-фактуры от поставщика</li>
+                  <li>Весь НДС розницы уходит в бюджет полностью</li>
+                  <li>В базе КПН закуп и доставка тоже <b>не вычитаются</b> — нет документов на расход</li>
                 </ul>
-                <p className="mt-2">
-                  Клик → модалка со списком: <code>КП: 150 000 ₸ → Расчётник: 180 000 ₸</code>.
-                  По «Синхронизировать» цены из расчётника переносятся в товары КП —
-                  клиент увидит в PDF ровно то, что посчитал калькулятор. По «Игнорировать»
-                  цены в КП остаются как были.
-                </p>
-                <p className="mt-2 text-gray-500">
-                  Это обратный поток: калькулятор → КП. Поток «КП → калькулятор» обрабатывается
-                  кнопкой синхронизации поставщика выше.
-                </p>
               </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Сохранение</h4>
-                <p>Данные расчётника автоматически сохраняются в памяти при переходах между страницами. Кнопка <b>Сохранить</b> в шапке записывает текущее состояние на сервер вместе с КП.</p>
-              </div>
-
+              <p className="text-gray-500">
+                Флаг настраивается на самом складе: <b>Админка → Склады → редактировать → «НДС уже в стоимости закупа»</b>.
+                Если поставщик начнёт давать документы с НДС — включи флаг, и расчётник начнёт извлекать НДС из закупа
+                (принимая к вычету).
+              </p>
             </div>
             <div className="px-6 py-3 border-t">
-              <Button size="sm" onClick={() => setShowHelp(false)} className="w-full rounded-full">Закрыть</Button>
+              <Button size="sm" onClick={() => setNovatVatInfoOpen(false)} className="w-full rounded-full">Понятно</Button>
             </div>
           </div>
         </div>

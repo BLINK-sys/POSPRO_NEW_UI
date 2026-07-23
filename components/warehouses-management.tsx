@@ -272,10 +272,10 @@ export function WarehousesManagement({
                   {warehouse.vat_enabled === false && (
                     <Badge
                       className="flex items-center gap-1 bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100"
-                      title="Товары из этого склада попадают в корп.расчётник без НДС"
+                      title="НДС не в стоимости — корп.расчётник накидывает НДС ×16% сверху (визуально). К вычету не принимается."
                     >
                       <Receipt className="h-3 w-3" />
-                      Без НДС
+                      НДС накидка
                     </Badge>
                   )}
                 </div>
@@ -377,12 +377,11 @@ export function WarehousesManagement({
             </div>
             <div className="flex items-center justify-between gap-4 px-3 py-3 rounded-xl border border-gray-200 bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
               <div className="min-w-0">
-                <Label className="font-medium cursor-pointer text-sm">Работает с НДС</Label>
+                <Label className="font-medium cursor-pointer text-sm">НДС уже в стоимости закупа</Label>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Если выключить — товары из этого склада попадают в корп.расчётник
-                  без НДС: колонки Себестоимости считаются «как есть», и эти строки
-                  не участвуют в сумме «Без НДС себестоимости» при подсчёте налогов.
-                  Контрактная сторона всегда с НДС (16%).
+                  <b>Включено:</b> закупочная цена уже с НДС — корп.расчётник <b>извлекает</b> НДС из суммы (×16/116). Этот НДС можно принять к налоговому вычету.<br />
+                  <b>Выключено:</b> закупочная цена без НДС — корп.расчётник <b>накидывает</b> НДС сверху (×16%) в колонке «НДС себестоимости». Это визуальная накидка, к вычету НЕ принимается (ИП на упрощёнке / нет входных документов).<br />
+                  Контрактная сторона всегда с 16% НДС независимо от флага.
                 </p>
               </div>
               <Switch

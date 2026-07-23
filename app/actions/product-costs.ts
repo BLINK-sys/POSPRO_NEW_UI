@@ -17,6 +17,10 @@ export interface ProductCost {
   currency_code?: string | null
   // Работает ли исходный склад с НДС. Бэк отдаёт это поле (default true).
   vat_enabled?: boolean
+  // Множитель торговой наценки со склада (переменная `коэф_наценки`).
+  // 1.16 = 16% сверху. null = переменная не задана простой константой
+  // → корп.расчётник использует глобальный дефолт из шапки.
+  margin_coef?: number | null
   cost_price: number
   quantity: number
   calculated_price: number | null
