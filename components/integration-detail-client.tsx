@@ -41,12 +41,43 @@ const WEEKDAYS = [
 const PHASE_LABELS: Record<string, string> = {
   starting: "Запуск",
   fetch_categories: "Сбор: категории",
+  fetch_properties: "Сбор: характеристики",
   fetch_brands: "Сбор: бренды",
   fetch_products: "Сбор: товары",
+  update_images: "Обновление изображений категорий",
   upload_categories: "Выгрузка в магазин: категории",
   upload_brands: "Выгрузка в магазин: бренды",
   upload_products: "Выгрузка в магазин: товары",
   done: "Завершено",
+}
+
+// Отображаемое сообщение по каждому step-name (для списка выполненных шагов).
+const STEP_LABELS: Record<string, string> = {
+  fetch_categories: "Сбор категорий",
+  fetch_properties: "Сбор характеристик",
+  fetch_brands: "Сбор брендов",
+  fetch_products: "Сбор товаров",
+  update_images: "Обновление изображений",
+  upload_categories: "Загрузка категорий в магазин",
+  upload_brands: "Загрузка брендов в магазин",
+  upload_products: "Загрузка товаров в магазин",
+}
+
+interface StepData {
+  status?: "running" | "done" | "failed" | "pending"
+  count?: number
+  done?: number
+  total?: number
+  success?: number
+  failed?: number
+  error?: string
+}
+
+interface ProgressData {
+  current_step?: string
+  current_message?: string
+  steps?: Record<string, StepData>
+  upload?: { done: number; total: number; success: number; failed: number }
 }
 
 function fmtDate(iso: string | null): string {
@@ -219,7 +250,23 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
       </p>
 
       {/* Реалтайм прогресс */}
-      {activeRun && (
+      {activeRun && (() => {
+        const progress = (activeRun.progress as ProgressData | null) || {}
+        const steps = progress.steps || {}
+        const upload = progress.upload
+        const currentMessage = progress.current_message
+        // Порядок для отображения — если что-то не в списке, покажется в конце
+        // в порядке появления в объекте.
+        const knownOrder = [
+          "fetch_categories", "fetch_properties", "fetch_brands", "fetch_products", "update_images",
+          "upload_categories", "upload_brands", "upload_products",
+        ]
+        const orderedStepKeys = [
+          ...knownOrder.filter(k => k in steps),
+          ...Object.keys(steps).filter(k => !knownOrder.includes(k)),
+        ]
+
+        return (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
           <div className="flex items-center gap-3 mb-3">
             <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
@@ -230,21 +277,89 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
               </div>
             </div>
           </div>
-          <div className="text-sm text-blue-900 mb-2">
-            Этап: <b>{PHASE_LABELS[activeRun.phase || ""] || activeRun.phase || "—"}</b>
-          </div>
-          {activeRun.progress && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              {Object.entries(activeRun.progress).map(([k, v]) => (
-                <div key={k} className="bg-white/60 rounded px-2 py-1">
-                  <div className="text-gray-600">{k}</div>
-                  <div className="font-medium">{String(v)}</div>
-                </div>
-              ))}
+
+          {/* Текущее человекочитаемое сообщение */}
+          {currentMessage && (
+            <div className="text-sm font-medium text-blue-900 mb-3">
+              {currentMessage}
+            </div>
+          )}
+
+          {/* Список шагов */}
+          {orderedStepKeys.length > 0 && (
+            <div className="space-y-1 mb-3">
+              {orderedStepKeys.map(key => {
+                const s = steps[key]
+                const label = STEP_LABELS[key] || key
+                const isDone = s.status === "done"
+                const isRunning = s.status === "running"
+                const isFailed = s.status === "failed"
+                return (
+                  <div key={key} className="flex items-center gap-2 text-sm">
+                    {isDone ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    ) : isRunning ? (
+                      <Loader2 className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
+                    ) : isFailed ? (
+                      <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-gray-300 shrink-0" />
+                    )}
+                    <span className={cn(
+                      isDone && "text-gray-700",
+                      isRunning && "text-blue-900 font-medium",
+                      isFailed && "text-red-700",
+                    )}>
+                      {label}
+                      {isRunning && !isDone && "..."}
+                      {isDone && typeof s.count === "number" && (
+                        <span className="text-gray-500 ml-2">— окончен, кол-во {s.count}</span>
+                      )}
+                      {isRunning && typeof s.count === "number" && (
+                        <span className="text-gray-500 ml-2">— собрано {s.count}</span>
+                      )}
+                      {isFailed && s.error && (
+                        <span className="text-red-600 ml-2 text-xs">— {s.error}</span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Прогрессбар выгрузки товаров */}
+          {upload && upload.total > 0 && (
+            <div className="mt-3 p-3 bg-white/70 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="font-medium text-gray-800">
+                  Загружаем товары в магазин: {upload.done} / {upload.total}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {Math.round((upload.done / upload.total) * 100)}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${(upload.done / upload.total) * 100}%` }}
+                />
+              </div>
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className="text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                  Успешные: <b>{upload.success}</b>
+                </span>
+                <span className="text-red-700">
+                  <XCircle className="h-3 w-3 inline mr-1" />
+                  Ошибка: <b>{upload.failed}</b>
+                </span>
+              </div>
             </div>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {pendingCommand && !activeRun && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-900 flex items-center gap-2">
