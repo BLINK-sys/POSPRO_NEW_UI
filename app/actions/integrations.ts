@@ -161,6 +161,22 @@ export async function triggerIntegration(
   return { success: true, command_id: body.command_id, message: body.message }
 }
 
+// ── Cancel: убить активный run или снять pending команду ───────
+
+export async function cancelIntegration(
+  type: IntegrationType,
+): Promise<{ success: boolean; message?: string }> {
+  const token = await getToken()
+  const res = await fetch(`${BASE}/${type}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  const body = await res.json()
+  if (!res.ok) return { success: false, message: body.message || "Не удалось отменить" }
+  return { success: true, message: body.message }
+}
+
 // ── History ──────────────────────────────────────
 
 export async function listIntegrationRuns(

@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
   ArrowLeft, CheckCircle2, XCircle, Loader2, Play, Save,
-  Clock, AlertCircle, WifiOff, Wifi, Calendar,
+  Clock, AlertCircle, WifiOff, Wifi, Calendar, StopCircle, Ban,
 } from "lucide-react"
 import {
   type IntegrationDetail,
@@ -20,6 +20,7 @@ import {
   type ScheduleMode,
   type ScheduleData,
   triggerIntegration,
+  cancelIntegration,
   updateIntegrationSettings,
 } from "@/app/actions/integrations"
 
@@ -95,10 +96,19 @@ function fmtDuration(startIso: string, endIso: string | null): string {
 }
 
 function statusColor(status: string) {
-  return status === "success" ? "text-emerald-700 bg-emerald-100 border-emerald-200" :
-         status === "failed"  ? "text-red-700 bg-red-100 border-red-200" :
-         status === "running" ? "text-blue-700 bg-blue-100 border-blue-200" :
-                                "text-gray-700 bg-gray-100 border-gray-200"
+  return status === "success"   ? "text-emerald-700 bg-emerald-100 border-emerald-200" :
+         status === "failed"    ? "text-red-700 bg-red-100 border-red-200" :
+         status === "cancelled" ? "text-orange-700 bg-orange-100 border-orange-200" :
+         status === "running"   ? "text-blue-700 bg-blue-100 border-blue-200" :
+                                  "text-gray-700 bg-gray-100 border-gray-200"
+}
+
+function statusLabel(status: string): string {
+  return status === "success"   ? "Успех" :
+         status === "failed"    ? "Ошибка" :
+         status === "cancelled" ? "Отменено" :
+         status === "running"   ? "Идёт" :
+                                  status
 }
 
 interface Props {
@@ -145,6 +155,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
 
   const [saving, setSaving] = useState(false)
   const [triggering, setTriggering] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   // ── SSE подключение ─────────────────────────────
   const esRef = useRef<EventSource | null>(null)
@@ -215,6 +226,23 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
       toast({ title: "Команда отправлена", description: res.message || "Воркер подхватит в ближайшие секунды" })
     } else {
       toast({ title: "Ошибка", description: res.message || "Не удалось запустить", variant: "destructive" })
+    }
+  }, [type, toast])
+
+  const handleCancel = useCallback(async () => {
+    if (!confirm(
+      "Отменить выгрузку?\n\n" +
+      "Текущий процесс на локальном сервере будет прерван. " +
+      "Данные, собранные до этого момента, останутся в staging-БД — " +
+      "при следующем запуске всё стартует заново с чистого листа."
+    )) return
+    setCancelling(true)
+    const res = await cancelIntegration(type)
+    setCancelling(false)
+    if (res.success) {
+      toast({ title: "Отмена отправлена", description: res.message || "Воркер получит сигнал в течение 10 сек" })
+    } else {
+      toast({ title: "Ошибка", description: res.message || "Не удалось отменить", variant: "destructive" })
     }
   }, [type, toast])
 
@@ -508,28 +536,47 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
               </>
             )}
           </p>
-          <Button
-            onClick={handleTrigger}
-            disabled={triggering || hasActiveRun || !!pendingCommand || !online}
-            className={cn(
-              "text-white rounded-full",
-              otherRunning
-                ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-emerald-500 hover:bg-emerald-600",
+          <div className="flex gap-2">
+            <Button
+              onClick={handleTrigger}
+              disabled={triggering || hasActiveRun || !!pendingCommand || !online}
+              className={cn(
+                "text-white rounded-full",
+                otherRunning
+                  ? "bg-amber-500 hover:bg-amber-600"
+                  : "bg-emerald-500 hover:bg-emerald-600",
+              )}
+            >
+              {triggering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              {pendingCommand
+                ? "В очереди…"
+                : otherRunning
+                  ? `Запустить после завершения ${TYPE_LABELS[otherRunning.type]}`
+                  : "Запустить сейчас"}
+            </Button>
+
+            {/* Отмена — только когда есть что отменять (active_run своего типа
+                или pending команда). Второй сценарий = юзер поставил в очередь,
+                но передумал до старта. */}
+            {(hasActiveRun || pendingCommand) && (
+              <Button
+                onClick={handleCancel}
+                disabled={cancelling}
+                variant="outline"
+                className="rounded-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+              >
+                {cancelling ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : (
+                  hasActiveRun ? <StopCircle className="h-4 w-4 mr-1" /> : <Ban className="h-4 w-4 mr-1" />
+                )}
+                {hasActiveRun ? "Отменить выгрузку" : "Снять из очереди"}
+              </Button>
             )}
-          >
-            {triggering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-            {pendingCommand
-              ? "В очереди…"
-              : otherRunning
-                ? `Запустить после завершения ${TYPE_LABELS[otherRunning.type]}`
-                : "Запустить сейчас"}
-          </Button>
+          </div>
           {!online && (
             <p className="mt-2 text-xs text-red-600">Локальный сервер оффлайн — команда не будет получена.</p>
           )}
           {hasActiveRun && (
-            <p className="mt-2 text-xs text-gray-500">Уже идёт выгрузка — дождитесь завершения.</p>
+            <p className="mt-2 text-xs text-gray-500">Идёт выгрузка. «Отменить» пришлёт воркеру сигнал прервать в течение ~10 сек.</p>
           )}
         </div>
       </div>
@@ -565,7 +612,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
                     <td className="py-2 px-2 text-gray-600">{PHASE_LABELS[r.phase || ""] || r.phase || "—"}</td>
                     <td className="py-2 px-2">
                       <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusColor(r.status))}>
-                        {r.status === "success" ? "Успех" : r.status === "failed" ? "Ошибка" : r.status === "running" ? "Идёт" : r.status}
+                        {statusLabel(r.status)}
                       </span>
                     </td>
                     <td className="py-2 px-2 text-xs text-red-600 max-w-md truncate">
