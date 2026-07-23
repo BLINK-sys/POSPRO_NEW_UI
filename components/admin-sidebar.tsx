@@ -234,15 +234,6 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
             <NavItem href="/admin/suppliers" icon={Truck} label="Поставщики" active={isActive("/admin/suppliers")} />
           )}
 
-          {hasAccess("catalog") && (
-            <NavItem
-              href="/admin/integrations"
-              icon={RefreshCw}
-              label="Автоматическая выгрузка"
-              active={isActive("/admin/integrations")}
-            />
-          )}
-
           {hasAccess("pages") && (
             <NavItem href="/admin/pages" icon={FileText} label="Страницы" active={isActive("/admin/pages")} />
           )}
@@ -282,6 +273,15 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               icon={Activity}
               label="Активность"
               active={isActive("/admin/user-activity")}
+            />
+          )}
+
+          {hasAccess("catalog") && (
+            <NavItem
+              href="/admin/integrations"
+              icon={RefreshCw}
+              label="Автоматическая выгрузка"
+              active={isActive("/admin/integrations")}
             />
           )}
 
