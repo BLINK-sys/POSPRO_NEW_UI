@@ -10,6 +10,10 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   ArrowLeft, CheckCircle2, XCircle, Loader2, Play, Save,
   Clock, AlertCircle, WifiOff, Wifi, Calendar, StopCircle, Ban,
 } from "lucide-react"
@@ -156,6 +160,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
   const [saving, setSaving] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
 
   // ── SSE подключение ─────────────────────────────
   const esRef = useRef<EventSource | null>(null)
@@ -229,13 +234,8 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
     }
   }, [type, toast])
 
-  const handleCancel = useCallback(async () => {
-    if (!confirm(
-      "Отменить выгрузку?\n\n" +
-      "Текущий процесс на локальном сервере будет прерван. " +
-      "Данные, собранные до этого момента, останутся в staging-БД — " +
-      "при следующем запуске всё стартует заново с чистого листа."
-    )) return
+  const handleCancelConfirmed = useCallback(async () => {
+    setCancelDialogOpen(false)
     setCancelling(true)
     const res = await cancelIntegration(type)
     setCancelling(false)
@@ -281,118 +281,6 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
       <p className="text-sm text-gray-500 mb-6 ml-8">
         Реалтайм подключение по SSE — статус, прогресс и настройки обновляются автоматически.
       </p>
-
-      {/* Реалтайм прогресс */}
-      {activeRun && (() => {
-        const progress = (activeRun.progress as ProgressData | null) || {}
-        const steps = progress.steps || {}
-        const upload = progress.upload
-        const currentMessage = progress.current_message
-        // Порядок для отображения — если что-то не в списке, покажется в конце
-        // в порядке появления в объекте.
-        const knownOrder = [
-          "fetch_categories", "fetch_properties", "fetch_brands", "fetch_products", "update_images",
-          "upload_categories", "upload_brands", "upload_products",
-        ]
-        const orderedStepKeys = [
-          ...knownOrder.filter(k => k in steps),
-          ...Object.keys(steps).filter(k => !knownOrder.includes(k)),
-        ]
-
-        return (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-            <div>
-              <div className="text-sm font-semibold text-blue-900">Идёт выгрузка</div>
-              <div className="text-xs text-blue-700">
-                Запущена {fmtDate(activeRun.started_at)} · длится {fmtDuration(activeRun.started_at, null)} · {activeRun.trigger === "manual" ? `запустил ${activeRun.triggered_by || "админ"}` : "по расписанию"}
-              </div>
-            </div>
-          </div>
-
-          {/* Текущее человекочитаемое сообщение */}
-          {currentMessage && (
-            <div className="text-sm font-medium text-blue-900 mb-3">
-              {currentMessage}
-            </div>
-          )}
-
-          {/* Список шагов */}
-          {orderedStepKeys.length > 0 && (
-            <div className="space-y-1 mb-3">
-              {orderedStepKeys.map(key => {
-                const s = steps[key]
-                const label = STEP_LABELS[key] || key
-                const isDone = s.status === "done"
-                const isRunning = s.status === "running"
-                const isFailed = s.status === "failed"
-                return (
-                  <div key={key} className="flex items-center gap-2 text-sm">
-                    {isDone ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                    ) : isRunning ? (
-                      <Loader2 className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
-                    ) : isFailed ? (
-                      <XCircle className="h-4 w-4 text-red-600 shrink-0" />
-                    ) : (
-                      <div className="h-4 w-4 rounded-full border-2 border-gray-300 shrink-0" />
-                    )}
-                    <span className={cn(
-                      isDone && "text-gray-700",
-                      isRunning && "text-blue-900 font-medium",
-                      isFailed && "text-red-700",
-                    )}>
-                      {label}
-                      {isRunning && !isDone && "..."}
-                      {isDone && typeof s.count === "number" && (
-                        <span className="text-gray-500 ml-2">— окончен, кол-во {s.count}</span>
-                      )}
-                      {isRunning && typeof s.count === "number" && (
-                        <span className="text-gray-500 ml-2">— собрано {s.count}</span>
-                      )}
-                      {isFailed && s.error && (
-                        <span className="text-red-600 ml-2 text-xs">— {s.error}</span>
-                      )}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Прогрессбар выгрузки товаров */}
-          {upload && upload.total > 0 && (
-            <div className="mt-3 p-3 bg-white/70 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="font-medium text-gray-800">
-                  Загружаем товары в магазин: {upload.done} / {upload.total}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {Math.round((upload.done / upload.total) * 100)}%
-                </span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-300"
-                  style={{ width: `${(upload.done / upload.total) * 100}%` }}
-                />
-              </div>
-              <div className="flex gap-4 mt-2 text-xs">
-                <span className="text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3 inline mr-1" />
-                  Успешные: <b>{upload.success}</b>
-                </span>
-                <span className="text-red-700">
-                  <XCircle className="h-3 w-3 inline mr-1" />
-                  Ошибка: <b>{upload.failed}</b>
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-        )
-      })()}
 
       {pendingCommand && !activeRun && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-900 flex items-center gap-2">
@@ -517,6 +405,101 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           )}
         </div>
 
+        {/* Правая колонка: [Идёт выгрузка (если активна)] + Ручной запуск */}
+        <div className="space-y-4">
+        {activeRun && (() => {
+          const progress = (activeRun.progress as ProgressData | null) || {}
+          const steps = progress.steps || {}
+          const upload = progress.upload
+          const currentMessage = progress.current_message
+          const knownOrder = [
+            "fetch_categories", "fetch_properties", "fetch_brands", "fetch_products", "update_images",
+            "upload_categories", "upload_brands", "upload_products",
+          ]
+          const orderedStepKeys = [
+            ...knownOrder.filter(k => k in steps),
+            ...Object.keys(steps).filter(k => !knownOrder.includes(k)),
+          ]
+          return (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              <div>
+                <div className="text-sm font-semibold text-blue-900">Идёт выгрузка</div>
+                <div className="text-xs text-blue-700">
+                  Запущена {fmtDate(activeRun.started_at)} · длится {fmtDuration(activeRun.started_at, null)} · {activeRun.trigger === "manual" ? `запустил ${activeRun.triggered_by || "админ"}` : "по расписанию"}
+                </div>
+              </div>
+            </div>
+            {currentMessage && (
+              <div className="text-sm font-medium text-blue-900 mb-3">{currentMessage}</div>
+            )}
+            {orderedStepKeys.length > 0 && (
+              <div className="space-y-1 mb-3">
+                {orderedStepKeys.map(key => {
+                  const s = steps[key]
+                  const label = STEP_LABELS[key] || key
+                  const isDone = s.status === "done"
+                  const isRunning = s.status === "running"
+                  const isFailed = s.status === "failed"
+                  return (
+                    <div key={key} className="flex items-center gap-2 text-sm">
+                      {isDone ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        : isRunning ? <Loader2 className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
+                        : isFailed ? <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                        : <div className="h-4 w-4 rounded-full border-2 border-gray-300 shrink-0" />}
+                      <span className={cn(
+                        isDone && "text-gray-700",
+                        isRunning && "text-blue-900 font-medium",
+                        isFailed && "text-red-700",
+                      )}>
+                        {label}
+                        {isRunning && !isDone && "..."}
+                        {isDone && typeof s.count === "number" && (
+                          <span className="text-gray-500 ml-2">— окончен, кол-во {s.count}</span>
+                        )}
+                        {isRunning && typeof s.count === "number" && (
+                          <span className="text-gray-500 ml-2">— собрано {s.count}</span>
+                        )}
+                        {isFailed && s.error && (
+                          <span className="text-red-600 ml-2 text-xs">— {s.error}</span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {upload && upload.total > 0 && (
+              <div className="mt-3 p-3 bg-white/70 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="font-medium text-gray-800">
+                    Загружаем товары в магазин: {upload.done} / {upload.total}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {Math.round((upload.done / upload.total) * 100)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all duration-300"
+                    style={{ width: `${(upload.done / upload.total) * 100}%` }} />
+                </div>
+                <div className="flex gap-4 mt-2 text-xs">
+                  <span className="text-emerald-700">
+                    <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                    Успешные: <b>{upload.success}</b>
+                  </span>
+                  <span className="text-red-700">
+                    <XCircle className="h-3 w-3 inline mr-1" />
+                    Ошибка: <b>{upload.failed}</b>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          )
+        })()}
+
         {/* Ручной запуск */}
         <div className="bg-white rounded-xl border shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -525,7 +508,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           </div>
           <p className="text-sm text-gray-600 mb-4">
             Кнопка ниже поставит команду в очередь. Воркер на локальном сервере проверяет очередь каждые ~10 сек
-            и запустит выгрузку. Прогресс появится в верхнем блоке автоматически.
+            и запустит выгрузку. Прогресс появится в блоке над этой карточкой.
             {otherRunning && (
               <>
                 <br /><span className="text-amber-700">
@@ -560,7 +543,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
                 но передумал до старта. */}
             {(hasActiveRun || pendingCommand) && (
               <Button
-                onClick={handleCancel}
+                onClick={() => setCancelDialogOpen(true)}
                 disabled={cancelling}
                 variant="outline"
                 className="rounded-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
@@ -578,6 +561,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           {hasActiveRun && (
             <p className="mt-2 text-xs text-gray-500">Идёт выгрузка. «Отменить» пришлёт воркеру сигнал прервать в течение ~10 сек.</p>
           )}
+        </div>
         </div>
       </div>
 
@@ -625,6 +609,41 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           </div>
         )}
       </div>
+
+      {/* Модалка подтверждения отмены — заменяет браузерный confirm(). */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <StopCircle className="h-5 w-5 text-red-600" />
+              {hasActiveRun ? "Отменить активную выгрузку?" : "Снять команду с очереди?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-2">
+              {hasActiveRun ? (
+                <>
+                  Текущий процесс на локальном сервере будет прерван. Данные, собранные
+                  до этого момента, останутся в staging-БД — <b>при следующем запуске
+                  всё стартует заново с чистого листа</b>.
+                </>
+              ) : (
+                <>
+                  Команда «Запустить сейчас» будет удалена из очереди — воркер её
+                  не подхватит. Можно поставить её заново в любой момент.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Не отменять</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelConfirmed}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {hasActiveRun ? "Да, прервать выгрузку" : "Да, снять с очереди"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
