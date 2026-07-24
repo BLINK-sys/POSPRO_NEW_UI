@@ -28,15 +28,19 @@ function fmtDate(iso: string | null): string {
 
 function runStatusBadge(status: string) {
   const cls =
-    status === "success" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-    status === "failed"  ? "bg-red-100 text-red-700 border-red-200" :
-    status === "running" ? "bg-blue-100 text-blue-700 border-blue-200 animate-pulse" :
-                           "bg-gray-100 text-gray-600 border-gray-200"
+    status === "success"   ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+    status === "failed"    ? "bg-red-100 text-red-700 border-red-200" :
+    status === "cancelled" ? "bg-orange-100 text-orange-700 border-orange-200" :
+    status === "queued"    ? "bg-amber-100 text-amber-700 border-amber-200" :
+    status === "running"   ? "bg-blue-100 text-blue-700 border-blue-200 animate-pulse" :
+                             "bg-gray-100 text-gray-600 border-gray-200"
   const label =
-    status === "success" ? "Успех" :
-    status === "failed"  ? "Ошибка" :
-    status === "running" ? "Выполняется" :
-                           status
+    status === "success"   ? "Успех" :
+    status === "failed"    ? "Ошибка" :
+    status === "cancelled" ? "Отменено" :
+    status === "queued"    ? "В очереди" :
+    status === "running"   ? "Выполняется" :
+                             status
   return <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
 }
 
@@ -65,8 +69,13 @@ export default function IntegrationsListClient({ initial }: { initial: Integrati
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {cards.map(card => {
         const activeRun = card.active_run
+        const queuedRun = card.queued_run
         const lastRun = card.last_run
-        const isQueued = !activeRun && card.pending_command && currentRunning && currentRunning.type !== card.type
+        // «В очереди» если:
+        //  - воркер уже создал queued run (видим позицию в очереди), либо
+        //  - команда run_now в pending а параллельно идёт соседняя интеграция
+        //    (fallback пока воркер не подхватил команду — обычно <10 сек).
+        const isQueued = !activeRun && (queuedRun || (card.pending_command && currentRunning && currentRunning.type !== card.type))
         return (
           <Link
             key={card.type}

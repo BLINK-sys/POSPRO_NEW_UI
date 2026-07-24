@@ -103,6 +103,7 @@ function statusColor(status: string) {
   return status === "success"   ? "text-emerald-700 bg-emerald-100 border-emerald-200" :
          status === "failed"    ? "text-red-700 bg-red-100 border-red-200" :
          status === "cancelled" ? "text-orange-700 bg-orange-100 border-orange-200" :
+         status === "queued"    ? "text-amber-700 bg-amber-100 border-amber-200" :
          status === "running"   ? "text-blue-700 bg-blue-100 border-blue-200" :
                                   "text-gray-700 bg-gray-100 border-gray-200"
 }
@@ -111,6 +112,7 @@ function statusLabel(status: string): string {
   return status === "success"   ? "Успех" :
          status === "failed"    ? "Ошибка" :
          status === "cancelled" ? "Отменено" :
+         status === "queued"    ? "В очереди" :
          status === "running"   ? "Идёт" :
                                   status
 }
@@ -128,6 +130,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
   const [online, setOnline] = useState(initial.online)
   const [settings, setSettings] = useState(initial.settings)
   const [activeRun, setActiveRun] = useState<IntegrationRun | null>(initial.active_run)
+  const [queuedRun, setQueuedRun] = useState<IntegrationRun | null>(initial.queued_run ?? null)
   const [history, setHistory] = useState<IntegrationRun[]>(initial.history)
   const [pendingCommand, setPendingCommand] = useState<any>(null)
   // Соседняя интеграция (другой тип) сейчас работает — приходит из SSE snapshot.
@@ -174,6 +177,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
         setOnline(data.online ?? false)
         if (data.settings) setSettings(data.settings)
         setActiveRun(data.active_run ?? null)
+        setQueuedRun(data.queued_run ?? null)
         setPendingCommand(data.pending_command ?? null)
         setOtherRunning(data.other_running ?? null)
       } catch (e) {
@@ -251,6 +255,7 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
   }
 
   const hasActiveRun = !!activeRun
+  const hasQueuedRun = !!queuedRun
   const settingsChanged =
     draftEnabled !== settings.enabled ||
     draftMode !== settings.schedule_mode ||
@@ -282,10 +287,20 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
         Реалтайм подключение по SSE — статус, прогресс и настройки обновляются автоматически.
       </p>
 
-      {pendingCommand && !activeRun && (
+      {pendingCommand && !activeRun && !queuedRun && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-900 flex items-center gap-2">
           <Clock className="h-4 w-4" />
           Команда «Запустить сейчас» в очереди. Воркер должен подхватить в течение 10 секунд.
+        </div>
+      )}
+
+      {queuedRun && !activeRun && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-900 flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Выгрузка встала в очередь воркера (создана {fmtDate(queuedRun.started_at)}).
+          {otherRunning
+            ? <> Стартует автоматически после завершения «{TYPE_LABELS[otherRunning.type]}».</>
+            : <> Стартует в течение ~10 секунд.</>}
         </div>
       )}
 
@@ -522,26 +537,28 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
           <div className="flex gap-2">
             <Button
               onClick={handleTrigger}
-              disabled={triggering || hasActiveRun || !!pendingCommand || !online}
+              disabled={triggering || hasActiveRun || hasQueuedRun || !!pendingCommand || !online}
               className={cn(
                 "text-white rounded-full",
-                otherRunning
+                (otherRunning || hasQueuedRun)
                   ? "bg-amber-500 hover:bg-amber-600"
                   : "bg-emerald-500 hover:bg-emerald-600",
               )}
             >
               {triggering ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-              {pendingCommand
-                ? "В очереди…"
-                : otherRunning
-                  ? `Запустить после завершения ${TYPE_LABELS[otherRunning.type]}`
-                  : "Запустить сейчас"}
+              {hasQueuedRun
+                ? "В очереди"
+                : pendingCommand
+                  ? "В очереди…"
+                  : otherRunning
+                    ? `Запустить после завершения ${TYPE_LABELS[otherRunning.type]}`
+                    : "Запустить сейчас"}
             </Button>
 
-            {/* Отмена — только когда есть что отменять (active_run своего типа
-                или pending команда). Второй сценарий = юзер поставил в очередь,
-                но передумал до старта. */}
-            {(hasActiveRun || pendingCommand) && (
+            {/* Отмена — когда есть что отменять: активный run, queued run
+                (воркер уже создал), или pending команда (воркер ещё не
+                подхватил). */}
+            {(hasActiveRun || hasQueuedRun || pendingCommand) && (
               <Button
                 onClick={() => setCancelDialogOpen(true)}
                 disabled={cancelling}

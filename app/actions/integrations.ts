@@ -32,7 +32,7 @@ export interface IntegrationRun {
   triggered_by: string | null
   started_at: string
   finished_at: string | null
-  status: "running" | "success" | "failed" | "cancelled"
+  status: "queued" | "running" | "success" | "failed" | "cancelled"
   phase: string | null
   progress: Record<string, any> | null
   error: string | null
@@ -45,6 +45,7 @@ export interface IntegrationCard {
   settings: IntegrationSettings
   last_run: IntegrationRun | null
   active_run: IntegrationRun | null
+  queued_run?: IntegrationRun | null
   pending_command?: {
     id: number
     command: string
@@ -58,6 +59,7 @@ export interface IntegrationDetail {
   online: boolean
   settings: IntegrationSettings
   active_run: IntegrationRun | null
+  queued_run?: IntegrationRun | null
   history: IntegrationRun[]
 }
 
@@ -69,6 +71,7 @@ export interface IntegrationSnapshot {
   online: boolean
   settings: IntegrationSettings
   active_run: IntegrationRun | null
+  queued_run: IntegrationRun | null
   last_run: IntegrationRun | null
   pending_command: {
     id: number
@@ -146,7 +149,13 @@ export async function updateIntegrationSettings(
 
 export async function triggerIntegration(
   type: IntegrationType,
-): Promise<{ success: boolean; message?: string; command_id?: number; active_run_id?: number }> {
+): Promise<{
+  success: boolean
+  message?: string
+  command_id?: number
+  active_run_id?: number
+  queued_run_id?: number
+}> {
   const token = await getToken()
   const res = await fetch(`${BASE}/${type}/trigger`, {
     method: "POST",
@@ -158,7 +167,12 @@ export async function triggerIntegration(
     return { success: false, message: body.message, active_run_id: body.active_run_id }
   }
   if (!res.ok) return { success: false, message: body.message || "Ошибка" }
-  return { success: true, command_id: body.command_id, message: body.message }
+  return {
+    success: true,
+    command_id: body.command_id,
+    queued_run_id: body.queued_run_id,
+    message: body.message,
+  }
 }
 
 // ── Cancel: убить активный run или снять pending команду ───────
