@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +25,7 @@ import {
   triggerIntegration,
   cancelIntegration,
   updateIntegrationSettings,
+  listIntegrationRuns,
 } from "@/app/actions/integrations"
 
 const TYPE_LABELS: Record<IntegrationType, string> = {
@@ -123,7 +123,6 @@ interface Props {
 }
 
 export default function IntegrationDetailClient({ type, initial }: Props) {
-  const router = useRouter()
   const { toast } = useToast()
 
   // Общее состояние
@@ -197,14 +196,19 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
     }
   }, [type])
 
-  // Когда activeRun финиширует — обновим историю (перезагрузим страницу)
+  // Когда activeRun финиширует — перезагружаем историю без ретача страницы.
+  // router.refresh() тут не помог: initial передаётся из server component
+  // один раз, client-компонент уже примонтирован → useState(initial.history)
+  // не обновляется. Дёргаем server action и заменяем локальный state.
   const prevActiveIdRef = useRef<number | null>(initial.active_run?.id ?? null)
   useEffect(() => {
     if (prevActiveIdRef.current && !activeRun) {
-      router.refresh()
+      listIntegrationRuns(type, 30).then(fresh => {
+        if (fresh.length > 0) setHistory(fresh)
+      })
     }
     prevActiveIdRef.current = activeRun?.id ?? null
-  }, [activeRun, router])
+  }, [activeRun, type])
 
   // ── Actions ─────────────────────────────────────
   const handleSaveSettings = useCallback(async () => {
