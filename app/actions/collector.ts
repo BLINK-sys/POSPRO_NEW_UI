@@ -40,7 +40,9 @@ export interface CollectorProgress {
 export interface CollectorTask {
   id: number
   owner_id: number
+  name: string
   cities: string[]
+  city_names?: string[]
   queries: string[]
   custom_url: string | null
   keep_columns: string[] | null
@@ -91,6 +93,7 @@ const BASE = `${API_BASE_URL}/api/admin/collector`
 // ── Задачи ────────────────────────────────────────
 
 export interface CreateTaskInput {
+  name: string
   cities?: string[]
   queries?: string[]
   custom_url?: string | null

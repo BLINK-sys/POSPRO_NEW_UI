@@ -8,24 +8,16 @@ import {
   type TaskStatus,
 } from "@/app/actions/collector"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import CollectorNewTaskForm from "@/components/collector-new-task-form"
 import {
-  CheckCircle2,
-  XCircle,
   Loader2,
   Wifi,
   WifiOff,
-  Plus,
   Clock,
   Ban,
   ArrowRight,
   FileSpreadsheet,
+  Settings2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -63,9 +55,11 @@ function statusBadge(status: TaskStatus) {
   )
 }
 
-function taskTitle(task: CollectorTask): string {
+function taskSubtitle(task: CollectorTask): string {
+  // Второстепенная строка под именем задачи — цитата что именно собирается.
   if (task.custom_url) return `Готовый URL: ${task.custom_url.slice(0, 60)}${task.custom_url.length > 60 ? "…" : ""}`
-  const cities = task.cities.slice(0, 2).join(", ") + (task.cities.length > 2 ? `, +${task.cities.length - 2}` : "")
+  const cityNames = task.city_names && task.city_names.length > 0 ? task.city_names : task.cities
+  const cities = cityNames.slice(0, 2).join(", ") + (cityNames.length > 2 ? `, +${cityNames.length - 2}` : "")
   const queries = task.queries.slice(0, 2).join(", ") + (task.queries.length > 2 ? `, +${task.queries.length - 2}` : "")
   return `${cities} × ${queries}`
 }
@@ -78,7 +72,19 @@ interface Props {
 export default function CollectorListClient({ initialTasks, initialWorkerOnline }: Props) {
   const [tasks, setTasks] = useState(initialTasks)
   const [online, setOnline] = useState(initialWorkerOnline)
-  const [dialogOpen, setDialogOpen] = useState(false)
+
+  // is_owner из готового endpoint /api/admin/kp-super-admin-access/check
+  // (тот же гейт что в admin-sidebar для «Управление КП»). Настройки
+  // «Максимум записей» + «Пауза между кликами» — только для владельца.
+  const [isOwner, setIsOwner] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/admin/kp-super-admin-access/check")
+      .then((r) => r.json())
+      .then((d) => setIsOwner(Boolean(d?.is_owner)))
+      .catch(() => setIsOwner(false))
+  }, [])
 
   useEffect(() => {
     let stopped = false
@@ -90,19 +96,26 @@ export default function CollectorListClient({ initialTasks, initialWorkerOnline 
           setOnline(on)
         }
       } catch {
-        // тихо — оставляем последний успешный снимок
+        // тихо
       }
     }
     const id = setInterval(tick, REFRESH_MS)
     return () => { stopped = true; clearInterval(id) }
   }, [])
 
+  const reloadTasks = () => {
+    listCollectorTasks().then(({ tasks: fresh, online: on }) => {
+      setTasks(fresh)
+      setOnline(on)
+    })
+  }
+
   const active = tasks.filter(t => t.status === "queued" || t.status === "running")
   const finished = tasks.filter(t => t.status !== "queued" && t.status !== "running")
 
   return (
-    <div className="space-y-4">
-      {/* Статус воркера + кнопка «Новый сбор» */}
+    <div className="space-y-6">
+      {/* Статус воркера + owner-only «Настройки» */}
       <div className="flex items-center justify-between bg-white border rounded-xl p-4">
         <div className="flex items-center gap-2 text-sm">
           {online ? (
@@ -114,23 +127,41 @@ export default function CollectorListClient({ initialTasks, initialWorkerOnline 
             <>
               <WifiOff className="h-4 w-4 text-red-600" />
               <span className="text-red-700 font-medium">Локальный сервер оффлайн</span>
-              <span className="text-gray-500 text-xs ml-2">— задачи создаются, но не запустятся пока сервер не оживёт</span>
+              <span className="text-gray-500 text-xs ml-2">
+                — задачи создаются, но не запустятся пока сервер не оживёт
+              </span>
             </>
           )}
         </div>
-        <Button
-          onClick={() => setDialogOpen(true)}
-          className="bg-yellow-400 hover:bg-yellow-500 text-black rounded-full"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Новый сбор
-        </Button>
+        {isOwner && (
+          <Button
+            variant={showAdvanced ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowAdvanced(v => !v)}
+            className={cn(
+              "rounded-full",
+              showAdvanced && "bg-yellow-400 hover:bg-yellow-500 text-black border-yellow-400",
+            )}
+          >
+            <Settings2 className="h-4 w-4 mr-1" />
+            {showAdvanced ? "Скрыть настройки" : "Настройки"}
+          </Button>
+        )}
       </div>
 
-      {/* Активные (queued + running) */}
+      {/* Форма нового сбора — прямо на странице, не в модалке */}
+      <div className="bg-white border rounded-xl p-5">
+        <h2 className="text-lg font-semibold mb-4">Новый сбор</h2>
+        <CollectorNewTaskForm
+          showAdvancedSettings={isOwner && showAdvanced}
+          onCreated={reloadTasks}
+        />
+      </div>
+
+      {/* Активные — если есть, отдельным блоком (выделяются на фоне истории) */}
       {active.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-gray-600 mb-2">Активные</h2>
+          <h2 className="text-sm font-semibold text-gray-600 mb-2">Идут сейчас</h2>
           <div className="space-y-2">
             {active.map(task => (
               <TaskRow key={task.id} task={task} />
@@ -139,15 +170,17 @@ export default function CollectorListClient({ initialTasks, initialWorkerOnline 
         </div>
       )}
 
-      {/* История */}
+      {/* История — снизу */}
       <div>
         <h2 className="text-sm font-semibold text-gray-600 mb-2">
           История ({finished.length})
         </h2>
         {finished.length === 0 && active.length === 0 ? (
           <div className="bg-white border rounded-xl p-8 text-center text-gray-500">
-            Пока нет ни одной задачи. Жми «Новый сбор» чтобы создать первую.
+            Пока нет ни одной задачи. Заполни форму выше и запусти первый сбор.
           </div>
+        ) : finished.length === 0 ? (
+          <div className="text-sm text-gray-400 italic px-2">Пока нет завершённых.</div>
         ) : (
           <div className="space-y-2">
             {finished.map(task => (
@@ -156,25 +189,6 @@ export default function CollectorListClient({ initialTasks, initialWorkerOnline 
           </div>
         )}
       </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Новый сбор 2GIS</DialogTitle>
-          </DialogHeader>
-          <CollectorNewTaskForm
-            onCreated={() => {
-              setDialogOpen(false)
-              // Быстрая перезагрузка списка — не ждём 5 сек polling'а.
-              listCollectorTasks().then(({ tasks: fresh, online: on }) => {
-                setTasks(fresh)
-                setOnline(on)
-              })
-            }}
-            onCancel={() => setDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -206,7 +220,10 @@ function TaskRow({ task }: { task: CollectorTask }) {
             </span>
           )}
         </div>
-        <div className="text-sm font-medium truncate">{taskTitle(task)}</div>
+        <div className="text-sm font-medium truncate">
+          {task.name || <span className="text-gray-400 italic">без названия</span>}
+        </div>
+        <div className="text-xs text-gray-600 truncate">{taskSubtitle(task)}</div>
         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
           <span>Создана {fmtDate(task.created_at)}</span>
           {task.started_at && (

@@ -147,7 +147,7 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
   const filesOk = task.files?.filter(f => f.status === "ok") ?? []
   const filesFailed = task.files?.filter(f => f.status !== "ok") ?? []
 
-  const taskTitle = task.custom_url
+  const taskSubtitle = task.custom_url
     ? task.custom_url
     : `${task.cities.length} городов × ${task.queries.length} запросов`
 
@@ -158,7 +158,10 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
         <Link href="/admin/collector" className="text-gray-500 hover:text-gray-800">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-2xl font-semibold">Задача #{task.id}</h1>
+        <h1 className="text-2xl font-semibold truncate max-w-[600px]">
+          {task.name || `Задача #${task.id}`}
+          <span className="text-gray-400 text-lg ml-2">#{task.id}</span>
+        </h1>
         {statusBadge(task.status)}
         <div className={cn(
           "ml-4 inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border",
@@ -168,7 +171,7 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
           {online ? "Локальный сервер онлайн" : "Локальный сервер оффлайн"}
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6 ml-8 truncate">{taskTitle}</p>
+      <p className="text-sm text-gray-500 mb-6 ml-8 truncate">{taskSubtitle}</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Прогресс */}
@@ -355,9 +358,9 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
                       <MapPin className="h-3 w-3" /> Города ({task.cities.length})
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {task.cities.map(c => (
+                      {task.cities.map((c, i) => (
                         <span key={c} className="text-xs bg-gray-100 rounded px-1.5 py-0.5">
-                          {c}
+                          {task.city_names?.[i] || c}
                         </span>
                       ))}
                     </div>

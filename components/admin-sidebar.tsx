@@ -35,9 +35,11 @@ interface AdminSidebarProps {
 // Стиль пункта меню — мини-карточка с объёмом. На каждом пункте
 // тень и рамка, hover слегка приподнимает карточку (translate-y-[-1px])
 // и усиливает тень. Активный — насыщенно жёлтый, тень сильнее.
+// Плотность py-1.5 подобрана так, чтобы 16 пунктов + бренд + карточка
+// юзера умещались без скролла на ноут-экранах ≥800px.
 function navItemClass(active: boolean) {
   return cn(
-    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-white",
+    "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm bg-white",
     "transition-all duration-150 ease-out will-change-transform",
     active
       ? "bg-brand-yellow/25 text-black font-semibold border border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.35)]"
@@ -69,7 +71,7 @@ function SubItem({ href, label, active }: { href: string; label: string; active:
     <Link
       href={href}
       className={cn(
-        "block rounded-lg px-3 py-2 text-sm bg-white",
+        "block rounded-md px-2.5 py-1.5 text-sm bg-white",
         "transition-all duration-150 ease-out",
         active
           ? "text-black font-semibold bg-brand-yellow/25 border border-brand-yellow shadow-[0_3px_10px_rgba(250,204,21,0.30)]"
@@ -155,10 +157,10 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
       )}
     >
       <div className="flex h-full max-h-screen flex-col overflow-y-auto">
-        {/* Бренд-блок: на одном уровне с шапкой админки (h-16), с тонкой нижней границей */}
-        <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-5">
+        {/* Бренд-блок: на одном уровне с шапкой админки (h-14), с тонкой нижней границей */}
+        <div className="flex h-14 shrink-0 items-center border-b border-gray-200 px-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-yellow flex items-center justify-center">
+            <div className="h-7 w-7 rounded-lg bg-brand-yellow flex items-center justify-center">
               <Package className="h-4 w-4 text-black" />
             </div>
             <div className="flex flex-col leading-tight">
@@ -168,9 +170,9 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
           </div>
         </div>
 
-        {/* Меню. gap-2 даёт «воздух» между карточками-кнопками и подчёркивает
-            их объёмность за счёт раздельных теней. */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+        {/* Меню. space-y-1 держит «воздух» минимальным, но карточки не сливаются
+            благодаря индивидуальным теням. */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
           {hasAccess("dashboard") && (
             <NavItem href="/admin" icon={LayoutDashboard} label="Дашборд" active={isActive("/admin")} />
           )}
@@ -198,7 +200,7 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
                   />
                   <span>Каталог</span>
                 </AccordionTrigger>
-                <AccordionContent className="pt-2 pb-0 pl-5 space-y-1.5">
+                <AccordionContent className="pt-1 pb-0 pl-4 space-y-1">
                   <SubItem
                     href="/admin/catalog/categories"
                     label="Категории"
@@ -298,8 +300,8 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
 
         {/* Карточка пользователя снизу. Чёткая рамка + объёмная тень,
             без аватара — только имя/email слева и иконка выйти справа. */}
-        <div className="shrink-0 p-3">
-          <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-gray-300 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.14)] transition-shadow">
+        <div className="shrink-0 p-2">
+          <div className="flex items-center gap-2 rounded-lg bg-white p-2 border border-gray-300 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.14)] transition-shadow">
             {user && (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <span className="font-medium text-sm truncate leading-tight">{userName}</span>
@@ -310,7 +312,7 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               variant="ghost"
               size="icon"
               onClick={logout}
-              className="h-8 w-8 shrink-0 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-900"
+              className="h-7 w-7 shrink-0 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-900"
               title="Выйти"
             >
               <LogOut className="h-4 w-4" />

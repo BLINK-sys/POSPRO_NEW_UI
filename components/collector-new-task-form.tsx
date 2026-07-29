@@ -14,17 +14,32 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, X, MapPin, Search, Link2, Sliders, Play } from "lucide-react"
+import { Loader2, X, MapPin, Search, Link2, Sliders, Play, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Props {
   onCreated: () => void
-  onCancel: () => void
+  /**
+   * Owner-only: показывать «Максимум записей с одного URL» и «Пауза между
+   * кликами». Обычному админу эти параметры не нужны и путают —
+   * скрываем за отдельной owner-only кнопкой «Настройки» на странице.
+   */
+  showAdvancedSettings?: boolean
 }
 
-export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
+export default function CollectorNewTaskForm({ onCreated, showAdvancedSettings = false }: Props) {
   const { toast } = useToast()
+
+  // Название задачи — обязательное
+  const [name, setName] = useState("")
 
   // Режим ввода: cities+queries ИЛИ custom_url
   const [mode, setMode] = useState<"catalog" | "url">("catalog")
@@ -39,6 +54,11 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
   const [queries, setQueries] = useState<string[]>([])
   const [queryInput, setQueryInput] = useState("")
   const [customUrl, setCustomUrl] = useState("")
+
+  // Модалка выбора городов. draftCities — рабочий буфер: юзер может
+  // отменить выбор кнопкой «Отмена», тогда selectedCities не изменится.
+  const [cityDialogOpen, setCityDialogOpen] = useState(false)
+  const [draftCities, setDraftCities] = useState<string[]>([])
 
   // Колонки
   const [columnsData, setColumnsData] = useState<ColumnsAvailable>({ default: [], extra: [] })
@@ -93,11 +113,36 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
     }
   }
 
-  const toggleCity = (code: string) => {
-    setSelectedCities(prev =>
+  // Toggle внутри модалки — меняет draft, а не финальный state
+  const toggleDraftCity = (code: string) => {
+    setDraftCities(prev =>
       prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code],
     )
   }
+
+  // Открытие модалки: seed из selectedCities
+  const openCityDialog = () => {
+    setDraftCities([...selectedCities])
+    setCitySearch("")
+    setCityDialogOpen(true)
+  }
+
+  const applyCityDialog = () => {
+    setSelectedCities(draftCities)
+    setCityDialogOpen(false)
+  }
+
+  // Удаление отдельного города прямо с чипа
+  const removeCity = (code: string) => {
+    setSelectedCities(prev => prev.filter(c => c !== code))
+  }
+
+  // Быстрый lookup для отображения русского имени на чипе
+  const cityByCode = useMemo(() => {
+    const m: Record<string, string> = {}
+    cities.forEach(c => { m[c.code] = c.name })
+    return m
+  }, [cities])
 
   const toggleColumn = (col: string) => {
     setSelectedColumns(prev =>
@@ -105,19 +150,27 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
     )
   }
 
-  const canSubmit = mode === "catalog"
-    ? selectedCities.length > 0 && queries.length > 0
-    : customUrl.trim().length > 0
+  const canSubmit = name.trim().length > 0 && (
+    mode === "catalog"
+      ? selectedCities.length > 0 && queries.length > 0
+      : customUrl.trim().length > 0
+  )
 
   const totalPairs = mode === "catalog" ? selectedCities.length * queries.length : 1
 
   const handleSubmit = async () => {
     if (!canSubmit) {
+      const missing: string[] = []
+      if (!name.trim()) missing.push("название задачи")
+      if (mode === "catalog") {
+        if (selectedCities.length === 0) missing.push("хотя бы один город")
+        if (queries.length === 0) missing.push("хотя бы один запрос")
+      } else if (!customUrl.trim()) {
+        missing.push("URL 2GIS")
+      }
       toast({
         title: "Не хватает данных",
-        description: mode === "catalog"
-          ? "Выбери хотя бы один город и добавь хотя бы один запрос."
-          : "Вставь URL 2GIS.",
+        description: "Заполни: " + missing.join(", "),
         variant: "destructive",
       })
       return
@@ -136,6 +189,7 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
         }
 
     const res = await createCollectorTask({
+      name: name.trim(),
       ...input,
       keep_columns: selectedColumns.length > 0 ? selectedColumns : null,
       drop_other_columns: true,
@@ -154,6 +208,13 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
         title: "Задача создана",
         description: `#${res.data?.id} — в очереди воркера, стартует автоматически.`,
       })
+      // Ресетим поля чтобы сразу можно было создать следующую задачу.
+      setName("")
+      setSelectedCities([])
+      setQueries([])
+      setQueryInput("")
+      setCustomUrl("")
+      setNetworksMinCount("")
       onCreated()
     } else {
       toast({ title: "Ошибка", description: res.message, variant: "destructive" })
@@ -162,6 +223,22 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Название задачи — обязательное поле */}
+      <div>
+        <Label className="text-sm font-semibold mb-2 block">
+          Название задачи <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Например: «Кофейни Алматы, август»"
+          maxLength={200}
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Через месяц в истории пригодится, чтобы понять что это был за прогон.
+        </p>
+      </div>
+
       {/* Режим ввода */}
       <div>
         <Label className="text-xs text-gray-500 mb-2 block">Как задать выборку</Label>
@@ -191,7 +268,7 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
 
       {mode === "catalog" ? (
         <>
-          {/* Города */}
+          {/* Города — кнопка «Выбрать город» + чипы выбранных */}
           <div>
             <Label className="text-sm font-semibold mb-2 block">
               Города Казахстана
@@ -201,48 +278,25 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
                 </span>
               )}
             </Label>
-            <div className="mb-2">
-              <div className="relative">
-                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  placeholder="Поиск по названию..."
-                  value={citySearch}
-                  onChange={e => setCitySearch(e.target.value)}
-                  className="pl-9"
+            <div className="flex flex-wrap items-center gap-1.5">
+              {selectedCities.map(code => (
+                <RemovableChip
+                  key={code}
+                  label={cityByCode[code] || code}
+                  onRemove={() => removeCity(code)}
                 />
-              </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openCityDialog}
+                className="rounded-full"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {selectedCities.length === 0 ? "Выбрать город" : "Добавить / изменить"}
+              </Button>
             </div>
-            {citiesLoading ? (
-              <div className="text-sm text-gray-500 py-4 text-center">
-                <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                Загружаем справочник...
-              </div>
-            ) : (
-              <div className="border rounded-lg max-h-64 overflow-y-auto">
-                {filteredCities.length === 0 ? (
-                  <div className="text-sm text-gray-500 py-4 text-center">Ничего не нашлось</div>
-                ) : (
-                  filteredCities.map(city => {
-                    const on = selectedCities.includes(city.code)
-                    return (
-                      <button
-                        key={city.code}
-                        type="button"
-                        onClick={() => toggleCity(city.code)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-50 border-b last:border-0",
-                          on && "bg-yellow-50 hover:bg-yellow-100",
-                        )}
-                      >
-                        <Checkbox checked={on} onCheckedChange={() => toggleCity(city.code)} />
-                        <span className="text-sm">{city.name}</span>
-                        <span className="text-xs text-gray-400 ml-auto">2gis.{city.domain}/{city.code}</span>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            )}
           </div>
 
           {/* Запросы */}
@@ -267,19 +321,7 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
             {queries.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {queries.map(q => (
-                  <span
-                    key={q}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 border border-yellow-300 rounded-md text-sm"
-                  >
-                    {q}
-                    <button
-                      type="button"
-                      onClick={() => removeQuery(q)}
-                      className="hover:bg-yellow-200 rounded-full p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
+                  <RemovableChip key={q} label={q} onRemove={() => removeQuery(q)} />
                 ))}
               </div>
             )}
@@ -389,45 +431,55 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
             value={networksMinCount}
             onChange={e => setNetworksMinCount(e.target.value)}
             placeholder="0 — не фильтровать"
-            className="w-32"
+            className="w-56"
           />
         </div>
-        <div className="flex items-center gap-3">
-          <Label className="text-sm w-64">Максимум записей с одного URL</Label>
-          <Input
-            type="number"
-            min={0}
-            value={maxRecords}
-            onChange={e => setMaxRecords(e.target.value)}
-            placeholder="Авто (по ОЗУ)"
-            className="w-32"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <Label className="text-sm w-64">Пауза между кликами (мс)</Label>
-          <Input
-            type="number"
-            min={0}
-            value={delayMinMs}
-            onChange={e => setDelayMinMs(parseInt(e.target.value) || 0)}
-            className="w-24"
-          />
-          <span className="text-xs text-gray-400">–</span>
-          <Input
-            type="number"
-            min={0}
-            value={delayMaxMs}
-            onChange={e => setDelayMaxMs(parseInt(e.target.value) || 0)}
-            className="w-24"
-          />
-        </div>
+        {showAdvancedSettings && (
+          <>
+            <div className="pt-2 mt-2 border-t">
+              <div className="text-xs text-gray-500 mb-2">Расширенные (только для владельца системы):</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label className="text-sm w-64">
+                Максимум записей с одного URL
+                <span className="block text-xs text-gray-400 font-normal">
+                  0 / пусто — авто по ОЗУ (~2900 записей на 8 ГБ). 2GIS не отдаёт больше
+                  ~4000 карточек, ограничение имеет смысл только для сдерживания зависаний.
+                </span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={maxRecords}
+                onChange={e => setMaxRecords(e.target.value)}
+                placeholder="Авто"
+                className="w-32"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Label className="text-sm w-64">Пауза между кликами (мс)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={delayMinMs}
+                onChange={e => setDelayMinMs(parseInt(e.target.value) || 0)}
+                className="w-24"
+              />
+              <span className="text-xs text-gray-400">–</span>
+              <Input
+                type="number"
+                min={0}
+                value={delayMaxMs}
+                onChange={e => setDelayMaxMs(parseInt(e.target.value) || 0)}
+                className="w-24"
+              />
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Кнопки */}
-      <div className="flex gap-2 justify-end pt-4 border-t">
-        <Button variant="outline" onClick={onCancel} disabled={submitting}>
-          Отмена
-        </Button>
+      {/* Единственная кнопка запуска — модалки больше нет, страница живая */}
+      <div className="flex justify-end pt-4 border-t">
         <Button
           onClick={handleSubmit}
           disabled={submitting || !canSubmit}
@@ -441,6 +493,102 @@ export default function CollectorNewTaskForm({ onCreated, onCancel }: Props) {
           Запустить сбор
         </Button>
       </div>
+
+      {/* Модалка выбора городов */}
+      <Dialog open={cityDialogOpen} onOpenChange={setCityDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Выберите города</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              placeholder="Поиск по названию..."
+              value={citySearch}
+              onChange={e => setCitySearch(e.target.value)}
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <div className="text-xs text-gray-500 -mt-1">
+            Выбрано {draftCities.length} из {filteredCities.length}
+          </div>
+          <div className="border rounded-lg overflow-y-auto flex-1 min-h-0">
+            {citiesLoading ? (
+              <div className="text-sm text-gray-500 py-8 text-center">
+                <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                Загружаем справочник...
+              </div>
+            ) : filteredCities.length === 0 ? (
+              <div className="text-sm text-gray-500 py-8 text-center">Ничего не нашлось</div>
+            ) : (
+              filteredCities.map(city => {
+                const on = draftCities.includes(city.code)
+                return (
+                  <button
+                    key={city.code}
+                    type="button"
+                    onClick={() => toggleDraftCity(city.code)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-gray-50 border-b last:border-0",
+                      on && "bg-yellow-50 hover:bg-yellow-100",
+                    )}
+                  >
+                    <Checkbox
+                      checked={on}
+                      onCheckedChange={() => toggleDraftCity(city.code)}
+                      onClick={e => e.stopPropagation()}
+                    />
+                    <span className="text-sm flex-1">{city.name}</span>
+                    <span className="text-xs text-gray-400">2gis.{city.domain}/{city.code}</span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCityDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={applyCityDialog}
+              className="bg-yellow-400 hover:bg-yellow-500 text-black rounded-full"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+
+/**
+ * Чип с крестиком, который появляется при наведении. Один и тот же
+ * компонент для городов и поисковых запросов — единый визуал.
+ */
+function RemovableChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span
+      className={cn(
+        "group inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-md text-sm",
+        "bg-yellow-100 border border-yellow-300",
+      )}
+    >
+      <span>{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Убрать «${label}»`}
+        className={cn(
+          "rounded-full p-0.5 transition-opacity",
+          "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          "hover:bg-yellow-200",
+        )}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   )
 }
