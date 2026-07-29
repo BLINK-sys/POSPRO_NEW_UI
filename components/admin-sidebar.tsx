@@ -21,6 +21,7 @@ import {
   Activity,
   MonitorSmartphone,
   RefreshCw,
+  MapPin,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -284,6 +285,13 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
               active={isActive("/admin/integrations")}
             />
           )}
+
+          <NavItem
+            href="/admin/collector"
+            icon={MapPin}
+            label="2GIS сбор данных"
+            active={isActive("/admin/collector")}
+          />
 
           <NavItem href="/admin/help" icon={BookOpen} label="Справка" active={isActive("/admin/help")} />
         </nav>
