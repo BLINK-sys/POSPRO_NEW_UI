@@ -191,6 +191,21 @@ export async function cancelIntegration(
   return { success: true, message: body.message }
 }
 
+export async function deleteIntegrationRun(
+  type: IntegrationType,
+  runId: number,
+): Promise<{ success: boolean; message?: string }> {
+  const token = await getToken()
+  const res = await fetch(`${BASE}/${type}/runs/${runId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) return { success: false, message: body.message || "Не удалось удалить" }
+  return { success: true, message: body.message }
+}
+
 // ── History ──────────────────────────────────────
 
 export async function listIntegrationRuns(

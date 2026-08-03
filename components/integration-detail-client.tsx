@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   ArrowLeft, CheckCircle2, XCircle, Loader2, Play, Save,
-  Clock, AlertCircle, WifiOff, Wifi, Calendar, StopCircle, Ban,
+  Clock, AlertCircle, WifiOff, Wifi, Calendar, StopCircle, Ban, Trash2,
 } from "lucide-react"
 import {
   type IntegrationDetail,
@@ -26,6 +26,7 @@ import {
   cancelIntegration,
   updateIntegrationSettings,
   listIntegrationRuns,
+  deleteIntegrationRun,
 } from "@/app/actions/integrations"
 
 const TYPE_LABELS: Record<IntegrationType, string> = {
@@ -164,6 +165,11 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
   const [cancelling, setCancelling] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
 
+  // Удаление конкретной записи истории. Держим id той записи, что
+  // юзер запросил удалить, в state — при подтверждении шлём DELETE.
+  const [runToDelete, setRunToDelete] = useState<IntegrationRun | null>(null)
+  const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
+
   // ── SSE подключение ─────────────────────────────
   const esRef = useRef<EventSource | null>(null)
   useEffect(() => {
@@ -253,6 +259,22 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
       toast({ title: "Ошибка", description: res.message || "Не удалось отменить", variant: "destructive" })
     }
   }, [type, toast])
+
+  const handleDeleteRunConfirmed = useCallback(async () => {
+    if (!runToDelete) return
+    const runId = runToDelete.id
+    setRunToDelete(null)
+    setDeletingRunId(runId)
+    const res = await deleteIntegrationRun(type, runId)
+    setDeletingRunId(null)
+    if (res.success) {
+      toast({ title: "Запись удалена" })
+      // Оптимистично убираем строку из локальной истории — не ждём polling.
+      setHistory(prev => prev.filter(r => r.id !== runId))
+    } else {
+      toast({ title: "Не удалось удалить", description: res.message, variant: "destructive" })
+    }
+  }, [runToDelete, type, toast])
 
   const toggleDay = (day: string) => {
     setDraftDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
@@ -602,29 +624,48 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
                   <th className="text-left py-2 px-2">Этап</th>
                   <th className="text-left py-2 px-2">Статус</th>
                   <th className="text-left py-2 px-2">Ошибка</th>
+                  <th className="w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {history.map(r => (
-                  <tr key={r.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 px-2">{fmtDate(r.started_at)}</td>
-                    <td className="py-2 px-2 text-gray-600">
-                      {r.finished_at ? fmtDuration(r.started_at, r.finished_at) : "…"}
-                    </td>
-                    <td className="py-2 px-2 text-gray-600">
-                      {r.trigger === "manual" ? `Вручную (${r.triggered_by || "—"})` : "По расписанию"}
-                    </td>
-                    <td className="py-2 px-2 text-gray-600">{PHASE_LABELS[r.phase || ""] || r.phase || "—"}</td>
-                    <td className="py-2 px-2">
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusColor(r.status))}>
-                        {statusLabel(r.status)}
-                      </span>
-                    </td>
-                    <td className="py-2 px-2 text-xs text-red-600 max-w-md truncate">
-                      {r.error || "—"}
-                    </td>
-                  </tr>
-                ))}
+                {history.map(r => {
+                  const isActive = r.status === "queued" || r.status === "running"
+                  return (
+                    <tr key={r.id} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="py-2 px-2">{fmtDate(r.started_at)}</td>
+                      <td className="py-2 px-2 text-gray-600">
+                        {r.finished_at ? fmtDuration(r.started_at, r.finished_at) : "…"}
+                      </td>
+                      <td className="py-2 px-2 text-gray-600">
+                        {r.trigger === "manual" ? `Вручную (${r.triggered_by || "—"})` : "По расписанию"}
+                      </td>
+                      <td className="py-2 px-2 text-gray-600">{PHASE_LABELS[r.phase || ""] || r.phase || "—"}</td>
+                      <td className="py-2 px-2">
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full border", statusColor(r.status))}>
+                          {statusLabel(r.status)}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-xs text-red-600 max-w-md truncate">
+                        {r.error || "—"}
+                      </td>
+                      <td className="py-2 px-2 text-right">
+                        {!isActive && (
+                          <button
+                            type="button"
+                            onClick={() => setRunToDelete(r)}
+                            disabled={deletingRunId === r.id}
+                            className="text-gray-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed p-1"
+                            title="Удалить запись"
+                          >
+                            {deletingRunId === r.id
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -661,6 +702,33 @@ export default function IntegrationDetailClient({ type, initial }: Props) {
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               {hasActiveRun ? "Да, прервать выгрузку" : "Да, снять с очереди"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Модалка удаления одной записи истории */}
+      <AlertDialog open={runToDelete !== null} onOpenChange={o => !o && setRunToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              Удалить запись из истории?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-2">
+              Запись выгрузки от <b>{runToDelete ? fmtDate(runToDelete.started_at) : ""}</b>
+              &nbsp;будет удалена. У BIO/Equip файлов нет — данные летят в прод-БД
+              магазина при выгрузке, тут удаляется только строка истории.
+              Восстановить нельзя.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRunConfirmed}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Да, удалить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
