@@ -170,6 +170,20 @@ export async function cancelCollectorTask(
   return { success: true, message: body.message }
 }
 
+export async function deleteCollectorTask(
+  id: number,
+): Promise<{ success: boolean; message?: string }> {
+  const token = await getToken()
+  const res = await fetch(`${BASE}/tasks/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) return { success: false, message: body.message || "Не удалось удалить" }
+  return { success: true, message: body.message }
+}
+
 // ── Справочники ───────────────────────────────────
 
 export async function listCatalogCities(country = "kz"): Promise<CityCatalogItem[]> {

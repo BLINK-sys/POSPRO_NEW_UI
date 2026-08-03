@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   cancelCollectorTask,
+  deleteCollectorTask,
   type CollectorTask,
 } from "@/app/actions/collector"
 import {
@@ -33,7 +34,9 @@ import {
   AlertCircle,
   MapPin,
   Search,
+  Trash2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 interface Props {
@@ -87,11 +90,14 @@ function statusBadge(status: string, size: "sm" | "md" = "md") {
 
 export default function CollectorTaskClient({ initialTask, initialWorkerOnline }: Props) {
   const { toast } = useToast()
+  const router = useRouter()
 
   const [task, setTask] = useState(initialTask)
   const [online, setOnline] = useState(initialWorkerOnline)
   const [cancelling, setCancelling] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // ── SSE ────────────────────────────────────────
   const esRef = useRef<EventSource | null>(null)
@@ -138,6 +144,21 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
     }
   }
 
+  const handleDeleteConfirmed = async () => {
+    setDeleteDialogOpen(false)
+    setDeleting(true)
+    const res = await deleteCollectorTask(task.id)
+    setDeleting(false)
+    if (res.success) {
+      toast({ title: "Задача удалена" })
+      router.push("/admin/collector")
+    } else {
+      toast({ title: "Не удалось удалить", description: res.message, variant: "destructive" })
+    }
+  }
+
+  const canDelete = task.status !== "running" && task.status !== "queued"
+
   const isActive = task.status === "queued" || task.status === "running"
   const progress = task.progress
   const totalPairs = progress?.pair_total ?? Math.max(task.cities.length * task.queries.length, 1)
@@ -170,6 +191,21 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
           {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
           {online ? "Локальный сервер онлайн" : "Локальный сервер оффлайн"}
         </div>
+        {canDelete && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={deleting}
+            className="ml-auto rounded-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+            title="Удалить задачу и все её файлы"
+          >
+            {deleting
+              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              : <Trash2 className="h-4 w-4 mr-1" />}
+            Удалить
+          </Button>
+        )}
       </div>
       <p className="text-sm text-gray-500 mb-6 ml-8 truncate">{taskSubtitle}</p>
 
@@ -425,6 +461,37 @@ export default function CollectorTaskClient({ initialTask, initialWorkerOnline }
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
               {task.status === "queued" ? "Да, снять из очереди" : "Да, прервать сбор"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Модалка удаления */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              Удалить задачу?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-2">
+              Задача, вся её история и все собранные .xlsx-файлы будут удалены
+              безвозвратно. Восстановить нельзя.
+              {task.files && task.files.length > 0 && (
+                <>
+                  <br />
+                  <b>Файлов будет удалено: {task.files.length}</b>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Да, удалить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
