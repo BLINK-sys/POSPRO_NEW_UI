@@ -153,6 +153,30 @@ export interface FooterSettings {
   telegram_url: string
 }
 
+// Настройки шапки — строка уведомления + пункты нижней полосы
+export interface HeaderStripSettings {
+  strip_enabled: boolean
+  strip_text: string
+  strip_clickable: boolean
+  strip_url: string
+  strip_open_new_tab: boolean
+}
+
+export interface HeaderMenuItemPublic {
+  id: number
+  kind: "category" | "custom"
+  is_active: boolean
+  order: number
+  name: string
+  slug: string | null
+  category_id?: number
+}
+
+export interface HeaderData {
+  strip: HeaderStripSettings
+  menu_items: HeaderMenuItemPublic[]
+}
+
 export interface AllBrandsData {
   id: number
   name: string
@@ -379,6 +403,42 @@ const fetchFooterSettingsCached = unstable_cache(
   ["footer-settings"],
   { tags: ["footer"], revalidate: 3600 }
 )
+
+// Настройки шапки (top strip + menu items). Кэш общий для всех ролей —
+// пункты сортируются на бэке, is_active фильтруется тоже там. При правке
+// в /admin/pages → Шапка сервер-actions делают revalidateTag('header').
+async function fetchHeaderDataRaw(): Promise<HeaderData> {
+  const response = await fetch(getApiUrl("/api/public/header"), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  })
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+  return await response.json()
+}
+
+const fetchHeaderDataCached = unstable_cache(
+  fetchHeaderDataRaw,
+  ["header-data"],
+  { tags: ["header"], revalidate: 3600 }
+)
+
+export async function getHeaderData(): Promise<HeaderData> {
+  try {
+    return await fetchHeaderDataCached()
+  } catch (error) {
+    console.error("Error fetching header data:", error)
+    return {
+      strip: {
+        strip_enabled: false,
+        strip_text: "",
+        strip_clickable: false,
+        strip_url: "",
+        strip_open_new_tab: false,
+      },
+      menu_items: [],
+    }
+  }
+}
 
 // Получить настройки футера
 export async function getFooterSettings(): Promise<FooterSettings> {

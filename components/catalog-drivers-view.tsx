@@ -70,7 +70,7 @@ export function CatalogDriversView({
             {drivers.length === 0 ? "Драйверов пока нет" : "По запросу ничего не найдено"}
           </p>
         ) : layout === "grid" ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 pt-2">
             {filtered.map((d) => (
               <DriverCard key={d.id} driver={d} onItemClick={onItemClick} />
             ))}
@@ -93,12 +93,12 @@ function DriverCard({ driver }: { driver: PublicDriver; onItemClick?: () => void
       href={`${API_BASE_URL}${driver.url}`}
       download={driver.filename || true}
       className={cn(
-        "group flex flex-col bg-white border border-gray-100 rounded-xl p-3",
-        "shadow-[0_2px_6px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.14)]",
+        "group flex flex-col bg-white border border-gray-100 rounded-lg p-2",
+        "shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)]",
         "hover:border-brand-yellow hover:-translate-y-0.5 transition-all duration-200",
       )}
     >
-      <div className="w-full aspect-square rounded-lg bg-gray-50 flex items-center justify-center mb-2 overflow-hidden group-hover:bg-yellow-50 transition-colors">
+      <div className="w-full aspect-square rounded bg-gray-50 flex items-center justify-center mb-1.5 overflow-hidden group-hover:bg-yellow-50 transition-colors">
         {driver.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -107,17 +107,17 @@ function DriverCard({ driver }: { driver: PublicDriver; onItemClick?: () => void
             className="w-full h-full object-contain"
           />
         ) : (
-          <FileText className="h-10 w-10 text-brand-yellow" />
+          <FileText className="h-7 w-7 text-brand-yellow" />
         )}
       </div>
       <div className="flex-1 min-h-0">
-        <p className="text-sm font-medium line-clamp-2 leading-tight">{driver.name}</p>
+        <p className="text-xs font-medium line-clamp-2 leading-tight">{driver.name}</p>
         {driver.file_size != null && (
-          <p className="text-xs text-gray-400 mt-1">{formatSize(driver.file_size)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{formatSize(driver.file_size)}</p>
         )}
       </div>
-      <div className="flex items-center justify-center gap-1 mt-2 text-xs text-gray-500 group-hover:text-gray-900 transition-colors">
-        <Download className="h-3 w-3" />
+      <div className="flex items-center justify-center gap-1 mt-1.5 text-[10px] text-gray-500 group-hover:text-gray-900 transition-colors">
+        <Download className="h-2.5 w-2.5" />
         <span>Скачать</span>
       </div>
     </a>

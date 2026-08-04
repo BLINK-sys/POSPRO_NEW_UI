@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -14,17 +14,35 @@ import { Badge } from "@/components/ui/badge"
 import { getImageUrl } from "@/lib/image-utils"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
+import { measureMaxTextWidth } from "@/lib/measure-text"
 
-const HEADER_HEIGHT = 96 // h-24
-const BUTTON_HEIGHT = 40 // h-10
+// Раньше headerHeight был константой 96 (h-24 старой шапки). После
+// перехода на 4-полосный дизайн (top-strip + info-bar + main + category-strip)
+// реальная высота header'а варьируется — top-strip может быть закрыт, на
+// мобилках info-bar и category-strip скрыты. Измеряем на клиенте через
+// ResizeObserver, чтобы панель всегда открывалась ПОД всеми полосами.
+const BUTTON_HEIGHT = 28 // компактная кнопка «Каталог» снизу
 
 export default function HeaderCatalogSlidePanel() {
   const { isCatalogPanelOpen, toggleCatalogPanel, closeCatalogPanel } = useCatalogPanel()
   const pathname = usePathname()
   const [categories, setCategories] = useState<CategoryData[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
+  // Динамическая высота <header>. Читаем реальный DOM-элемент и слушаем
+  // resize — иначе панель поднимется под старую константу 96px и перекроет
+  // нижнюю полосу с категориями.
+  const [headerHeight, setHeaderHeight] = useState(96)
+  useEffect(() => {
+    const header = typeof document !== "undefined" ? document.querySelector("header") : null
+    if (!header) return
+    const update = () => setHeaderHeight(header.getBoundingClientRect().height)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
   const [hoveredCategory, setHoveredCategory] = useState<CategoryData | null>(null)
-  const [subcategoryViewMode, setSubcategoryViewMode] = useState<'cards' | 'list'>('cards')
+  const [subcategoryViewMode, setSubcategoryViewMode] = useState<'cards' | 'list'>('list')
   const [activeTab, setActiveTab] = useState<CatalogTab>("categories")
   const rightColumnRef = useRef<HTMLDivElement>(null)
 
@@ -100,7 +118,7 @@ export default function HeaderCatalogSlidePanel() {
           "fixed inset-0 bg-black/40 z-[39] transition-opacity duration-500",
           isCatalogPanelOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
-        style={{ top: HEADER_HEIGHT }}
+        style={{ top: headerHeight }}
         onClick={closeCatalogPanel}
       />
 
@@ -108,8 +126,8 @@ export default function HeaderCatalogSlidePanel() {
       <div
         className="fixed left-0 right-0 z-40 overflow-hidden"
         style={{
-          top: HEADER_HEIGHT,
-          height: `calc(100vh - ${HEADER_HEIGHT}px)`,
+          top: headerHeight,
+          height: `calc(100vh - ${headerHeight}px)`,
           pointerEvents: 'none'
         }}
       >
@@ -127,7 +145,7 @@ export default function HeaderCatalogSlidePanel() {
           <div
             className="bg-white shadow-none relative overflow-hidden"
             style={{
-              height: `calc(100vh - ${HEADER_HEIGHT}px)`,
+              height: `calc(100vh - ${headerHeight}px)`,
               pointerEvents: isCatalogPanelOpen ? 'auto' : 'none'
             }}
           >
@@ -165,7 +183,7 @@ export default function HeaderCatalogSlidePanel() {
                             )}
                           >
                             <span className={cn(
-                              "text-sm flex-1",
+                              "text-xs flex-1",
                               category.children && category.children.length > 0 ? "pr-14" : ""
                             )}>{formatCategoryLabel(category, { directOnly: true })}</span>
                             {hoveredCategory?.id === category.id && category.children && category.children.length > 0 && (
@@ -286,18 +304,35 @@ export default function HeaderCatalogSlidePanel() {
                               ))}
                             </div>
                           ) : (
-                            <div className="grid grid-cols-2 gap-4">
-                              {hoveredCategory.children.map((child) => (
-                                <Link
-                                  key={child.id}
-                                  href={`/category/${child.slug}`}
-                                  onClick={handleLinkClick}
-                                  className="text-gray-700 hover:text-brand-yellow transition-colors"
+                            // Auto-fill: колонок ровно столько, сколько влезло, а
+                            // МИНИМАЛЬНАЯ ширина колонки = ширина самого длинного
+                            // пункта (имя + счётчик). Считаем через canvas — весь
+                            // текст умещается в одну строку без обрезки.
+                            (() => {
+                              const labels = hoveredCategory.children.map((c) => formatCategoryLabel(c))
+                              const w = measureMaxTextWidth(
+                                labels,
+                                "500 12px system-ui, -apple-system, sans-serif"
+                              )
+                              const colMin = Math.min(400, w + 16)
+                              return (
+                                <div
+                                  className="grid gap-x-4 gap-y-1.5"
+                                  style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))` }}
                                 >
-                                  {formatCategoryLabel(child)}
-                                </Link>
-                              ))}
-                            </div>
+                                  {hoveredCategory.children.map((child) => (
+                                    <Link
+                                      key={child.id}
+                                      href={`/category/${child.slug}`}
+                                      onClick={handleLinkClick}
+                                      className="text-xs text-gray-700 hover:text-brand-yellow transition-colors whitespace-nowrap"
+                                    >
+                                      {formatCategoryLabel(child)}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )
+                            })()
                           )}
                         </div>
                       </div>
@@ -352,7 +387,7 @@ export default function HeaderCatalogSlidePanel() {
             style={{ height: BUTTON_HEIGHT, pointerEvents: 'auto' }}
           >
             <Button
-              className="bg-brand-yellow text-black hover:bg-yellow-500 !shadow-none !drop-shadow-none rounded-t-none rounded-b-2xl px-6 flex items-center gap-2 h-full cursor-pointer"
+              className="bg-brand-yellow text-black hover:bg-yellow-500 !shadow-none !drop-shadow-none rounded-t-none rounded-b-xl px-3 flex items-center gap-1.5 h-full cursor-pointer"
               onClick={() => {
                 if (!isCatalogPanelOpen) {
                   window.scrollTo({ top: 0, behavior: "smooth" })
@@ -361,11 +396,11 @@ export default function HeaderCatalogSlidePanel() {
               }}
             >
               {categoriesLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Grid3X3 className="h-5 w-5" />
+                <Grid3X3 className="h-3.5 w-3.5" />
               )}
-              <span className="text-sm font-medium">Каталог главная страница</span>
+              <span className="text-xs font-medium">Каталог</span>
             </Button>
           </div>
         </div>

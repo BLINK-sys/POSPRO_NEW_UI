@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { NavigationMenuLink } from "@/components/ui/navigation-menu"
@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
@@ -27,10 +27,12 @@ import { useKP } from "@/context/kp-context"
 import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
+import { measureMaxTextWidth } from "@/lib/measure-text"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, usePathname } from "next/navigation"
 import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
+import HeaderSearch from "@/components/header-search"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
@@ -49,30 +51,14 @@ export default function Header() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpandedCategories, setSidebarExpandedCategories] = useState<Set<number>>(new Set())
   const [sidebarExpandedMore, setSidebarExpandedMore] = useState<Set<number>>(new Set())
-  const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('cards')
+  const [sidebarViewMode, setSidebarViewMode] = useState<'cards' | 'list'>('list')
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [sidebarTab, setSidebarTab] = useState<CatalogTab>("categories")
   const [menuTab, setMenuTab] = useState<CatalogTab>("categories")
-  const [aiAccess, setAiAccess] = useState<boolean | null>(null)
-
-  // Re-check AI consultant access whenever the user changes (login/logout/refresh).
-  // Backend endpoint is public — works for guests too.
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/ai-consultant/access", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setAiAccess(Boolean(d?.has_access))
-      })
-      .catch(() => {
-        if (!cancelled) setAiAccess(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [user?.id, user?.email])
+  // AI-consultant гейт перееxал на страницу /search (desktop + mobile
+  // варианты сами дергают /api/ai-consultant/access).
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
-  const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("cards")
+  const [subcategoryPanelView, setSubcategoryPanelView] = useState<"list" | "cards">("list")
   const [catalogVisibility, setCatalogVisibility] = useState<{ sidebar: boolean; main: boolean; slide: boolean } | null>(null)
 
   // Загружаем видимость каталогов (публичный эндпоинт, без авторизации)
@@ -243,9 +229,137 @@ export default function Header() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarSearchQuery, sidebarViewMode])
 
-  // При открытии меню по умолчанию выделяем первую категорию
+  // ── Динамика шапки: strip + menu items + телефон ───────────────
+  // Все три источника — публичные endpoint'ы без auth. При редактировании
+  // в /admin/pages → Шапка сервер-actions делают revalidateTag('header')
+  // + revalidateTag('footer'); Next перезапрашивает данные при следующей
+  // навигации. Локально (client fetch) кэша нет — свежие значения приходят
+  // при mount'е компонента.
+  const [stripData, setStripData] = useState<{
+    strip_enabled: boolean; strip_text: string; strip_clickable: boolean;
+    strip_url: string; strip_open_new_tab: boolean;
+  } | null>(null)
+  const [menuItems, setMenuItems] = useState<Array<{
+    id: number; kind: string; name: string; slug: string | null;
+  }>>([])
+  const [infoBarPhone, setInfoBarPhone] = useState<string>("")
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/public/header`)
+      .then(r => r.json())
+      .then(data => {
+        setStripData(data.strip || null)
+        setMenuItems(Array.isArray(data.menu_items) ? data.menu_items : [])
+      })
+      .catch(() => {})
+    fetch(`${API_BASE_URL}/api/footer-settings`)
+      .then(r => r.json())
+      .then(data => setInfoBarPhone(data.phone || ""))
+      .catch(() => {})
+  }, [])
+
+  const topStripCloseKey = "pospro:top-strip-closed"
+  const [topStripClosed, setTopStripClosed] = useState(false)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (sessionStorage.getItem(topStripCloseKey)) setTopStripClosed(true)
+  }, [])
+  const closeTopStrip = () => {
+    setTopStripClosed(true)
+    if (typeof window !== "undefined") sessionStorage.setItem(topStripCloseKey, "1")
+  }
+
+  const infoBarLinks: { label: string; href: string }[] = [
+    { label: "Оплата и доставка", href: "/help" },
+    { label: "О компании", href: "/help" },
+    { label: "Помощь", href: "/help" },
+  ]
+  const infoBarCity = "Астана"
+
+  // Пункты нижней полосы — приходят с бэка (admin → Шапка → Разделы).
+  // Категории и custom-разделы одинаково ведут на /category/<slug>
+  // (fallback на custom section встроен на бэке в public_homepage).
+  const topCategories = menuItems
+
+  // Ширина колонки в сайдбар-list = ширина самого длинного пункта
+  // (заголовок uppercase + подкатегории + sub-sub). Меряем через canvas
+  // при изменении списка категорий.
+  const sidebarColumnWidth = useMemo(() => {
+    if (!categories.length) return 220
+    const labels: string[] = []
+    for (const root of categories) {
+      labels.push(root.name.toUpperCase())
+      for (const c of root.children || []) {
+        labels.push(`${c.name} (${getCategoryCount(c)})`)
+        for (const s of c.children || []) {
+          labels.push(`${s.name} (${getCategoryCount(s)})`)
+        }
+      }
+    }
+    const w = measureMaxTextWidth(labels, "600 13px system-ui, -apple-system, sans-serif")
+    // +40px = маркер/plus + внутренние отступы; максимум 400px чтобы совсем
+    // безумные заголовки не сжирали всю ширину панели.
+    return Math.min(400, w + 40)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories])
+
   return (
     <header className="bg-white dark:bg-gray-950 shadow-lg sticky top-0 z-50 relative">
+      {/* ── Полоса 1: строка уведомления (админ → Шапка) ───────────────
+          brand-yellow, закрывается на сессию через sessionStorage.
+          Кликабельность/target — из настроек. Если strip_clickable=false,
+          рендерим span, а не Link — «мёртвый» текст. */}
+      {stripData?.strip_enabled && stripData.strip_text && !topStripClosed && (
+        <div className="bg-brand-yellow text-black">
+          <div className="container mx-auto px-4 md:px-6 flex items-center justify-center gap-3 py-2 text-sm relative">
+            {stripData.strip_clickable && stripData.strip_url ? (
+              <Link
+                href={stripData.strip_url}
+                target={stripData.strip_open_new_tab ? "_blank" : undefined}
+                rel={stripData.strip_open_new_tab ? "noopener noreferrer" : undefined}
+                className="hover:underline font-medium text-center"
+              >
+                {stripData.strip_text}
+              </Link>
+            ) : (
+              <span className="font-medium text-center">{stripData.strip_text}</span>
+            )}
+            <button
+              type="button"
+              onClick={closeTopStrip}
+              className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/10 transition-colors"
+              aria-label="Скрыть баннер"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Полоса 2: город / служебные ссылки / телефон ───────────────── */}
+      <div className="hidden md:block border-b border-gray-100 bg-gray-50/70">
+        <div className="container mx-auto px-4 md:px-6 flex items-center justify-between h-9 text-xs text-gray-600">
+          <div className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-gray-400" />
+            <span>{infoBarCity}</span>
+          </div>
+          <nav className="flex items-center gap-5">
+            {infoBarLinks.map(l => (
+              <Link key={l.label} href={l.href} className="hover:text-black transition-colors">
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+          {infoBarPhone && (
+            <a href={`tel:${infoBarPhone.replace(/[^\d+]/g, "")}`}
+               className="inline-flex items-center gap-1.5 font-medium text-black hover:text-yellow-700 transition-colors">
+              <Phone className="h-3.5 w-3.5" />
+              {infoBarPhone}
+            </a>
+          )}
+        </div>
+      </div>
+
       {/* Кнопка-язычок бокового каталога — фиксирована на краю панели */}
       {catalogVisibility?.sidebar && <button
         className="fixed top-12 -translate-y-1/2 z-[100] bg-brand-yellow text-black hover:bg-yellow-500 rounded-r-full shadow-lg px-3 pr-4 py-3 flex items-center gap-2 transition-[left] duration-300 ease-in-out cursor-pointer"
@@ -474,13 +588,16 @@ export default function Header() {
                         })}
                       </div>
                     ) : (
-                      // ВИД 2: Список без изображений и карточек - независимое расположение в колонках
-                      <div className="flex flex-col md:flex-row gap-6">
-                        {/* Разделяем категории на колонки */}
-                        {[0, 1, 2].map((colIndex) => {
-                          const categoriesInColumn = categories.filter((_, index) => index % 3 === colIndex);
+                      // ВИД 2: Список — CSS columns с шириной под самый длинный пункт.
+                      // column-width = ширина самого широкого элемента (измерена
+                      // через canvas в sidebarColumnWidth), поэтому весь текст
+                      // помещается без обрезки, а колонок ровно столько,
+                      // сколько влезло по ширине панели.
+                      <div style={{ columnWidth: `${sidebarColumnWidth}px`, columnGap: "1.5rem" }}>
+                        {[0].map(() => {
+                          const categoriesInColumn = categories
                           return (
-                            <div key={colIndex} className="flex-1 flex flex-col gap-6">
+                            <React.Fragment key="all">
                               {categoriesInColumn.map((category) => {
                           const matchesSearch = sidebarSearchQuery.trim() 
                             ? categoryMatchesSearch(category, sidebarSearchQuery)
@@ -491,16 +608,18 @@ export default function Header() {
                             : false
                           
                           return (
-                          <div 
-                            key={category.id} 
+                          <div
+                            key={category.id}
                             id={`category-${category.id}`}
                             className={cn(
-                              "space-y-2 transition-all duration-200",
+                              // break-inside-avoid + inline-block — категория не рвётся
+                              // пополам между CSS-колонками; mb-6 = вертикальный gap
+                              "space-y-2 transition-all duration-200 break-inside-avoid mb-6 w-full",
                               isHighlighted && "ring-2 ring-brand-yellow ring-offset-2 rounded-lg p-2 bg-yellow-50"
                             )}
                           >
                             <h3 className={cn(
-                              "font-semibold text-base mb-2",
+                              "font-semibold text-sm mb-1.5",
                               categoryNameMatches && sidebarSearchQuery.trim()
                                 ? "text-brand-yellow font-bold"
                                 : "text-gray-900"
@@ -537,11 +656,11 @@ export default function Header() {
                                       ) : (
                                         <div className="w-5" />
                                       )}
-                                      <Link 
+                                      <Link
                                         href={`/category/${child.slug}`}
                                         onClick={() => setSidebarOpen(false)}
                                         className={cn(
-                                          "text-sm hover:text-brand-yellow transition-colors flex-1",
+                                          "text-xs hover:text-brand-yellow transition-colors flex-1 whitespace-nowrap",
                                           sidebarSearchQuery.trim() && child.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
                                             ? "text-brand-yellow font-bold"
                                             : "text-gray-700"
@@ -554,11 +673,11 @@ export default function Header() {
                                       <ul className="ml-7 mt-1 space-y-1">
                                         {child.children.map((subChild) => (
                                           <li key={subChild.id}>
-                                            <Link 
+                                            <Link
                                               href={`/category/${subChild.slug}`}
                                               onClick={() => setSidebarOpen(false)}
                                               className={cn(
-                                                "text-xs hover:text-brand-yellow transition-colors block",
+                                                "text-[11px] hover:text-brand-yellow transition-colors block",
                                                 sidebarSearchQuery.trim() && subChild.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
                                                   ? "text-brand-yellow font-bold"
                                                   : "text-gray-600"
@@ -581,7 +700,7 @@ export default function Header() {
                           </div>
                           )
                               })}
-                            </div>
+                            </React.Fragment>
                           );
                         })}
                       </div>
@@ -596,7 +715,7 @@ export default function Header() {
       </Sheet>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center h-24">
+        <div className="flex items-center h-16">
           <Link href="/" className="flex items-center flex-shrink-0" prefetch={false}>
             <Image
               src="/ui/big_logo.png"
@@ -638,32 +757,15 @@ export default function Header() {
             </Button>
           </div>}
 
-          <div className="hidden md:flex ml-2 shrink-0">
-            <Button
-              onClick={() => router.push("/search")}
-              className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-              title="Найти товар"
-            >
-              <Search className="h-5 w-5" />
-              <span className="hidden xl:inline">Найти товар</span>
-            </Button>
+          {/* Инпут поиска с автокомплитом. Ширина ровно под плейсхолдер —
+              не растягиваем на всю строку. Иконки справа уедут через
+              следующий flex-1 spacer. */}
+          <div className="hidden md:flex ml-3 shrink-0">
+            <HeaderSearch />
           </div>
 
-          {/* AI consultant — доступ управляется из админки
-              (`/admin/ai-consultant`). Backend ручка решает, видит ли
-              кнопку конкретный пользователь. */}
-          {aiAccess && (
-            <div className="hidden md:flex ml-2 shrink-0">
-              <Button
-                onClick={() => router.push("/ai")}
-                className="bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-                title="AI-подбор товаров"
-              >
-                <Sparkles className="h-5 w-5" />
-                <span className="hidden xl:inline">AI консультант</span>
-              </Button>
-            </div>
-          )}
+          {/* AI consultant теперь живёт на странице /search (справа от кнопки
+              поиска, доступ гейтится тем же /api/ai-consultant/access). */}
 
             {menuOpen && (
               <div
@@ -692,16 +794,18 @@ export default function Header() {
 
                           return (
                               <li key={category.id}>
-                                  <Link
-                                    href={`/category/${category.slug}`}
+                                  {/* Клик = выбор категории (toggle), а не переход. Как в
+                                      HeaderCatalogSlidePanel. Переход на страницу — только
+                                      через явную ссылку «Показать все товары в X» справа. */}
+                                  <button
+                                    type="button"
                                     className={cn(
-                                "relative flex items-center justify-between rounded-xl border px-3 py-3 transition-all shadow-md hover:shadow-lg",
+                                "w-full text-left relative flex items-center justify-between rounded-xl border px-3 py-3 transition-all shadow-md hover:shadow-lg",
                                 isActive
                                   ? "bg-brand-yellow text-black font-semibold border-brand-yellow"
                                   : "bg-white text-gray-800 border-gray-200 hover:bg-brand-yellow/80 hover:text-black hover:border-brand-yellow"
                                     )}
-                                    onMouseEnter={() => setHoveredCategory(category)}
-                              onClick={handleMenuItemClick}
+                                    onClick={() => setHoveredCategory(isActive ? null : category)}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="relative h-12 w-12 rounded-lg bg-white shadow-inner overflow-hidden flex items-center justify-center">
@@ -719,9 +823,9 @@ export default function Header() {
                                   )}
                                 </div>
                                 <div className="flex flex-col min-h-[38px] justify-center">
-                                  <span className="text-sm font-medium leading-tight">{category.name}</span>
+                                  <span className="text-xs font-medium leading-tight">{category.name}</span>
                                   {isActive && (
-                                    <span className="text-xs text-gray-600">Товаров: {getCategoryCount(category)}</span>
+                                    <span className="text-[10px] text-gray-600">Товаров: {getCategoryCount(category)}</span>
                                   )}
                                 </div>
                               </div>
@@ -731,7 +835,7 @@ export default function Header() {
                                   <ChevronRight className="absolute top-1/2 right-2 -translate-y-1/2 h-3.5 w-3.5 text-white" />
                                 </div>
                               )}
-                            </Link>
+                            </button>
                               </li>
                           )
                         })}
@@ -784,7 +888,32 @@ export default function Header() {
                                 <div className="space-y-4">
                               {hoveredCategory.children && hoveredCategory.children.length > 0 ? (
                                 <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div
+                              className={cn(
+                                "grid",
+                                subcategoryPanelView === "cards"
+                                  ? "grid-cols-1 md:grid-cols-3 gap-4"
+                                  : "gap-x-4 gap-y-1"
+                              )}
+                              style={
+                                subcategoryPanelView === "list"
+                                  ? {
+                                      // Ширина колонки = ширина самого длинного пункта
+                                      // (имя + счётчик + маркер + padding). Меряем через canvas.
+                                      gridTemplateColumns: `repeat(auto-fill, minmax(${
+                                        (hoveredCategory?.children
+                                          ? measureMaxTextWidth(
+                                              hoveredCategory.children.map(
+                                                (c) => `${c.name} (${getCategoryCount(c)})`
+                                              ),
+                                              "500 12px system-ui, -apple-system, sans-serif"
+                                            )
+                                          : 0) + 40
+                                      }px, 1fr))`,
+                                    }
+                                  : undefined
+                              }
+                            >
                               {hoveredCategory.children.map((child) => {
                                 const containerClasses =
                                   subcategoryPanelView === "cards"
@@ -857,10 +986,10 @@ export default function Header() {
                                                 <div className="w-1.5 h-1.5 bg-black rounded-full"></div>
                                               </div>
                                             )}
-                                            <Link 
+                                            <Link
                                               href={`/category/${child.slug}`}
                                             onClick={handleMenuItemClick}
-                                              className="text-sm text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 py-1 px-2 rounded"
+                                              className="text-xs text-black hover:text-black hover:bg-brand-yellow transition-colors flex-1 min-w-0 py-1 px-2 rounded whitespace-nowrap"
                                             >
                                             {child.name} ({childCount})
                                             </Link>
@@ -916,8 +1045,8 @@ export default function Header() {
               </div>
             )}
 
-          {/* Spacer — отталкивает правую часть */}
-          <div className="flex-1" />
+          {/* Spacer — толкает группу иконок к правому краю */}
+          <div className="hidden md:block flex-1" />
 
           {/* Мобильная версия — кнопка поиска */}
           <div className="md:hidden flex-1 mx-4 flex justify-center">
@@ -930,138 +1059,92 @@ export default function Header() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto shrink-0">
+          <div className="flex items-center gap-1 ml-auto shrink-0">
             {user ? (
               <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200"
-                      title="Личный кабинет"
-                    >
-                      <User className="h-5 w-5" />
-                      <span className="hidden xl:inline">Личный кабинет</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Link href="/profile">Мой профиль</Link>
-                    </DropdownMenuItem>
-                    {user.role === "client" && (
-                      <>
-                        <DropdownMenuItem>
-                          <Link href="/profile/orders">Заказы</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Link href="/profile/history">История покупок</Link>
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout} className="text-red-500 cursor-pointer bg-gray-100 hover:bg-gray-200">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Выйти
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Общий стиль «иконка + подпись под ней» — плоские кнопки
+                    вместо dropdown'а профиля, чтобы админ/клиент видел все
+                    свои разделы одним взглядом. На md+ подпись видна, на sm
+                    скрыта (только иконка + hover-title). */}
+                <HeaderIconLink href="/profile" icon={<User className="h-5 w-5" />} label="Профиль" />
 
-                {(user.role === "admin" || user.role === "system") ? (
+                {user.role === "client" && (
                   <>
-                    <Link
-                      href="/kp"
-                      className="relative flex items-center gap-2 border-2 border-black text-black hover:bg-gray-100 h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
-                      title="Собрать КП"
-                    >
-                      <FileText className="h-5 w-5" />
-                      <span className="hidden xl:inline text-sm font-medium">Собрать КП</span>
-                      {kpCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-[10px] leading-none font-medium min-w-5 h-5 px-1 rounded-full inline-flex items-center justify-center">
-                          {kpCount > 999 ? '999+' : kpCount}
-                        </span>
-                      )}
-                    </Link>
-                    {user.role === "admin" && (
-                      <Link
-                        href="/admin"
-                        className="flex items-center gap-2 bg-brand-yellow text-black hover:bg-yellow-500 hover:text-black h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
-                        title="Админ панель"
-                      >
-                        <Settings className="h-5 w-5" />
-                        <span className="hidden xl:inline text-sm font-medium">Админ панель</span>
-                      </Link>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Link
+                    <HeaderIconLink href="/profile/orders" icon={<FileText className="h-5 w-5" />} label="Заказы" />
+                    <HeaderIconLink href="/profile/history" icon={<List className="h-5 w-5" />} label="История" />
+                    <HeaderIconLink
                       href="/profile/cart"
-                      className="relative flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
-                      title="Корзина"
-                    >
-                      <ShoppingCart className="h-5 w-5 text-gray-700" />
-                      {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold shadow">
-                          {cartCount > 99 ? '99+' : cartCount}
-                        </span>
-                      )}
-                    </Link>
-
-                    <Link
-                      href="/profile/favorites"
-                      className="flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
-                      title="Избранное"
-                    >
-                      <Star className="h-5 w-5 text-gray-700" />
-                    </Link>
+                      icon={<ShoppingCart className="h-5 w-5" />}
+                      label="Корзина"
+                      badge={cartCount > 0 ? (cartCount > 99 ? "99+" : String(cartCount)) : undefined}
+                    />
+                    <HeaderIconLink href="/profile/favorites" icon={<Star className="h-5 w-5" />} label="Избранное" />
                   </>
                 )}
+
+                {(user.role === "admin" || user.role === "system") && (
+                  <>
+                    <HeaderIconLink
+                      href="/kp"
+                      icon={<FileText className="h-5 w-5" />}
+                      label="Собрать КП"
+                      badge={kpCount > 0 ? (kpCount > 999 ? "999+" : String(kpCount)) : undefined}
+                    />
+                    {user.role === "admin" && (
+                      <HeaderIconLink
+                        href="/admin"
+                        icon={<Settings className="h-5 w-5" />}
+                        label="Админ"
+                      />
+                    )}
+                  </>
+                )}
+
+                <HeaderIconButton
+                  onClick={logout}
+                  icon={<LogOut className="h-5 w-5" />}
+                  label="Выйти"
+                  danger
+                />
               </>
             ) : (
               !isLoading && (
                 <>
-                  <Link
+                  <HeaderIconLink
                     href="/profile/cart"
-                    className="relative flex items-center justify-center h-10 w-10 rounded-full bg-white border border-gray-200 hover:border-brand-yellow hover:bg-yellow-50 transition-all duration-200 shadow-sm"
-                    title="Корзина"
-                  >
-                    <ShoppingCart className="h-5 w-5 text-gray-700" />
-                    {cartCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-brand-yellow text-black text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold shadow">
-                        {cartCount > 99 ? '99+' : cartCount}
-                      </span>
-                    )}
-                  </Link>
-                  <Link href="/auth">
-                    <Button
-                      className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                      title="Войти в личный кабинет"
-                    >
-                      <User className="h-5 w-5" />
-                      <span className="hidden lg:inline">Войти</span>
-                    </Button>
-                  </Link>
+                    icon={<ShoppingCart className="h-5 w-5" />}
+                    label="Корзина"
+                    badge={cartCount > 0 ? (cartCount > 99 ? "99+" : String(cartCount)) : undefined}
+                  />
+                  <HeaderIconLink
+                    href="/auth"
+                    icon={<User className="h-5 w-5" />}
+                    label="Войти"
+                  />
                 </>
               )
-            )}
-
-            {/* PosPro Desk — приложение удалённой поддержки. Только для
-                клиентов (физлица/ИП/ТОО) и гостей. Админам/системным
-                юзерам кнопка не нужна — у них и без того много элементов
-                в шапке (Собрать КП, Админ панель и т.д.). */}
-            {(!user || user.role === "client") && (
-              <Button
-                onClick={() => router.push("/posprodesk")}
-                className="hidden md:flex bg-yellow-50 border-2 border-brand-yellow text-gray-800 hover:bg-brand-yellow hover:border-black hover:text-black font-medium h-10 px-4 rounded-full items-center gap-2 shadow-sm hover:shadow-lg transition-all duration-200"
-                title="PosPro Desk — приложение удалённой поддержки"
-              >
-                <MonitorSmartphone className="h-5 w-5" />
-                <span className="hidden xl:inline">PosPro Desk</span>
-              </Button>
             )}
           </div>
         </div>
 
       </div>
+
+      {/* ── Полоса 4: быстрый ряд топ-категорий ──────────────────────── */}
+      {topCategories.length > 0 && (
+        <div className="hidden md:block border-t border-gray-100 bg-white">
+          <div className="container mx-auto px-4 md:px-6 flex items-center gap-1 h-10 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+            {topCategories.map(cat => (
+              <Link
+                key={cat.id}
+                href={`/category/${cat.slug}`}
+                className="whitespace-nowrap px-2.5 py-1 text-xs text-gray-700 hover:text-black hover:bg-yellow-50 rounded-full transition-colors"
+              >
+                {cat.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Выдвижная панель каталога — только на главной */}
       {pathname === "/" && catalogVisibility?.slide && <HeaderCatalogSlidePanel />}
@@ -1091,3 +1174,73 @@ const ListItem = React.forwardRef<React.ElementRef<"a">, React.ComponentPropsWit
   },
 )
 ListItem.displayName = "ListItem"
+
+
+/**
+ * Плоская кнопка-«ссылка» с иконкой сверху и подписью снизу — единый
+ * визуал всех действий в шапке (Профиль/Корзина/Заказы/КП/Админ/Выйти).
+ *
+ * `accent` — жёлтый фон для главных действий (Войти, Админ панель).
+ * `badge` — маленький счётчик поверх иконки (Корзина, КП).
+ */
+function HeaderIconLink({
+  href, icon, label, badge, accent = false,
+}: {
+  href: string
+  icon: React.ReactNode
+  label: string
+  badge?: string
+  accent?: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      title={label}
+      className={cn(
+        "relative flex flex-col items-center justify-center gap-0.5 h-14 px-2.5 rounded-lg transition-colors",
+        "min-w-[64px]",
+        accent
+          ? "bg-brand-yellow text-black hover:bg-yellow-500"
+          : "text-gray-700 hover:bg-yellow-50 hover:text-black",
+      )}
+    >
+      <span className="relative">
+        {icon}
+        {badge && (
+          <span className="absolute -top-1 -right-2 bg-brand-yellow text-black text-[10px] leading-none font-medium min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center shadow ring-1 ring-white">
+            {badge}
+          </span>
+        )}
+      </span>
+      <span className="hidden md:inline text-[11px] leading-tight">{label}</span>
+    </Link>
+  )
+}
+
+/** То же что HeaderIconLink, но кнопка с onClick (для Выйти). `danger` — красный hover. */
+function HeaderIconButton({
+  onClick, icon, label, danger = false,
+}: {
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={cn(
+        "relative flex flex-col items-center justify-center gap-0.5 h-14 px-2.5 rounded-lg transition-colors",
+        "min-w-[64px]",
+        danger
+          ? "text-gray-500 hover:bg-red-50 hover:text-red-600"
+          : "text-gray-700 hover:bg-yellow-50 hover:text-black",
+      )}
+    >
+      {icon}
+      <span className="hidden md:inline text-[11px] leading-tight">{label}</span>
+    </button>
+  )
+}

@@ -1,6 +1,7 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import HeaderInfoTab from "./header-info-tab"
 import BannersTab from "./banners-tab"
 import MainBlocksTab from "./main-blocks-tab"
 import CardsTab from "./cards-tab"
@@ -13,8 +14,9 @@ const TRIGGER_CLS =
 
 export default function PagesManagementTabs() {
   return (
-    <Tabs defaultValue="banners" className="w-full">
-      <TabsList className="grid w-full grid-cols-6 rounded-lg bg-gray-100 p-1">
+    <Tabs defaultValue="header" className="w-full">
+      <TabsList className="grid w-full grid-cols-7 rounded-lg bg-gray-100 p-1">
+        <TabsTrigger value="header" className={TRIGGER_CLS}>Шапка</TabsTrigger>
         <TabsTrigger value="catalog-types" className={TRIGGER_CLS}>Типы каталогов</TabsTrigger>
         <TabsTrigger value="banners" className={TRIGGER_CLS}>Баннеры</TabsTrigger>
         <TabsTrigger value="main-blocks" className={TRIGGER_CLS}>Блоки на главной</TabsTrigger>
@@ -22,6 +24,10 @@ export default function PagesManagementTabs() {
         <TabsTrigger value="search-page" className={TRIGGER_CLS}>Страница поиска</TabsTrigger>
         <TabsTrigger value="footer-info" className={TRIGGER_CLS}>Инфо подвала</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="header" className="mt-6">
+        <HeaderInfoTab />
+      </TabsContent>
 
       <TabsContent value="catalog-types" className="mt-6">
         <CatalogVisibilityTab />

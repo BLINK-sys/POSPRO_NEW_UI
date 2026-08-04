@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Search, X, Loader2, ChevronUp, RotateCcw, Tag, Building2, ChevronRight } from "lucide-react"
+import { Search, X, Loader2, ChevronUp, RotateCcw, Tag, Building2, ChevronRight, Sparkles } from "lucide-react"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +33,19 @@ export default function DesktopSearchPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+
+  // AI-консультант — гейт тот же что был в шапке (endpoint возвращает
+  // has_access и для гостей). Кнопка живёт справа от кнопки поиска на
+  // этой странице, чтобы не занимать место в шапке.
+  const [aiAccess, setAiAccess] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/ai-consultant/access", { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setAiAccess(Boolean(d?.has_access)) })
+      .catch(() => { if (!cancelled) setAiAccess(false) })
+    return () => { cancelled = true }
+  }, [user?.id, user?.email])
 
   // Initial values from URL — preserved when user comes back from a product detail page.
   const initialQuery = searchParams.get("q") || ""
@@ -356,6 +369,19 @@ export default function DesktopSearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Sync с внешней навигацией: если юзер стоит на /search и вводит новый
+  // запрос в шапку — Next.js меняет URL, но компонент не размонтируется
+  // (query держится в useState). Слушаем ?q= из searchParams и подтягиваем
+  // в локальный state — live-search-эффект ниже сам поднимет поиск.
+  const externalQ = searchParams.get("q") || ""
+  useEffect(() => {
+    if (externalQ !== query) {
+      setQuery(externalQ)
+      clearAppliedSource()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalQ])
+
   // Live-search: debounce 300ms на изменение query. Также реагирует на смену
   // фильтров (selectedCategories/Brands/priceFrom/priceTo) — все они идут
   // на бэк, поэтому любая смена должна перезапросить page=1 с новыми условиями.
@@ -526,10 +552,221 @@ export default function DesktopSearchPage() {
 
   const showFilters = allResults.length > 0
 
+  // Всё содержимое панели фильтров — вынесено в переменную JSX, чтобы
+  // aside можно было отрисовать в новой позиции (наверху flex-макета,
+  // на одной высоте со sticky search-bar) без дублирования кода. Старая
+  // aside-обёртка ниже удалена, `<main>` с гридом карточек остался.
+  const filtersPanel = (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Фильтры</h3>
+        {hasActiveFilters && (
+          <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-black flex items-center gap-1 transition-colors">
+            <RotateCcw className="h-3 w-3" />
+            Сбросить
+          </button>
+        )}
+      </div>
+
+      {totalCount !== null && totalCount > 0 && (
+        <div className="bg-brand-yellow rounded-xl p-3 text-center">
+          <span className="text-sm font-semibold text-black">
+            Найдено {totalCount} {pluralize(totalCount)}
+          </span>
+        </div>
+      )}
+
+      {/* Categories */}
+      {availableCategories.length > 0 && (() => {
+        const LIMIT = 8
+        const lowerSearch = categorySearch.toLowerCase()
+        const filtered = categorySearch
+          ? availableCategories.filter((c) => c.name.toLowerCase().includes(lowerSearch))
+          : availableCategories
+        const visible = showAllCategories || categorySearch ? filtered : filtered.slice(0, LIMIT)
+        const hiddenCount = filtered.length - LIMIT
+
+        return (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Категория{selectedCategories.size > 0 && <span className="ml-1 text-brand-yellow">({selectedCategories.size})</span>}
+            </h4>
+            {availableCategories.length > LIMIT && (
+              <input
+                type="text"
+                placeholder="Поиск категории..."
+                value={categorySearch}
+                onChange={(e) => { setCategorySearch(e.target.value); setShowAllCategories(false) }}
+                className="w-full mb-2 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:border-brand-yellow focus:outline-none transition-colors"
+              />
+            )}
+            <div className="space-y-1">
+              {visible.map((cat) => (
+                <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
+                  <Checkbox
+                    checked={selectedCategories.has(cat.id)}
+                    onCheckedChange={() => toggleCategory(cat.id)}
+                    className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
+                    {cat.name}
+                    {cat.count !== undefined && (
+                      <span className="text-gray-400 ml-1">({cat.count})</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+              {filtered.length === 0 && categorySearch && (
+                <p className="text-xs text-gray-400 py-1">Не найдено</p>
+              )}
+            </div>
+            {!categorySearch && hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAllCategories(!showAllCategories)}
+                className="text-xs text-brand-yellow hover:text-yellow-600 mt-2 font-medium transition-colors"
+              >
+                {showAllCategories ? "Скрыть" : `Ещё ${hiddenCount}`}
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Brands */}
+      {availableBrands.length > 0 && (() => {
+        const LIMIT = 8
+        const lowerSearch = brandSearch.toLowerCase()
+        const filtered = brandSearch
+          ? availableBrands.filter((b) => b.name.toLowerCase().includes(lowerSearch))
+          : availableBrands
+        const visible = showAllBrands || brandSearch ? filtered : filtered.slice(0, LIMIT)
+        const hiddenCount = filtered.length - LIMIT
+
+        return (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Бренд{selectedBrands.size > 0 && <span className="ml-1 text-brand-yellow">({selectedBrands.size})</span>}
+            </h4>
+            {availableBrands.length > LIMIT && (
+              <input
+                type="text"
+                placeholder="Поиск бренда..."
+                value={brandSearch}
+                onChange={(e) => { setBrandSearch(e.target.value); setShowAllBrands(false) }}
+                className="w-full mb-2 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:border-brand-yellow focus:outline-none transition-colors"
+              />
+            )}
+            <div className="space-y-1">
+              {visible.map((brand) => (
+                <label key={brand.id} className="flex items-center gap-2 cursor-pointer group">
+                  <Checkbox
+                    checked={selectedBrands.has(brand.id)}
+                    onCheckedChange={() => toggleBrand(brand.id)}
+                    className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
+                    {brand.name}
+                    {brand.count !== undefined && (
+                      <span className="text-gray-400 ml-1">({brand.count})</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+              {filtered.length === 0 && brandSearch && (
+                <p className="text-xs text-gray-400 py-1">Не найдено</p>
+              )}
+            </div>
+            {!brandSearch && hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAllBrands(!showAllBrands)}
+                className="text-xs text-brand-yellow hover:text-yellow-600 mt-2 font-medium transition-colors"
+              >
+                {showAllBrands ? "Скрыть" : `Ещё ${hiddenCount}`}
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Price range */}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Цена</h4>
+        {(() => {
+          const hasRange = priceRange.max > 0
+          const clip = (v: number) => Math.max(priceRange.min, Math.min(priceRange.max, v))
+          const committedValue: [number, number] = hasRange ? [
+            clip(priceFrom ? Number(priceFrom) : priceRange.min),
+            clip(priceTo ? Number(priceTo) : priceRange.max),
+          ] : [0, 0]
+          const sliderValue = pricePreview ?? committedValue
+          const displayFrom = pricePreview ? String(pricePreview[0])
+            : (priceFrom || (hasRange ? String(priceRange.min) : ""))
+          const displayTo = pricePreview ? String(pricePreview[1])
+            : (priceTo || (hasRange ? String(priceRange.max) : ""))
+          return (
+            <>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number" placeholder="от" value={displayFrom}
+                  onChange={(e) => setPriceFrom(e.target.value)}
+                  className="h-9 text-sm rounded-lg"
+                />
+                <span className="text-gray-400 text-sm shrink-0">—</span>
+                <Input
+                  type="number" placeholder="до" value={displayTo}
+                  onChange={(e) => setPriceTo(e.target.value)}
+                  className="h-9 text-sm rounded-lg"
+                />
+              </div>
+              {hasRange && (
+                <div className="mt-3 px-0.5">
+                  <Slider
+                    min={priceRange.min}
+                    max={priceRange.max}
+                    step={Math.max(1, Math.floor((priceRange.max - priceRange.min) / 100))}
+                    value={sliderValue}
+                    onValueChange={([min, max]) => setPricePreview([min, max])}
+                    onValueCommit={([min, max]) => {
+                      setPriceFrom(min <= priceRange.min ? "" : String(min))
+                      setPriceTo(max >= priceRange.max ? "" : String(max))
+                      setPricePreview(null)
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          )
+        })()}
+      </div>
+    </div>
+  )
+
   return (
     <div className="container mx-auto px-4 md:px-6 py-6">
-      {/* Search bar — same style as header */}
-      <div className="max-w-3xl mx-auto mb-6">
+    {/*
+      2-колоночный layout: aside слева sticky top-44 (поднят из старой
+      позиции внутри showFilters-блока), справа — flex-1 колонка с
+      sticky search-bar и всеми блоками результатов. Aside и search
+      прилипают к одной высоте (top-44), карточки под ними скроллятся
+      единственной прокручиваемой частью.
+    */}
+    <div className="flex gap-6 items-start">
+      {showFilters && (
+        <aside className="w-72 flex-shrink-0 hidden md:block">
+          <div className="sticky top-44 bg-white rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.12)] p-4">
+            {filtersPanel}
+          </div>
+        </aside>
+      )}
+
+      <div className="flex-1 min-w-0">
+      {/* Search bar — обычный, без sticky/подложки. Сам поиск при скролле
+          уходит вверх; постоянный доступ к поиску даёт sticky-шапка сайта
+          (HeaderSearch). Sticky остаётся только у aside фильтров слева.
+          На empty state (нет поиска) ограничен max-w-6xl mx-auto — совпадает
+          по ширине с грид'ом категорий/брендов ниже. */}
+      <div className={cn("mb-4", !hasSearched && "max-w-6xl mx-auto")}>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -564,6 +801,16 @@ export default function DesktopSearchPage() {
           >
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
           </Button>
+          {aiAccess && (
+            <Button
+              onClick={() => router.push("/ai")}
+              className="h-10 px-4 rounded-full bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black font-medium shadow-md hover:shadow-lg transition-shadow duration-200 flex items-center gap-2 flex-shrink-0"
+              title="AI-подбор товаров"
+            >
+              <Sparkles className="h-5 w-5" />
+              <span className="hidden sm:inline">AI консультант</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -763,209 +1010,7 @@ export default function DesktopSearchPage() {
           Loading-state видно только тонким индикатором (spinner в кнопке
           поиска вверху + opacity на гриде). */}
       {showFilters && (
-        <div className="flex gap-6">
-          {/* Left sidebar — filters */}
-          <aside className="min-w-64 max-w-80 w-fit flex-shrink-0">
-            <div className="sticky top-28 bg-white rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.12)] p-4 max-h-[calc(100vh-8rem)] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
-              <div className="space-y-4">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Фильтры</h3>
-                {hasActiveFilters && (
-                  <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-black flex items-center gap-1 transition-colors">
-                    <RotateCcw className="h-3 w-3" />
-                    Сбросить
-                  </button>
-                )}
-              </div>
-
-              {/* Счётчик найденного — сразу после заголовка чтобы юзер
-                  не скроллил весь сайдбар до низа. Показываем total_count
-                  с бэка (по ВСЕМ совпадениям после фильтров, не только по
-                  загруженной странице). */}
-              {totalCount !== null && totalCount > 0 && (
-                <div className="bg-brand-yellow rounded-xl p-3 text-center">
-                  <span className="text-sm font-semibold text-black">
-                    Найдено {totalCount} {pluralize(totalCount)}
-                  </span>
-                </div>
-              )}
-
-              {/* Categories */}
-              {availableCategories.length > 0 && (() => {
-                const LIMIT = 8
-                const lowerSearch = categorySearch.toLowerCase()
-                const filtered = categorySearch
-                  ? availableCategories.filter((c) => c.name.toLowerCase().includes(lowerSearch))
-                  : availableCategories
-                const visible = showAllCategories || categorySearch ? filtered : filtered.slice(0, LIMIT)
-                const hiddenCount = filtered.length - LIMIT
-
-                return (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Категория{selectedCategories.size > 0 && <span className="ml-1 text-brand-yellow">({selectedCategories.size})</span>}
-                    </h4>
-                    {availableCategories.length > LIMIT && (
-                      <input
-                        type="text"
-                        placeholder="Поиск категории..."
-                        value={categorySearch}
-                        onChange={(e) => { setCategorySearch(e.target.value); setShowAllCategories(false) }}
-                        className="w-full mb-2 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:border-brand-yellow focus:outline-none transition-colors"
-                      />
-                    )}
-                    <div className="space-y-1">
-                      {visible.map((cat) => (
-                        <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
-                          <Checkbox
-                            checked={selectedCategories.has(cat.id)}
-                            onCheckedChange={() => toggleCategory(cat.id)}
-                            className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
-                          />
-                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
-                            {cat.name}
-                            {cat.count !== undefined && (
-                              <span className="text-gray-400 ml-1">({cat.count})</span>
-                            )}
-                          </span>
-                        </label>
-                      ))}
-                      {filtered.length === 0 && categorySearch && (
-                        <p className="text-xs text-gray-400 py-1">Не найдено</p>
-                      )}
-                    </div>
-                    {!categorySearch && hiddenCount > 0 && (
-                      <button
-                        onClick={() => setShowAllCategories(!showAllCategories)}
-                        className="text-xs text-brand-yellow hover:text-yellow-600 mt-2 font-medium transition-colors"
-                      >
-                        {showAllCategories ? "Скрыть" : `Ещё ${hiddenCount}`}
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {/* Brands */}
-              {availableBrands.length > 0 && (() => {
-                const LIMIT = 8
-                const lowerSearch = brandSearch.toLowerCase()
-                const filtered = brandSearch
-                  ? availableBrands.filter((b) => b.name.toLowerCase().includes(lowerSearch))
-                  : availableBrands
-                const visible = showAllBrands || brandSearch ? filtered : filtered.slice(0, LIMIT)
-                const hiddenCount = filtered.length - LIMIT
-
-                return (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Бренд{selectedBrands.size > 0 && <span className="ml-1 text-brand-yellow">({selectedBrands.size})</span>}
-                    </h4>
-                    {availableBrands.length > LIMIT && (
-                      <input
-                        type="text"
-                        placeholder="Поиск бренда..."
-                        value={brandSearch}
-                        onChange={(e) => { setBrandSearch(e.target.value); setShowAllBrands(false) }}
-                        className="w-full mb-2 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:border-brand-yellow focus:outline-none transition-colors"
-                      />
-                    )}
-                    <div className="space-y-1">
-                      {visible.map((brand) => (
-                        <label key={brand.id} className="flex items-center gap-2 cursor-pointer group">
-                          <Checkbox
-                            checked={selectedBrands.has(brand.id)}
-                            onCheckedChange={() => toggleBrand(brand.id)}
-                            className="h-4 w-4 flex-shrink-0 border-gray-300 data-[state=checked]:bg-brand-yellow data-[state=checked]:border-brand-yellow"
-                          />
-                          <span className="text-sm text-gray-700 group-hover:text-black transition-colors leading-tight flex-1">
-                            {brand.name}
-                            {brand.count !== undefined && (
-                              <span className="text-gray-400 ml-1">({brand.count})</span>
-                            )}
-                          </span>
-                        </label>
-                      ))}
-                      {filtered.length === 0 && brandSearch && (
-                        <p className="text-xs text-gray-400 py-1">Не найдено</p>
-                      )}
-                    </div>
-                    {!brandSearch && hiddenCount > 0 && (
-                      <button
-                        onClick={() => setShowAllBrands(!showAllBrands)}
-                        className="text-xs text-brand-yellow hover:text-yellow-600 mt-2 font-medium transition-colors"
-                      >
-                        {showAllBrands ? "Скрыть" : `Ещё ${hiddenCount}`}
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {/* Price range */}
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Цена</h4>
-                {(() => {
-                  const hasRange = priceRange.max > 0
-                  // Clip user-entered values to the current bounds so the
-                  // slider thumbs never sit outside the track when the bounds
-                  // shrink (e.g. picking a narrow-price brand).
-                  const clip = (v: number) => Math.max(priceRange.min, Math.min(priceRange.max, v))
-                  const committedValue: [number, number] = hasRange ? [
-                    clip(priceFrom ? Number(priceFrom) : priceRange.min),
-                    clip(priceTo ? Number(priceTo) : priceRange.max),
-                  ] : [0, 0]
-                  const sliderValue = pricePreview ?? committedValue
-                  // What the input fields show: priority is dragging preview,
-                  // then user-entered value, finally the available range.
-                  const displayFrom = pricePreview ? String(pricePreview[0])
-                    : (priceFrom || (hasRange ? String(priceRange.min) : ""))
-                  const displayTo = pricePreview ? String(pricePreview[1])
-                    : (priceTo || (hasRange ? String(priceRange.max) : ""))
-                  return (
-                    <>
-                      <div className="flex gap-2 items-center">
-                        <Input
-                          type="number" placeholder="от" value={displayFrom}
-                          onChange={(e) => setPriceFrom(e.target.value)}
-                          className="h-9 text-sm rounded-lg"
-                        />
-                        <span className="text-gray-400 text-sm shrink-0">—</span>
-                        <Input
-                          type="number" placeholder="до" value={displayTo}
-                          onChange={(e) => setPriceTo(e.target.value)}
-                          className="h-9 text-sm rounded-lg"
-                        />
-                      </div>
-                      {hasRange && (
-                        <div className="mt-3 px-0.5">
-                          <Slider
-                            min={priceRange.min}
-                            max={priceRange.max}
-                            step={Math.max(1, Math.floor((priceRange.max - priceRange.min) / 100))}
-                            value={sliderValue}
-                            onValueChange={([min, max]) => setPricePreview([min, max])}
-                            onValueCommit={([min, max]) => {
-                              setPriceFrom(min <= priceRange.min ? "" : String(min))
-                              setPriceTo(max >= priceRange.max ? "" : String(max))
-                              setPricePreview(null)
-                            }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-
-              </div>
-            </div>
-          </aside>
-
-          {/* Right — product grid. При refetch'е (loading=true но карточки
-              уже есть) затемняем грид — нет мерцания, видно что идёт обновление. */}
-          <main className={cn("flex-1 min-w-0 transition-opacity", loading && visibleResults.length > 0 && "opacity-60 pointer-events-none")}>
+        <main className={cn("min-w-0 transition-opacity", loading && visibleResults.length > 0 && "opacity-60 pointer-events-none")}>
             {/* No filtered results */}
             {filteredResults.length === 0 && hasActiveFilters && (
               <div className="text-center py-16">
@@ -1136,18 +1181,19 @@ export default function DesktopSearchPage() {
               </>
             )}
           </main>
-        </div>
       )}
+      </div>
+    </div>
 
-      {/* Scroll to top */}
-      {showScrollTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-8 right-8 z-40 w-12 h-12 bg-brand-yellow text-black rounded-full shadow-lg flex items-center justify-center hover:bg-yellow-500 transition-colors"
-        >
-          <ChevronUp className="h-6 w-6" />
-        </button>
-      )}
+    {/* Scroll to top */}
+    {showScrollTop && (
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="fixed bottom-8 right-8 z-40 w-12 h-12 bg-brand-yellow text-black rounded-full shadow-lg flex items-center justify-center hover:bg-yellow-500 transition-colors"
+      >
+        <ChevronUp className="h-6 w-6" />
+      </button>
+    )}
     </div>
   )
 }
