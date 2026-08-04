@@ -311,7 +311,7 @@ export default function Header() {
           рендерим span, а не Link — «мёртвый» текст. */}
       {stripData?.strip_enabled && stripData.strip_text && !topStripClosed && (
         <div className="bg-brand-yellow text-black">
-          <div className="container mx-auto px-4 md:px-6 flex items-center justify-center gap-3 py-2 text-sm relative">
+          <div className="container mx-auto px-4 md:px-6 flex items-center justify-center gap-3 py-1 text-xs relative">
             {stripData.strip_clickable && stripData.strip_url ? (
               <Link
                 href={stripData.strip_url}
@@ -327,10 +327,10 @@ export default function Header() {
             <button
               type="button"
               onClick={closeTopStrip}
-              className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/10 transition-colors"
+              className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-black/10 transition-colors"
               aria-label="Скрыть баннер"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -338,12 +338,12 @@ export default function Header() {
 
       {/* ── Полоса 2: город / служебные ссылки / телефон ───────────────── */}
       <div className="hidden md:block border-b border-gray-100 bg-gray-50/70">
-        <div className="container mx-auto px-4 md:px-6 flex items-center justify-between h-9 text-xs text-gray-600">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-gray-400" />
+        <div className="container mx-auto px-4 md:px-6 flex items-center justify-between h-7 text-[11px] text-gray-600">
+          <div className="flex items-center gap-1">
+            <MapPin className="h-3 w-3 text-gray-400" />
             <span>{infoBarCity}</span>
           </div>
-          <nav className="flex items-center gap-5">
+          <nav className="flex items-center gap-4">
             {infoBarLinks.map(l => (
               <Link key={l.label} href={l.href} className="hover:text-black transition-colors">
                 {l.label}
@@ -352,8 +352,8 @@ export default function Header() {
           </nav>
           {infoBarPhone && (
             <a href={`tel:${infoBarPhone.replace(/[^\d+]/g, "")}`}
-               className="inline-flex items-center gap-1.5 font-medium text-black hover:text-yellow-700 transition-colors">
-              <Phone className="h-3.5 w-3.5" />
+               className="inline-flex items-center gap-1 font-medium text-black hover:text-yellow-700 transition-colors">
+              <Phone className="h-3 w-3" />
               {infoBarPhone}
             </a>
           )}
@@ -715,14 +715,14 @@ export default function Header() {
       </Sheet>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center h-16">
+        <div className="flex items-center h-12">
           <Link href="/" className="flex items-center flex-shrink-0" prefetch={false}>
             <Image
               src="/ui/big_logo.png"
               alt="PosPro Logo"
               width={120}
               height={40}
-              className="h-10 w-auto"
+              className="h-8 w-auto"
               onError={(e) => {
                 console.error("Error loading logo:", e)
                 const target = e.target as HTMLImageElement
@@ -742,16 +742,16 @@ export default function Header() {
           {catalogVisibility?.main && <div className="hidden lg:flex ml-2 shrink-0">
             <Button
               className={cn(
-                "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 h-10 px-4 flex items-center gap-2",
+                "bg-brand-yellow text-black hover:bg-yellow-500 focus:bg-yellow-500 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200 h-8 px-3 text-xs flex items-center gap-1.5",
                 menuOpen && "bg-yellow-500"
               )}
               onClick={toggleMenu}
               title="Каталог товаров"
             >
               {categoriesLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Menu className="h-5 w-5" />
+                <Menu className="h-4 w-4" />
               )}
               <span className="hidden lg:inline">Каталог</span>
             </Button>
@@ -1066,19 +1066,19 @@ export default function Header() {
                     вместо dropdown'а профиля, чтобы админ/клиент видел все
                     свои разделы одним взглядом. На md+ подпись видна, на sm
                     скрыта (только иконка + hover-title). */}
-                <HeaderIconLink href="/profile" icon={<User className="h-5 w-5" />} label="Профиль" />
+                <HeaderIconLink href="/profile" icon={<User className="h-4 w-4" />} label="Профиль" />
 
                 {user.role === "client" && (
                   <>
-                    <HeaderIconLink href="/profile/orders" icon={<FileText className="h-5 w-5" />} label="Заказы" />
-                    <HeaderIconLink href="/profile/history" icon={<List className="h-5 w-5" />} label="История" />
+                    <HeaderIconLink href="/profile/orders" icon={<FileText className="h-4 w-4" />} label="Заказы" />
+                    <HeaderIconLink href="/profile/history" icon={<List className="h-4 w-4" />} label="История" />
                     <HeaderIconLink
                       href="/profile/cart"
-                      icon={<ShoppingCart className="h-5 w-5" />}
+                      icon={<ShoppingCart className="h-4 w-4" />}
                       label="Корзина"
                       badge={cartCount > 0 ? (cartCount > 99 ? "99+" : String(cartCount)) : undefined}
                     />
-                    <HeaderIconLink href="/profile/favorites" icon={<Star className="h-5 w-5" />} label="Избранное" />
+                    <HeaderIconLink href="/profile/favorites" icon={<Star className="h-4 w-4" />} label="Избранное" />
                   </>
                 )}
 
@@ -1086,14 +1086,14 @@ export default function Header() {
                   <>
                     <HeaderIconLink
                       href="/kp"
-                      icon={<FileText className="h-5 w-5" />}
+                      icon={<FileText className="h-4 w-4" />}
                       label="Собрать КП"
                       badge={kpCount > 0 ? (kpCount > 999 ? "999+" : String(kpCount)) : undefined}
                     />
                     {user.role === "admin" && (
                       <HeaderIconLink
                         href="/admin"
-                        icon={<Settings className="h-5 w-5" />}
+                        icon={<Settings className="h-4 w-4" />}
                         label="Админ"
                       />
                     )}
@@ -1102,7 +1102,7 @@ export default function Header() {
 
                 <HeaderIconButton
                   onClick={logout}
-                  icon={<LogOut className="h-5 w-5" />}
+                  icon={<LogOut className="h-4 w-4" />}
                   label="Выйти"
                   danger
                 />
@@ -1112,13 +1112,13 @@ export default function Header() {
                 <>
                   <HeaderIconLink
                     href="/profile/cart"
-                    icon={<ShoppingCart className="h-5 w-5" />}
+                    icon={<ShoppingCart className="h-4 w-4" />}
                     label="Корзина"
                     badge={cartCount > 0 ? (cartCount > 99 ? "99+" : String(cartCount)) : undefined}
                   />
                   <HeaderIconLink
                     href="/auth"
-                    icon={<User className="h-5 w-5" />}
+                    icon={<User className="h-4 w-4" />}
                     label="Войти"
                   />
                 </>
@@ -1132,12 +1132,12 @@ export default function Header() {
       {/* ── Полоса 4: быстрый ряд топ-категорий ──────────────────────── */}
       {topCategories.length > 0 && (
         <div className="hidden md:block border-t border-gray-100 bg-white">
-          <div className="container mx-auto px-4 md:px-6 flex items-center gap-1 h-10 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          <div className="container mx-auto px-4 md:px-6 flex items-center gap-1 h-7 overflow-x-auto [&::-webkit-scrollbar]:hidden">
             {topCategories.map(cat => (
               <Link
                 key={cat.id}
                 href={`/category/${cat.slug}`}
-                className="whitespace-nowrap px-2.5 py-1 text-xs text-gray-700 hover:text-black hover:bg-yellow-50 rounded-full transition-colors"
+                className="whitespace-nowrap px-2 py-0.5 text-[11px] text-gray-700 hover:text-black hover:bg-yellow-50 rounded-full transition-colors"
               >
                 {cat.name}
               </Link>
@@ -1197,8 +1197,8 @@ function HeaderIconLink({
       href={href}
       title={label}
       className={cn(
-        "relative flex flex-col items-center justify-center gap-0.5 h-14 px-2.5 rounded-lg transition-colors",
-        "min-w-[64px]",
+        "relative flex flex-col items-center justify-center gap-0.5 h-11 px-2 rounded-lg transition-colors",
+        "min-w-[56px]",
         accent
           ? "bg-brand-yellow text-black hover:bg-yellow-500"
           : "text-gray-700 hover:bg-yellow-50 hover:text-black",
@@ -1212,7 +1212,7 @@ function HeaderIconLink({
           </span>
         )}
       </span>
-      <span className="hidden md:inline text-[11px] leading-tight">{label}</span>
+      <span className="hidden md:inline text-[10px] leading-tight">{label}</span>
     </Link>
   )
 }
@@ -1232,15 +1232,15 @@ function HeaderIconButton({
       onClick={onClick}
       title={label}
       className={cn(
-        "relative flex flex-col items-center justify-center gap-0.5 h-14 px-2.5 rounded-lg transition-colors",
-        "min-w-[64px]",
+        "relative flex flex-col items-center justify-center gap-0.5 h-11 px-2 rounded-lg transition-colors",
+        "min-w-[56px]",
         danger
           ? "text-gray-500 hover:bg-red-50 hover:text-red-600"
           : "text-gray-700 hover:bg-yellow-50 hover:text-black",
       )}
     >
       {icon}
-      <span className="hidden md:inline text-[11px] leading-tight">{label}</span>
+      <span className="hidden md:inline text-[10px] leading-tight">{label}</span>
     </button>
   )
 }

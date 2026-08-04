@@ -132,7 +132,7 @@ export default function HeaderSearch() {
       {/* Ширина ~45ch эмпирически — плейсхолдер «Холодильная витрина,
           Моноблок, Кофе машина...» помещается без обрезки, но полоса не
           распирает шапку на всё свободное пространство. */}
-      <div className="flex items-center h-10 rounded-full border border-gray-200 bg-white transition-shadow shadow-sm hover:shadow">
+      <div className="flex items-center h-8 rounded-full border border-gray-200 bg-white transition-shadow shadow-sm hover:shadow">
         <Search className="h-4 w-4 text-gray-400 ml-3 shrink-0" />
         <input
           type="text"
@@ -158,7 +158,7 @@ export default function HeaderSearch() {
           <button
             type="button"
             onClick={() => { setQuery(""); setResults([]); setActiveIndex(-1) }}
-            className="h-8 w-8 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-50 inline-flex items-center justify-center shrink-0"
+            className="h-6 w-6 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-50 inline-flex items-center justify-center shrink-0"
             aria-label="Очистить"
           >
             <X className="h-4 w-4" />
@@ -167,7 +167,7 @@ export default function HeaderSearch() {
         <button
           type="button"
           onClick={submitSearch}
-          className="h-8 px-4 mr-1 rounded-full bg-brand-yellow hover:bg-yellow-500 text-black text-sm font-medium inline-flex items-center gap-1 shrink-0"
+          className="h-8 px-3 -my-px -mr-px rounded-full bg-brand-yellow hover:bg-yellow-500 text-black text-xs font-medium inline-flex items-center gap-1 shrink-0"
           title="Найти"
         >
           <Search className="h-4 w-4" />
