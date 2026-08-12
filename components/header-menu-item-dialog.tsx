@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { ChevronRight, ChevronDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -16,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Loader2, Search, Package, Sparkles, Tag, Info } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { ElementsSelectionDialog } from "@/components/elements-selection-dialog"
+import CompactProductPicker from "@/components/compact-product-picker"
 import SelectedElementsDisplay from "@/components/selected-elements-display"
 import { HOMEPAGE_BLOCK_TYPES } from "@/lib/constants"
 import { getCategories, type Category } from "@/app/actions/categories"
@@ -39,7 +41,8 @@ const SOFT_INPUT =
 const PRIMARY_BTN =
   "rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)]"
 
-// Flatten дерева категорий: [{id, label='Родитель / Ребёнок', name}]
+// Плоский поиск по имени с сохранением пути «Родитель / Ребёнок»
+// (используется только для режима поиска — вне поиска показываем дерево).
 function flattenTree(nodes: Category[], parentPath: string = ""): Array<{ id: number; label: string; name: string }> {
   const out: Array<{ id: number; label: string; name: string }> = []
   for (const n of nodes) {
@@ -52,6 +55,83 @@ function flattenTree(nodes: Category[], parentPath: string = ""): Array<{ id: nu
   return out
 }
 
+// Собирает id всех предков для заданного leaf-id (нужно, чтобы при
+// открытии диалога для существующей категории раскрыть путь к ней).
+function findAncestors(nodes: Category[], targetId: number, acc: number[] = []): number[] | null {
+  for (const n of nodes) {
+    if (n.id === targetId) return acc
+    if (n.children && n.children.length) {
+      const r = findAncestors(n.children, targetId, [...acc, n.id])
+      if (r) return r
+    }
+  }
+  return null
+}
+
+// Рекурсивный рендер узла дерева с раскрытием.
+function TreeNode({
+  node, level, expanded, onToggle, selectedId, onSelect,
+}: {
+  node: Category
+  level: number
+  expanded: Set<number>
+  onToggle: (id: number) => void
+  selectedId: number | null
+  onSelect: (id: number) => void
+}) {
+  const hasChildren = !!(node.children && node.children.length)
+  const isOpen = expanded.has(node.id)
+  const isSelected = selectedId === node.id
+  return (
+    <li>
+      <div
+        onClick={() => onSelect(node.id)}
+        className={cn(
+          "flex items-center gap-1 py-1 pr-2 rounded cursor-pointer text-sm transition-colors",
+          isSelected ? "bg-brand-yellow text-black font-medium" : "hover:bg-gray-50 text-gray-800",
+        )}
+        style={{ paddingLeft: `${level * 14 + 4}px` }}
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggle(node.id) }}
+            className="shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-black/10"
+            title={isOpen ? "Свернуть" : "Развернуть"}
+          >
+            {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          </button>
+        ) : (
+          <span className="w-4 h-4 shrink-0" />
+        )}
+        <input
+          type="radio"
+          checked={isSelected}
+          onChange={() => onSelect(node.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0"
+        />
+        <span className="truncate">{node.name}</span>
+      </div>
+      {hasChildren && isOpen && (
+        <ul>
+          {node.children!.map((c) => (
+            <TreeNode
+              key={c.id}
+              node={c}
+              level={level + 1}
+              expanded={expanded}
+              onToggle={onToggle}
+              selectedId={selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 export default function HeaderMenuItemDialog({ open, onOpenChange, item, onSaved }: Props) {
   const { toast } = useToast()
   const isEdit = !!item
@@ -62,9 +142,11 @@ export default function HeaderMenuItemDialog({ open, onOpenChange, item, onSaved
   const [productIds, setProductIds] = useState<number[]>([])
 
   const [saving, setSaving] = useState(false)
-  const [categories, setCategories] = useState<Array<{ id: number; label: string; name: string }>>([])
+  // Храним сырое дерево категорий + отдельно flat-список для быстрого поиска
+  const [catTree, setCatTree] = useState<Category[]>([])
   const [catSearch, setCatSearch] = useState("")
   const [loadingCats, setLoadingCats] = useState(false)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const [productsDialogOpen, setProductsDialogOpen] = useState(false)
 
@@ -80,18 +162,35 @@ export default function HeaderMenuItemDialog({ open, onOpenChange, item, onSaved
 
   // Категории тянем только когда они нужны и ещё не загружены
   useEffect(() => {
-    if (!open || kind !== "category" || categories.length > 0) return
+    if (!open || kind !== "category" || catTree.length > 0) return
     setLoadingCats(true)
     getCategories()
-      .then((tree) => setCategories(flattenTree(tree)))
+      .then((tree) => setCatTree(tree))
       .finally(() => setLoadingCats(false))
-  }, [open, kind, categories.length])
+  }, [open, kind, catTree.length])
 
-  const filteredCategories = useMemo(() => {
-    if (!catSearch.trim()) return categories
-    const q = catSearch.toLowerCase()
-    return categories.filter((c) => c.label.toLowerCase().includes(q))
-  }, [categories, catSearch])
+  // Раскрываем путь до текущей выбранной категории при её изменении/загрузке
+  // дерева — чтобы юзер видел где она лежит без ручного клика по стрелкам.
+  useEffect(() => {
+    if (kind !== "category" || categoryId == null || catTree.length === 0) return
+    const anc = findAncestors(catTree, categoryId)
+    if (anc && anc.length) setExpanded((prev) => new Set([...Array.from(prev), ...anc]))
+  }, [kind, categoryId, catTree])
+
+  const toggleExpanded = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const flatCats = useMemo(() => flattenTree(catTree), [catTree])
+  const searchResults = useMemo(() => {
+    const q = catSearch.trim().toLowerCase()
+    if (!q) return null
+    return flatCats.filter((c) => c.label.toLowerCase().includes(q))
+  }, [flatCats, catSearch])
 
   const canSave = kind === "category"
     ? categoryId !== null
@@ -317,27 +416,49 @@ export default function HeaderMenuItemDialog({ open, onOpenChange, item, onSaved
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         Загрузка категорий…
                       </div>
-                    ) : filteredCategories.length === 0 ? (
+                    ) : searchResults ? (
+                      // Режим поиска — плоский список путей
+                      searchResults.length === 0 ? (
+                        <div className="py-12 text-center text-sm text-gray-400">
+                          Ничего не найдено
+                        </div>
+                      ) : (
+                        <div className="p-1.5">
+                          {searchResults.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setCategoryId(c.id)}
+                              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                                categoryId === c.id
+                                  ? "bg-brand-yellow text-black font-medium"
+                                  : "hover:bg-gray-50"
+                              }`}
+                            >
+                              {c.label}
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    ) : catTree.length === 0 ? (
                       <div className="py-12 text-center text-sm text-gray-400">
-                        Ничего не найдено
+                        Категорий пока нет
                       </div>
                     ) : (
-                      <div className="p-1.5">
-                        {filteredCategories.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => setCategoryId(c.id)}
-                            className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                              categoryId === c.id
-                                ? "bg-brand-yellow text-black font-medium"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            {c.label}
-                          </button>
+                      // Обычный режим — древо с раскрытием, radio-выбор одной
+                      <ul className="p-1">
+                        {catTree.map((node) => (
+                          <TreeNode
+                            key={node.id}
+                            node={node}
+                            level={0}
+                            expanded={expanded}
+                            onToggle={toggleExpanded}
+                            selectedId={categoryId}
+                            onSelect={setCategoryId}
+                          />
                         ))}
-                      </div>
+                      </ul>
                     )}
                   </ScrollArea>
                 </>
@@ -355,13 +476,13 @@ export default function HeaderMenuItemDialog({ open, onOpenChange, item, onSaved
         </DialogContent>
       </Dialog>
 
-      {/* Диалог выбора товаров — reuse от homepage-block */}
-      <ElementsSelectionDialog
+      {/* Компактный пикер товаров (свой, не homepage-block, чтобы карточки
+          были плотнее и не тянули за собой лишний UX). */}
+      <CompactProductPicker
         open={productsDialogOpen}
         onOpenChange={setProductsDialogOpen}
-        blockType={HOMEPAGE_BLOCK_TYPES.PRODUCTS}
-        selectedItems={productIds}
-        onItemsChange={setProductIds}
+        selectedIds={productIds}
+        onChange={setProductIds}
       />
     </>
   )

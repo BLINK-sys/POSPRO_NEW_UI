@@ -1,23 +1,25 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import HeaderInfoTab from "./header-info-tab"
+import HeaderGroupTabs from "./header-group-tabs"
 import BannersTab from "./banners-tab"
 import MainBlocksTab from "./main-blocks-tab"
 import CardsTab from "./cards-tab"
 import FooterInfoTab from "./footer-info-tab"
-import CatalogVisibilityTab from "./catalog-visibility-tab"
 import SearchPageTab from "./search-page-tab"
 
 const TRIGGER_CLS =
   "rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
 
+// Верхнеуровневые вкладки страниц сайта. «Шапка» — родительский; внутри
+// открывается вложенная панель с настройками, относящимися к шапке
+// (уведомление, разделы категорий, оплата и доставка, о компании, помощь,
+// типы каталогов). Остальные вкладки — независимые разделы контента.
 export default function PagesManagementTabs() {
   return (
     <Tabs defaultValue="header" className="w-full">
-      <TabsList className="grid w-full grid-cols-7 rounded-lg bg-gray-100 p-1">
+      <TabsList className="grid w-full grid-cols-6 rounded-lg bg-gray-100 p-1">
         <TabsTrigger value="header" className={TRIGGER_CLS}>Шапка</TabsTrigger>
-        <TabsTrigger value="catalog-types" className={TRIGGER_CLS}>Типы каталогов</TabsTrigger>
         <TabsTrigger value="banners" className={TRIGGER_CLS}>Баннеры</TabsTrigger>
         <TabsTrigger value="main-blocks" className={TRIGGER_CLS}>Блоки на главной</TabsTrigger>
         <TabsTrigger value="cards" className={TRIGGER_CLS}>Карточки</TabsTrigger>
@@ -26,11 +28,7 @@ export default function PagesManagementTabs() {
       </TabsList>
 
       <TabsContent value="header" className="mt-6">
-        <HeaderInfoTab />
-      </TabsContent>
-
-      <TabsContent value="catalog-types" className="mt-6">
-        <CatalogVisibilityTab />
+        <HeaderGroupTabs />
       </TabsContent>
 
       <TabsContent value="banners" className="mt-6">

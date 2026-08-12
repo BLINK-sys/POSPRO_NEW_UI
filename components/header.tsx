@@ -270,8 +270,8 @@ export default function Header() {
   }
 
   const infoBarLinks: { label: string; href: string }[] = [
-    { label: "Оплата и доставка", href: "/help" },
-    { label: "О компании", href: "/help" },
+    { label: "Оплата и доставка", href: "/pay-delivery" },
+    { label: "О компании", href: "/about" },
     { label: "Помощь", href: "/help" },
   ]
   const infoBarCity = "Астана"

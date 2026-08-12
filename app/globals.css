@@ -98,3 +98,53 @@
     display: none; /* WebKit */
   }
 }
+
+/* Callout-блоки для статических страниц (Оплата и доставка, О компании, Помощь).
+   TipTap-редактор в /admin/pages вставляет <blockquote class="callout callout-*">.
+   Работают в prose и вне его (админ-превью + публичная страница). */
+.prose .callout,
+.callout {
+  border-left-width: 4px;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-style: normal;
+}
+.prose .callout > p:first-child,
+.callout > p:first-child { margin-top: 0; }
+.prose .callout > p:last-child,
+.callout > p:last-child { margin-bottom: 0; }
+
+.callout-info    { background: #eff6ff; border-color: #2563eb; color: #1e3a8a; }
+.callout-warning { background: #fffbeb; border-color: #d97706; color: #78350f; }
+.callout-success { background: #f0fdf4; border-color: #16a34a; color: #14532d; }
+
+/* Стили таблиц TipTap видны и в prose, и на public странице */
+.prose table, .public-page table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.prose th, .public-page th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; font-weight: 600; }
+.prose td, .public-page td { padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; vertical-align: top; }
+
+/* YouTube-iframe от TipTap */
+.prose iframe[src*="youtube"],
+.public-page iframe[src*="youtube"] {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  margin: 1rem auto;
+  display: block;
+  border-radius: 0.5rem;
+}
+
+/* Картинки со свободным позиционированием: атрибут data-align="left|right|center|none"
+   выставляет ResizableImage node в редакторе. На публичной странице
+   применяем те же правила, чтобы контент выглядел идентично. Ширина
+   уходит через inline style="width: N px". */
+.prose img[data-align="left"],  .public-page img[data-align="left"]  { float: left;  margin: 0.25rem 1rem 0.5rem 0; clear: none; }
+.prose img[data-align="right"], .public-page img[data-align="right"] { float: right; margin: 0.25rem 0 0.5rem 1rem; clear: none; }
+.prose img[data-align="center"],.public-page img[data-align="center"]{ display: block; margin: 1rem auto; clear: both; }
+.prose img[data-align="none"],  .public-page img[data-align="none"]  { display: block; margin: 1rem 0; clear: both; }
+
+/* Прижимаем контент вокруг float-картинок так, чтобы соседние блоки
+   умели «сбрасывать» обтекание. Разделитель <hr> всегда прерывает поток. */
+.prose hr, .public-page hr { clear: both; }
