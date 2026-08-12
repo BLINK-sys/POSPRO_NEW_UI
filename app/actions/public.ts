@@ -170,6 +170,16 @@ export interface HeaderMenuItemPublic {
   name: string
   slug: string | null
   category_id?: number
+  // Индивидуальная стилизация кнопки (задаётся в /admin/pages → Шапка →
+  // Основное → редактор пункта). Все опциональны; если не заданы —
+  // рендерится дефолтный стиль ссылки.
+  border_enabled?: boolean
+  border_color?: string | null
+  bg_color?: string | null
+  text_color?: string | null
+  // Вложенное меню — если у пункта есть children, клик разворачивает dropdown
+  has_children_mode?: boolean
+  children?: HeaderMenuItemPublic[]
 }
 
 export interface HeaderData {

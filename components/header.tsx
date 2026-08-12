@@ -19,7 +19,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, ChevronDown as ChevronDownIcon, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone } from "lucide-react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
@@ -28,6 +29,20 @@ import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { measureMaxTextWidth } from "@/lib/measure-text"
+
+// Пункт нижней полосы шапки. Дерево — children рекурсивно.
+interface MenuNode {
+  id: number
+  kind: string
+  name: string
+  slug: string | null
+  border_enabled?: boolean
+  border_color?: string | null
+  bg_color?: string | null
+  text_color?: string | null
+  has_children_mode?: boolean
+  children?: MenuNode[]
+}
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, usePathname } from "next/navigation"
@@ -239,9 +254,7 @@ export default function Header() {
     strip_enabled: boolean; strip_text: string; strip_clickable: boolean;
     strip_url: string; strip_open_new_tab: boolean;
   } | null>(null)
-  const [menuItems, setMenuItems] = useState<Array<{
-    id: number; kind: string; name: string; slug: string | null;
-  }>>([])
+  const [menuItems, setMenuItems] = useState<MenuNode[]>([])
   const [infoBarPhone, setInfoBarPhone] = useState<string>("")
 
   useEffect(() => {
@@ -1134,13 +1147,7 @@ export default function Header() {
         <div className="hidden md:block border-t border-gray-100 bg-white">
           <div className="container mx-auto px-4 md:px-6 flex items-center gap-1 h-7 overflow-x-auto [&::-webkit-scrollbar]:hidden">
             {topCategories.map(cat => (
-              <Link
-                key={cat.id}
-                href={`/category/${cat.slug}`}
-                className="whitespace-nowrap px-2 py-0.5 text-[11px] text-gray-700 hover:text-black hover:bg-yellow-50 rounded-full transition-colors"
-              >
-                {cat.name}
-              </Link>
+              <HeaderMenuNode key={cat.id} node={cat} />
             ))}
           </div>
         </div>
@@ -1242,5 +1249,162 @@ function HeaderIconButton({
       {icon}
       <span className="hidden md:inline text-[10px] leading-tight">{label}</span>
     </button>
+  )
+}
+
+// ── Пункт нижней полосы шапки: ссылка ИЛИ dropdown с вложенными ──────
+// Для has_children_mode отображается кнопка с ▾, клик разворачивает
+// dropdown с nested-детьми. Рекурсивно (внуки тоже могут быть nested).
+// Клик вне зоны или Escape — закрывает. Стили (bg/text/border) применяются
+// inline из настроек пункта — как для обычных ссылок так и для кнопки-триггера.
+
+function nodeButtonStyle(node: MenuNode): React.CSSProperties {
+  return {
+    backgroundColor: node.bg_color || undefined,
+    color: node.text_color || undefined,
+    border: node.border_enabled ? `1px solid ${node.border_color || "#facc15"}` : undefined,
+  }
+}
+function nodeButtonCls(node: MenuNode): string {
+  const custom = node.bg_color || node.text_color || node.border_enabled
+  return cn(
+    "whitespace-nowrap px-2 py-0.5 text-[11px] rounded-full transition-colors inline-flex items-center gap-0.5",
+    custom
+      ? "hover:opacity-80"
+      : "text-gray-700 hover:text-black hover:bg-yellow-50",
+  )
+}
+
+function HeaderMenuNode({ node }: { node: MenuNode }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null)
+  const btnRef = React.useRef<HTMLButtonElement>(null)
+  const dropRef = React.useRef<HTMLDivElement>(null)
+  const isDropdown = !!(node.has_children_mode && node.children && node.children.length > 0)
+
+  // Пересчёт позиции dropdown при open + окне resize/scroll — иначе
+  // фикс-меню не следует за кнопкой (кнопка sticky в шапке).
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return
+    const upd = () => {
+      const r = btnRef.current!.getBoundingClientRect()
+      setCoords({ left: r.left, top: r.bottom + 4 })
+    }
+    upd()
+    window.addEventListener("scroll", upd, true)
+    window.addEventListener("resize", upd)
+    return () => {
+      window.removeEventListener("scroll", upd, true)
+      window.removeEventListener("resize", upd)
+    }
+  }, [open])
+
+  // Клик вне (проверяем И кнопку И сам dropdown — он в портале, вне
+  // родителя) + Escape закрывают меню
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (btnRef.current?.contains(t)) return
+      if (dropRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    const kh = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", h)
+    document.addEventListener("keydown", kh)
+    return () => {
+      document.removeEventListener("mousedown", h)
+      document.removeEventListener("keydown", kh)
+    }
+  }, [open])
+
+  // Обычный пункт (без children) — просто ссылка
+  if (!isDropdown) {
+    if (!node.slug) return null
+    return (
+      <Link
+        href={`/category/${node.slug}`}
+        style={nodeButtonStyle(node)}
+        className={nodeButtonCls(node)}
+      >
+        {node.name}
+      </Link>
+    )
+  }
+
+  // Пункт-dropdown. Меню рендерим через Portal в body, чтобы не клипало
+  // overflow-x-auto у родительской полосы. По умолчанию стрелка вниз (▼),
+  // при open — переворачивается вверх (▲).
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={nodeButtonStyle(node)}
+        className={nodeButtonCls(node)}
+      >
+        {node.name}
+        <ChevronDownIcon className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && coords && typeof document !== "undefined" && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: "fixed", left: coords.left, top: coords.top, zIndex: 100 }}
+          className="min-w-[200px] bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+        >
+          {node.children!.map((c) => (
+            <NestedItem key={c.id} node={c} onNavigate={() => setOpen(false)} />
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+function NestedItem({ node, onNavigate }: { node: MenuNode; onNavigate: () => void }) {
+  const [open, setOpen] = useState(false)
+  const isDropdown = !!(node.has_children_mode && node.children && node.children.length > 0)
+
+  if (!isDropdown) {
+    if (!node.slug) return null
+    return (
+      <Link
+        href={`/category/${node.slug}`}
+        onClick={onNavigate}
+        style={nodeButtonStyle(node)}
+        className={cn(
+          "block px-3 py-1.5 text-xs transition-colors",
+          !node.bg_color && !node.text_color && "text-gray-700 hover:text-black hover:bg-yellow-50",
+        )}
+      >
+        {node.name}
+      </Link>
+    )
+  }
+  return (
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={nodeButtonStyle(node)}
+        className={cn(
+          "w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors",
+          !node.bg_color && !node.text_color && "text-gray-700 hover:text-black hover:bg-yellow-50",
+        )}
+      >
+        <span>{node.name}</span>
+        <ChevronRight className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute left-full top-0 ml-0.5 min-w-[200px] bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[81]">
+          {node.children!.map((c) => (
+            <NestedItem key={c.id} node={c} onNavigate={onNavigate} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

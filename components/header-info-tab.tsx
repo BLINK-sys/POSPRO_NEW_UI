@@ -27,6 +27,10 @@ import {
   Sparkles,
   Loader2,
   ExternalLink,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  ChevronDown as ChevronDownSmall,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import AdminLoading from "@/components/admin-loading"
@@ -75,7 +79,7 @@ const DEFAULT_STRIP: HeaderStripSettings = {
   strip_open_new_tab: false,
 }
 
-// ── Сортируемый элемент списка ────────────────────────────────────────
+// ── Сортируемый элемент списка (top-level, с DnD) ─────────────────────
 
 interface SortableRowProps {
   item: HeaderMenuItem
@@ -83,9 +87,15 @@ interface SortableRowProps {
   onDelete: () => void
   onToggleActive: (id: number, value: boolean) => void
   togglePending: boolean
+  onAddChild?: () => void
+  isExpanded?: boolean
+  onToggleExpanded?: () => void
 }
 
-function SortableRow({ item, onEdit, onDelete, onToggleActive, togglePending }: SortableRowProps) {
+function SortableRow({
+  item, onEdit, onDelete, onToggleActive, togglePending,
+  onAddChild, isExpanded, onToggleExpanded,
+}: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
 
@@ -95,21 +105,86 @@ function SortableRow({ item, onEdit, onDelete, onToggleActive, togglePending }: 
     opacity: isDragging ? 0.4 : 1,
   }
 
+  const hasChildrenMode = item.kind === "custom" && item.has_children_mode
+  const childrenCount = item.children?.length ?? 0
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg"
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing"
-        aria-label="Перетащить"
-        type="button"
-      >
-        <GripVertical className="h-5 w-5" />
-      </button>
+    <div ref={setNodeRef} style={style}>
+      <RowInner
+        item={item}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onToggleActive={onToggleActive}
+        togglePending={togglePending}
+        onAddChild={onAddChild}
+        isExpanded={isExpanded}
+        onToggleExpanded={hasChildrenMode ? onToggleExpanded : undefined}
+        childrenCount={childrenCount}
+        canMove={undefined}
+      />
+    </div>
+  )
+}
+
+/**
+ * Внутреннее содержимое строки — общий рендер для top-level (обёрнут в
+ * useSortable) и nested-children (без DnD, только стрелки up/down).
+ */
+function RowInner({
+  item, dragHandleProps, onEdit, onDelete, onToggleActive, togglePending,
+  onAddChild, isExpanded, onToggleExpanded, childrenCount, canMove,
+}: {
+  item: HeaderMenuItem
+  dragHandleProps?: any
+  onEdit: () => void
+  onDelete: () => void
+  onToggleActive: (id: number, value: boolean) => void
+  togglePending: boolean
+  onAddChild?: () => void
+  isExpanded?: boolean
+  onToggleExpanded?: () => void
+  childrenCount: number
+  canMove?: { up: boolean; down: boolean; onUp: () => void; onDown: () => void }
+}) {
+  const hasChildrenMode = item.kind === "custom" && item.has_children_mode
+  return (
+    <div className="flex items-center gap-2 p-3 bg-white border border-gray-200 rounded-lg">
+      {dragHandleProps ? (
+        <button
+          {...dragHandleProps}
+          className="text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing shrink-0"
+          aria-label="Перетащить"
+          type="button"
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
+      ) : canMove ? (
+        <div className="flex flex-col shrink-0">
+          <button type="button" onClick={canMove.onUp} disabled={!canMove.up}
+            className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+            <ChevronUp className="h-3 w-3" />
+          </button>
+          <button type="button" onClick={canMove.onDown} disabled={!canMove.down}
+            className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
+            <ChevronDownSmall className="h-3 w-3" />
+          </button>
+        </div>
+      ) : null}
+
+      {onToggleExpanded ? (
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600"
+          title={isExpanded ? "Свернуть" : "Развернуть"}
+        >
+          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+      ) : (
+        <span className="w-5 shrink-0" />
+      )}
+
       <div className="flex-1 min-w-0 flex items-center gap-2">
         {item.kind === "custom" ? (
           <Sparkles className="h-4 w-4 text-brand-yellow shrink-0" />
@@ -122,7 +197,12 @@ function SortableRow({ item, onEdit, onDelete, onToggleActive, togglePending }: 
         <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0">
           {item.kind === "custom" ? "Свой раздел" : "Категория"}
         </Badge>
-        {item.kind === "custom" && item.product_ids && (
+        {hasChildrenMode && (
+          <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 border-brand-yellow text-yellow-700">
+            {childrenCount} внутри
+          </Badge>
+        )}
+        {item.kind === "custom" && !hasChildrenMode && item.product_ids && (
           <Badge variant="outline" className="text-[10px] py-0 px-1.5 shrink-0 border-brand-yellow text-yellow-700">
             {item.product_ids.length} тов.
           </Badge>
@@ -131,7 +211,18 @@ function SortableRow({ item, onEdit, onDelete, onToggleActive, togglePending }: 
           <span className="text-xs text-gray-400 truncate hidden md:inline">/category/{item.slug}</span>
         )}
       </div>
-      {/* Inline-Switch активности — правится прямо в списке, не заходя в модалку */}
+
+      {onAddChild && (
+        <Button
+          variant="ghost" size="sm"
+          onClick={onAddChild}
+          className="h-8 text-xs"
+          title="Добавить вложенный пункт"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" /> Вложенные категории
+        </Button>
+      )}
+
       <label
         className="inline-flex items-center gap-2 text-xs text-gray-600 shrink-0 cursor-pointer"
         title={item.is_active ? "Скрыть из шапки" : "Показать в шапке"}
@@ -147,13 +238,77 @@ function SortableRow({ item, onEdit, onDelete, onToggleActive, togglePending }: 
         <Pencil className="h-4 w-4" />
       </Button>
       <Button
-        variant="ghost"
-        size="icon"
+        variant="ghost" size="icon"
         onClick={onDelete}
         className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+    </div>
+  )
+}
+
+/**
+ * Рекурсивный рендер nested-детей. Без DnD (multi-container сложно и
+ * хрупко), reorder через стрелки up/down. Move между parent'ами через
+ * PUT parent_id (не сделано пока — юзер редактирует через удаление+создание).
+ */
+function ChildrenList({
+  items, parentId, onEdit, onDelete, onToggleActive, togglingId,
+  onAddChild, expanded, onToggleExpanded, onMoveChild,
+}: {
+  items: HeaderMenuItem[]
+  parentId: number
+  onEdit: (item: HeaderMenuItem) => void
+  onDelete: (item: HeaderMenuItem) => void
+  onToggleActive: (id: number, value: boolean) => void
+  togglingId: number | null
+  onAddChild: (parentId: number) => void
+  expanded: Set<number>
+  onToggleExpanded: (id: number) => void
+  onMoveChild: (parentId: number, id: number, dir: -1 | 1) => void
+}) {
+  return (
+    <div className="ml-8 mt-2 space-y-2 border-l-2 border-gray-100 pl-3">
+      {items.map((child, idx) => {
+        const isCustom = child.kind === "custom" && child.has_children_mode
+        const isExp = expanded.has(child.id)
+        return (
+          <div key={child.id}>
+            <RowInner
+              item={child}
+              onEdit={() => onEdit(child)}
+              onDelete={() => onDelete(child)}
+              onToggleActive={onToggleActive}
+              togglePending={togglingId === child.id}
+              onAddChild={isCustom ? () => onAddChild(child.id) : undefined}
+              isExpanded={isExp}
+              onToggleExpanded={isCustom ? () => onToggleExpanded(child.id) : undefined}
+              childrenCount={child.children?.length ?? 0}
+              canMove={{
+                up: idx > 0,
+                down: idx < items.length - 1,
+                onUp: () => onMoveChild(parentId, child.id, -1),
+                onDown: () => onMoveChild(parentId, child.id, 1),
+              }}
+            />
+            {isCustom && isExp && child.children && child.children.length > 0 && (
+              <ChildrenList
+                items={child.children}
+                parentId={child.id}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onToggleActive={onToggleActive}
+                togglingId={togglingId}
+                onAddChild={onAddChild}
+                expanded={expanded}
+                onToggleExpanded={onToggleExpanded}
+                onMoveChild={onMoveChild}
+              />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -169,9 +324,12 @@ export default function HeaderInfoTab() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<HeaderMenuItem | null>(null)
+  // При открытии диалога для нового вложенного пункта передаём parent_id
+  const [dialogParentId, setDialogParentId] = useState<number | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<HeaderMenuItem | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -224,17 +382,83 @@ export default function HeaderInfoTab() {
 
   const handleAddClick = () => {
     setEditingItem(null)
+    setDialogParentId(null)
     setDialogOpen(true)
+  }
+
+  const handleAddChild = (parentId: number) => {
+    setEditingItem(null)
+    setDialogParentId(parentId)
+    setDialogOpen(true)
+    // Автораскрываем родителя чтобы новый ребёнок сразу был виден
+    setExpanded((prev) => new Set([...Array.from(prev), parentId]))
   }
 
   const handleEditClick = (item: HeaderMenuItem) => {
     setEditingItem(item)
+    setDialogParentId(null)
     setDialogOpen(true)
   }
 
+  const toggleExpanded = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  // Перестановка ребёнка внутри одного parent'а (без DnD)
+  const handleMoveChild = async (parentId: number, id: number, dir: -1 | 1) => {
+    // Локально ищем и переставляем в дереве
+    const swap = (arr: HeaderMenuItem[]): HeaderMenuItem[] => {
+      const i = arr.findIndex((x) => x.id === id)
+      if (i < 0) return arr
+      const j = i + dir
+      if (j < 0 || j >= arr.length) return arr
+      const next = arr.slice()
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    }
+    // walkTree — заменяем children нужного parent'а
+    const walk = (arr: HeaderMenuItem[]): HeaderMenuItem[] =>
+      arr.map((n) => {
+        if (n.id === parentId && n.children) return { ...n, children: swap(n.children) }
+        if (n.children) return { ...n, children: walk(n.children) }
+        return n
+      })
+    const nextItems = walk(items)
+    setItems(nextItems)
+    // Находим новый порядок id для parent'а
+    const findKids = (arr: HeaderMenuItem[]): HeaderMenuItem[] | null => {
+      for (const n of arr) {
+        if (n.id === parentId) return n.children ?? []
+        if (n.children) {
+          const r = findKids(n.children)
+          if (r) return r
+        }
+      }
+      return null
+    }
+    const kids = findKids(nextItems)
+    if (!kids) return
+    const res = await reorderHeaderMenuItems(kids.map((k) => k.id), parentId)
+    if (!res.success) {
+      toast({ title: "Ошибка", description: res.error, variant: "destructive" })
+      await load()
+    }
+  }
+
   const handleToggleActive = async (id: number, value: boolean) => {
-    // Оптимистично меняем локально — свитч не «залипает» на время запроса
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, is_active: value } : i)))
+    // Оптимистично меняем локально — свитч не «залипает» на время запроса.
+    // Рекурсивно, потому что пункт может быть в children.
+    const walk = (arr: HeaderMenuItem[]): HeaderMenuItem[] =>
+      arr.map((n) =>
+        n.id === id ? { ...n, is_active: value }
+        : n.children ? { ...n, children: walk(n.children) }
+        : n
+      )
+    setItems((prev) => walk(prev))
     setTogglingId(id)
     const res = await updateHeaderMenuItem(id, { is_active: value })
     setTogglingId(null)
@@ -349,16 +573,38 @@ export default function HeaderInfoTab() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
-                  {items.map((item) => (
-                    <SortableRow
-                      key={item.id}
-                      item={item}
-                      onEdit={() => handleEditClick(item)}
-                      onDelete={() => setDeleteTarget(item)}
-                      onToggleActive={handleToggleActive}
-                      togglePending={togglingId === item.id}
-                    />
-                  ))}
+                  {items.map((item) => {
+                    const isCustom = item.kind === "custom" && item.has_children_mode
+                    const isExp = expanded.has(item.id)
+                    return (
+                      <div key={item.id}>
+                        <SortableRow
+                          item={item}
+                          onEdit={() => handleEditClick(item)}
+                          onDelete={() => setDeleteTarget(item)}
+                          onToggleActive={handleToggleActive}
+                          togglePending={togglingId === item.id}
+                          onAddChild={isCustom ? () => handleAddChild(item.id) : undefined}
+                          isExpanded={isExp}
+                          onToggleExpanded={() => toggleExpanded(item.id)}
+                        />
+                        {isCustom && isExp && item.children && item.children.length > 0 && (
+                          <ChildrenList
+                            items={item.children}
+                            parentId={item.id}
+                            onEdit={handleEditClick}
+                            onDelete={setDeleteTarget}
+                            onToggleActive={handleToggleActive}
+                            togglingId={togglingId}
+                            onAddChild={handleAddChild}
+                            expanded={expanded}
+                            onToggleExpanded={toggleExpanded}
+                            onMoveChild={handleMoveChild}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </SortableContext>
             </DndContext>
@@ -370,6 +616,7 @@ export default function HeaderInfoTab() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         item={editingItem}
+        parentId={dialogParentId}
         onSaved={load}
       />
 

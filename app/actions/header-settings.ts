@@ -22,7 +22,14 @@ export interface HeaderStripSettings {
   strip_open_new_tab: boolean
 }
 
-export interface HeaderMenuItem {
+export interface HeaderMenuItemStyle {
+  border_enabled?: boolean
+  border_color?: string | null
+  bg_color?: string | null
+  text_color?: string | null
+}
+
+export interface HeaderMenuItem extends HeaderMenuItemStyle {
   id: number
   kind: "category" | "custom"
   is_active: boolean
@@ -31,21 +38,28 @@ export interface HeaderMenuItem {
   slug: string | null
   category_id?: number
   product_ids?: number[]
+  // Дерево (задаётся на уровне API — рекурсивно)
+  parent_id?: number | null
+  has_children_mode?: boolean
+  children?: HeaderMenuItem[]
 }
 
-export interface CreateMenuItemPayload {
+export interface CreateMenuItemPayload extends HeaderMenuItemStyle {
   kind: "category" | "custom"
   is_active?: boolean
   category_id?: number
   custom_name?: string
   product_ids?: number[]
+  parent_id?: number | null
+  has_children_mode?: boolean
 }
 
-export interface UpdateMenuItemPayload {
+export interface UpdateMenuItemPayload extends HeaderMenuItemStyle {
   is_active?: boolean
   category_id?: number
   custom_name?: string
   product_ids?: number[]
+  has_children_mode?: boolean
 }
 
 const getToken = async () => {
@@ -177,13 +191,17 @@ export async function deleteHeaderMenuItem(
 }
 
 export async function reorderHeaderMenuItems(
-  orderedIds: number[]
+  orderedIds: number[],
+  parentId: number | null = null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Новый формат бэка: {parent_id, ids} — scope reorder внутри родителя.
+    // Плоский список тоже поддерживается (legacy top-level), но всегда шлём
+    // объект для явности.
     const res = await fetch(`${API_BASE_URL}/api/admin/header/menu-items/reorder`, {
       method: "POST",
       headers: await authHeaders(),
-      body: JSON.stringify(orderedIds),
+      body: JSON.stringify({ parent_id: parentId, ids: orderedIds }),
     })
     if (!res.ok) {
       const j = await res.json().catch(() => ({}))
