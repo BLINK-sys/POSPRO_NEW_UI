@@ -18,15 +18,25 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { ProductCard } from "@/components/product-card"
+import { CategoryCard } from "@/components/category-card"
+import { BrandCard } from "@/components/brand-card"
 import CategoryFilter from "@/components/category-filter"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface HomepageBlockComponentProps {
   block: HomepageBlock
+  isFirstBlock?: boolean
   isLastBlock?: boolean
+  hasSlideCatalog?: boolean
 }
 
-export default function HomepageBlockComponent({ block, isLastBlock = false }: HomepageBlockComponentProps) {
+export default function HomepageBlockComponent({
+  block,
+  isFirstBlock = false,
+  isLastBlock = false,
+  hasSlideCatalog = false,
+}: HomepageBlockComponentProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [infiniteIndex, setInfiniteIndex] = useState(0)
   const [viewMode, setViewMode] = useState<'carousel' | 'grid'>('carousel')
@@ -120,7 +130,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       // Если карусель включена - показываем с переключателем
       if (block.carusel) {
         return (
-          <div className="py-12">
+          <div>
             <Card className="bg-gray-100 shadow-lg rounded-xl border-0 p-6">
               <CardContent className="p-0">
                 {/* Фильтр категорий - только если есть категории */}
@@ -162,7 +172,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       
       // Если карусель выключена - показываем сразу сетку без кнопки
       return (
-        <div className="py-12">
+        <div>
           <Card className="bg-gray-100 shadow-lg rounded-xl border-0 p-6">
             <CardContent className="p-0">
               {/* Фильтр категорий - только если есть категории */}
@@ -180,6 +190,28 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
               {renderGrid(filteredProducts)}
             </CardContent>
           </Card>
+        </div>
+      )
+    }
+
+    // Для брендов — сетка + кнопка «Все бренды» под ней (страница /brands
+    // — единственное место с полным списком: в нижнем каталоге и десктопной
+    // шапке отдельного пункта на неё нет). Обрабатываем ДО ветки carusel,
+    // чтобы кнопка была видна независимо от режима (в БД `carusel:false`).
+    if (block.type === 'brand' || block.type === 'brands') {
+      return (
+        <div>
+          {renderGrid()}
+          <div className="flex justify-center mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-sm px-6 py-2 bg-white hover:bg-gray-50 shadow-md"
+              asChild
+            >
+              <Link href="/brands">Все бренды</Link>
+            </Button>
+          </div>
         </div>
       )
     }
@@ -223,11 +255,6 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
           </div>
         </div>
       )
-    }
-
-    // Для брендов всегда показываем сетку
-    if (block.type === 'brand' || block.type === 'brands') {
-      return renderGrid()
     }
 
     // Для преимуществ - карусель с одинаковыми размерами карточек
@@ -282,22 +309,19 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
 
     // Для товаров - улучшенная карусель с стрелочками
     if (block.type === 'product' || block.type === 'products') {
-      // Адаптивное количество карточек в зависимости от ширины экрана
+      // Адаптивное количество карточек в зависимости от ширины экрана.
+      // Карточки теперь узкие (aspect-[3/2] картинка) — в ряду помещается
+      // больше, поэтому увеличили на 2 по каждой брекпоинте.
       const getItemsPerView = () => {
-        // На сервере всегда возвращаем значение по умолчанию
-        if (typeof window === 'undefined') {
-          return 4 // по умолчанию для SSR
-        }
-        
+        if (typeof window === 'undefined') return 6 // по умолчанию для SSR
         const width = window.innerWidth
-        if (width < 640) return 1 // мобильные
-        if (width < 1024) return 2 // планшеты
-        if (width < 1280) return 3 // десктопы
-        return 4 // большие экраны
+        if (width < 640) return 2       // мобильные
+        if (width < 1024) return 3      // планшеты
+        if (width < 1280) return 4      // десктопы
+        if (width < 1536) return 5      // большие
+        return 6                        // очень большие
       }
-      
-      // Используем статичное значение для SSR, чтобы избежать ошибок гидратации
-      const itemsPerView = typeof window === 'undefined' ? 4 : getItemsPerView()
+      const itemsPerView = typeof window === 'undefined' ? 6 : getItemsPerView()
       const maxIndex = Math.max(0, itemsToRender.length - itemsPerView)
       const currentItems = itemsToRender.slice(currentIndex, currentIndex + itemsPerView)
 
@@ -315,7 +339,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
               >
                 <ChevronLeft className="h-4 w-4 text-black" />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -327,9 +351,9 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
               </Button>
             </>
           )}
-          
+
           {/* Карточки товаров */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-12">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 px-12">
             {currentItems.map((item, index) => (
               <div key={item.id || index}>
                 {renderItem(item)}
@@ -340,18 +364,19 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       )
     }
 
-    // Для остальных типов - стандартная логика
-    const itemsPerView = 4
+    // Для остальных типов - стандартная логика. 6 карточек в ряд с
+    // тонким gap — карточки теперь узкие (aspect-[3/2] картинка), в ряду
+    // помещается больше.
+    const itemsPerView = 6
     const maxIndex = Math.max(0, block.items.length - itemsPerView)
     const currentItems = block.items.slice(currentIndex, currentIndex + itemsPerView)
 
     return (
       <div className="relative overflow-hidden">
-        {/* Добавляем дополнительное пространство для увеличенных карточек */}
         <div className="py-6 px-8">
-          <div className="flex gap-4 overflow-visible">
+          <div className="flex gap-3 overflow-visible">
             {currentItems.map((item, index) => (
-              <div key={item.id || index} className="flex-shrink-0 w-1/4">
+              <div key={item.id || index} className="flex-shrink-0 w-1/6">
                 {renderItem(item)}
               </div>
             ))}
@@ -442,9 +467,9 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     }
 
     const handleMouseLeave = () => {
-      if ((block.type === 'category' || block.type === 'categories') && 
-          block.carusel && 
-          block.items && 
+      if ((block.type === 'category' || block.type === 'categories') &&
+          block.carusel &&
+          block.items &&
           block.items.length > itemsPerView) {
         autoPlayRef.current = setInterval(() => {
           setCurrentIndex((prev) => (prev + 1) % totalItems)
@@ -453,7 +478,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     }
 
     return (
-      <div 
+      <div
         className="relative py-6 px-8"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -468,7 +493,7 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
           >
             <ChevronLeft className="h-4 w-4 text-black" />
           </Button>
-          
+
           <Button
             variant="ghost"
             size="icon"
@@ -478,13 +503,16 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
             <ChevronRight className="h-4 w-4 text-black" />
           </Button>
 
-          {/* Карточки с зацикливанием */}
-          {Array.from({ length: 3 }, (_, repeatIndex) => 
+          {/* Карточки с зацикливанием. Обёртка задаёт фикс-ширину (w-56)
+              и высоту (h-64) — Card внутри теперь w-full/h-full, поэтому
+              без явных размеров у обёртки карточки в flex-row получались
+              разного размера. */}
+          {Array.from({ length: 3 }, (_, repeatIndex) =>
             block.items.map((_, itemIndex) => {
               const actualIndex = (currentIndex + itemIndex) % totalItems
               const categoryItem = block.items[actualIndex]
               return (
-                <div key={`${categoryItem.id}-${repeatIndex}-${itemIndex}`} className="flex-shrink-0">
+                <div key={`${categoryItem.id}-${repeatIndex}-${itemIndex}`} className="flex-shrink-0 w-56 h-64">
                   {renderItem(categoryItem)}
                 </div>
               )
@@ -566,12 +594,13 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
   // Рендер сетки
   const renderGrid = (filteredItems?: any[]) => {
     const itemsToRender = filteredItems || block.items
-    // Для категорий используем адаптивную сетку с максимумом 5 колонок
+    // Для категорий — плотная сетка. Card внутри h-full, поэтому обёртка
+    // задаёт высоту (h-64) — все карточки в grid одинакового размера.
     if (block.type === 'category' || block.type === 'categories') {
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 justify-items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {itemsToRender.map((item, index) => (
-            <div key={item.id || index}>
+            <div key={item.id || index} className="h-64">
               {renderItem(item)}
             </div>
           ))}
@@ -579,26 +608,27 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       )
     }
 
-    // Для брендов используем центрирование или сетку в зависимости от количества
+    // Для брендов — плотная сетка как у категорий (те же breakpoints/gap)
     if (block.type === 'brand' || block.type === 'brands') {
       const itemsCount = itemsToRender.length
-      
-      // Если карточек меньше 6, центрируем их
+
+      // Если карточек мало — центрируем; ширина ячейки в 2 раза меньше
+      // чем раньше (128px lg вместо 176), под размеры карточек категорий.
       if (itemsCount < 6) {
         return (
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3 md:gap-4 lg:gap-5">
+          <div className="flex flex-wrap justify-center gap-3">
             {itemsToRender.map((item, index) => (
-              <div key={item.id || index} className="w-32 sm:w-36 md:w-40 lg:w-44 xl:w-48">
+              <div key={item.id || index} className="w-24 sm:w-28 md:w-32">
                 {renderItem(item)}
               </div>
             ))}
           </div>
         )
       }
-      
-      // Если карточек 6 и более, используем сетку
+
+      // 6+ карточек — те же колонки/gap, что у категорий
       return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4 lg:gap-5">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {itemsToRender.map((item, index) => (
             <div key={item.id || index}>
               {renderItem(item)}
@@ -608,28 +638,27 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       )
     }
 
-    // Для преимуществ используем центрирование или сетку в зависимости от количества
+    // Для преимуществ — плотная сетка, карточки в 2 раза меньше прежних.
+    // Card w-full h-full, обёртка задаёт высоту h-40 (равные размеры).
     if (block.type === 'benefit' || block.type === 'benefits') {
       const itemsCount = itemsToRender.length
-      
-      // Если карточек меньше 6, центрируем их
+
       if (itemsCount < 6) {
         return (
-          <div className="flex flex-wrap justify-center gap-4 sm:gap-5 md:gap-6">
+          <div className="flex flex-wrap justify-center gap-3">
             {itemsToRender.map((item, index) => (
-              <div key={item.id || index} className="w-48 sm:w-52 md:w-56 lg:w-60 xl:w-64">
+              <div key={item.id || index} className="w-40 sm:w-44 md:w-52 h-52">
                 {renderItem(item)}
               </div>
             ))}
           </div>
         )
       }
-      
-      // Если карточек 6 и более, используем сетку
+
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {itemsToRender.map((item, index) => (
-            <div key={item.id || index}>
+            <div key={item.id || index} className="h-52">
               {renderItem(item)}
             </div>
           ))}
@@ -650,10 +679,10 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       )
     }
 
-    // Для товаров - улучшенная сетка
+    // Для товаров - плотная сетка (в соответствии с новой компактной карточкой)
     if (block.type === 'product' || block.type === 'products') {
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 py-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 py-4">
           {itemsToRender.map((item, index) => (
             <div key={item.id || index}>
               {renderItem(item)}
@@ -663,9 +692,9 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
       )
     }
 
-    // Для остальных типов - стандартная сетка
+    // Для остальных типов - стандартная сетка (более плотная для товаров)
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         {itemsToRender.map((item, index) => (
           <div key={item.id || index}>
             {renderItem(item)}
@@ -701,239 +730,33 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
 
   // Рендер категории
   const renderCategoryItem = (category: CategoryData) => (
-    <Link href={`/category/${category.slug}`}>
-      <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] h-64 w-56 flex-shrink-0 bg-white rounded-xl">
-        <CardContent className="p-0 h-full flex flex-col">
-          {/* Верхняя часть с изображением на белом фоне */}
-          <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
-            {category.image_url ? (
-              <div className="relative w-full h-full flex items-center justify-center">
-                <Image
-                  src={getImageUrl(category.image_url)}
-                  alt={category.name}
-                  fill
-                  className="object-contain group-hover:scale-110 transition-transform duration-300"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
-              </div>
-            ) : (
-              <div className="text-4xl text-gray-400">📁</div>
-            )}
-          </div>
-          
-          {/* Нижняя часть - ярко-желтый блок с названием и стрелкой */}
-          <div className="relative bg-yellow-400 h-16 rounded-xl p-4 flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="font-bold text-gray-900 text-sm leading-tight">
-                {category.name}
-              </h3>
-              {category.description && (
-                <p className="text-gray-700 text-xs mt-1 line-clamp-2">
-                  {category.description}
-                </p>
-              )}
-            </div>
-            
-            {/* Стрелка в правом верхнем углу желтого блока */}
-            <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-              <ChevronRight className="w-4 h-4 text-white" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <CategoryCard category={category} />
   )
 
   // Рендер товара
   const renderProductItem = (product: ProductData) => (
-    <div className="group">
-      <Link href={`/product/${product.slug}`}>
-        <Card className="hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer bg-white rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
-          <CardContent className="p-3">
-            <div className="relative">
-              {/* Изображение товара */}
-              <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
-                {product.image_url ? (
-                  <Image
-                    src={getImageUrl(product.image_url)}
-                    alt={product.name}
-                    fill
-                    className="object-contain group-hover:scale-110 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-400 text-2xl">📦</div>
-                  </div>
-                )}
-                
-                {/* Статус товара - верхний левый угол */}
-                {product.status && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Badge 
-                      className="text-xs px-2 py-1 shadow-md"
-                      style={{
-                        backgroundColor: product.status.background_color,
-                        color: product.status.text_color
-                      }}
-                    >
-                      {product.status.name}
-                    </Badge>
-                  </div>
-                )}
-                
-                {/* Кнопка "В избранное" - только при наведении */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                  <FavoriteButton
-                    productId={product.id}
-                    productName={product.name}
-                    className="w-7 h-7 bg-white/95 hover:bg-white rounded-full shadow-md hover:shadow-lg"
-                    size="sm"
-                  />
-                </div>
-                
-                {/* Кнопка быстрого просмотра */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                  <QuickViewButton slug={product.slug} />
-                </div>
-
-                {/* Панель с дополнительной информацией при наведении - только снизу */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  <div className="p-3 w-full">
-                    {product.brand_info && (
-                      <div className="text-xs text-white mb-1">
-                        <span className="font-medium">Бренд:</span> {product.brand_info.name}
-                      </div>
-                    )}
-                    {product.brand_info?.country && (
-                      <div className="text-xs text-white mb-1">
-                        <span className="font-medium">Страна:</span> {product.brand_info.country}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Информация о товаре */}
-              <div className="space-y-2">
-                <div className="text-xs text-gray-600">
-                  <span className="font-medium">Товар:</span> {product.name}
-                </div>
-                
-                <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
-                </div>
-
-                {wholesaleUser && (
-                  <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
-                    <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
-                  </div>
-                )}
-                
-                <div className="text-sm text-gray-600">
-                  <span className="font-medium">Наличие:</span>{" "}
-                  {product.availability_status ? (
-                    <span
-                      style={{
-                        backgroundColor: product.availability_status.background_color,
-                        color: product.availability_status.text_color,
-                        padding: "3px 8px",
-                        borderRadius: "4px",
-                        fontSize: "12px"
-                      }}
-                    >
-                      {formatAvailabilityStatusLabel(product.availability_status)}
-                    </span>
-                  ) : (
-                    <span>{product.quantity} шт.</span>
-                  )}
-                </div>
-                
-                {/* Поставщики (только для админов) */}
-                {isSystemUser && (() => {
-                  const txt = getSuppliersText(product as any)
-                  return txt ? (
-                    <div className="text-xs text-gray-500 truncate">
-                      <span className="font-medium">Поставщик:</span> {txt}
-                    </div>
-                  ) : null
-                })()}
-
-                {/* Кнопка "Добавить в корзину" */}
-                <AddToCartButton
-                  productId={product.id}
-                  productName={product.name}
-                  productSlug={product.slug}
-                  productPrice={product.price}
-                  productImageUrl={product.image_url}
-                  productArticle={product.article || ''}
-                  className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
-                  size="sm"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
-    </div>
+    <ProductCard product={product} />
   )
 
   // Рендер бренда
   const renderBrandItem = (brand: BrandData) => (
-    <Link href={`/brand/${encodeURIComponent(brand.name)}`}>
-      <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] aspect-square w-full bg-white rounded-xl">
-        <CardContent className="p-0 h-full flex flex-col">
-          {/* Квадратная карточка с изображением на всю площадь */}
-          <div className="relative h-full bg-white rounded-xl overflow-hidden">
-            {brand.image_url ? (
-              <Image
-                src={getImageUrl(brand.image_url)}
-                alt={brand.name}
-                fill
-                className="object-cover group-hover:scale-110 transition-transform duration-300"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-4xl text-gray-400">🏢</div>
-              </div>
-            )}
-          </div>
-          
-          {/* Анимация при наведении - показываем полную информацию */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center rounded-xl pointer-events-none">
-            <div className="text-center text-white p-1 sm:p-2 md:p-3 h-full flex flex-col justify-center">
-              <h3 className="font-bold text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg mb-0.5 sm:mb-1 leading-tight">{brand.name}</h3>
-              {brand.country && (
-                <p className="text-white/90 text-[9px] sm:text-xs mb-0.5 sm:mb-1 leading-tight">{brand.country}</p>
-              )}
-              {brand.description && (
-                <p className="text-white/80 text-[8px] sm:text-xs leading-tight overflow-hidden" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
-                  {brand.description}
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <BrandCard brand={brand} />
   )
 
-  // Рендер преимущества
+  // Рендер преимущества — центрированная карточка
   const renderBenefitItem = (benefit: BenefitData) => (
-    <Card className="group relative hover:shadow-2xl transition-all duration-300 overflow-hidden bg-white rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] h-60 w-60 flex-shrink-0">
-      <CardContent className="p-4 h-full flex flex-col">
+    <Card className="group relative hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition-all duration-300 overflow-hidden bg-white rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] w-full h-full">
+      <CardContent className="p-4 h-full flex flex-col items-center text-center gap-2.5">
         {/* Иконка по центру */}
-        <div className="flex justify-center mb-4">
-          <div className="w-12 h-12 bg-brand-yellow rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-            {getIcon(benefit.icon)}
-          </div>
+        <div className="w-11 h-11 bg-brand-yellow rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shrink-0">
+          {getIcon(benefit.icon)}
         </div>
-        
-        {/* Заголовок жирным и прижат к левому краю с отступом */}
-        <h3 className="font-bold text-sm mb-3 text-left leading-tight">{benefit.title}</h3>
-        
-        {/* Описание обычный текст прижат к левому краю с отступом */}
-        <p className="text-gray-700 text-xs leading-relaxed text-left flex-1">
+
+        {/* Заголовок */}
+        <h3 className="font-bold text-sm leading-tight text-gray-900">{benefit.title}</h3>
+
+        {/* Описание — растёт вниз */}
+        <p className="text-gray-600 text-xs leading-snug flex-1 line-clamp-5">
           {benefit.description}
         </p>
       </CardContent>
@@ -1001,11 +824,16 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
     </Card>
   )
 
+  // Первому блоку доп top-padding, если сверху висит кнопка «Каталог»
+  // от slide-панели (она торчит из-под шапки на BUTTON_HEIGHT=28 и наезжает
+  // на первый блок иначе).
+  const topPad = isFirstBlock && hasSlideCatalog ? "pt-12" : "pt-4"
+
   return (
-    <section ref={blockRef} className="py-12">
+    <section ref={blockRef} className={`${topPad} pb-4`}>
       <div className="container mx-auto px-4 md:px-6">
         {block.show_title && (
-          <div className={`${(block.type === 'product' || block.type === 'products') ? '' : 'mb-8'} ${getTitleAlignment()}`}>
+          <div className={`mb-6 ${getTitleAlignment()}`}>
             <h2 className="text-3xl font-bold">
               {block.title}
             </h2>
@@ -1018,11 +846,11 @@ export default function HomepageBlockComponent({ block, isLastBlock = false }: H
         )}
         {renderItems()}
       </div>
-      
+
       {/* Разделительная полоса - только если не последний блок */}
       {!isLastBlock && (
         <div className="container mx-auto px-4 md:px-6">
-          <div className="w-full h-px bg-gray-200 mt-8"></div>
+          <div className="w-full h-px bg-gray-200 mt-6"></div>
         </div>
       )}
     </section>

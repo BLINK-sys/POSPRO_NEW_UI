@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useLayoutEffect, useMemo, useState } from "react"
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { NavigationMenuLink } from "@/components/ui/navigation-menu"
@@ -47,6 +47,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter, usePathname } from "next/navigation"
 import HeaderCatalogSlidePanel from "@/components/header-catalog-slide-panel"
+import { CategoryCard } from "@/components/category-card"
 import HeaderSearch from "@/components/header-search"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
@@ -70,6 +71,28 @@ export default function Header() {
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('')
   const [sidebarTab, setSidebarTab] = useState<CatalogTab>("categories")
   const [menuTab, setMenuTab] = useState<CatalogTab>("categories")
+
+  // Центр main-полосы шапки — под него центруем fixed-язычок бокового
+  // каталога. Высота шапки динамическая (top-strip может быть скрыт), поэтому
+  // измеряем реальный DOM через ResizeObserver, а не подставляем константу.
+  const mainBarRef = useRef<HTMLDivElement>(null)
+  const [sidebarBtnTop, setSidebarBtnTop] = useState(48)
+  useEffect(() => {
+    const el = mainBarRef.current
+    if (!el) return
+    const update = () => {
+      const rect = el.getBoundingClientRect()
+      setSidebarBtnTop(rect.top + rect.height / 2)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(document.body)
+    window.addEventListener("resize", update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", update)
+    }
+  }, [])
   // AI-consultant гейт перееxал на страницу /search (desktop + mobile
   // варианты сами дергают /api/ai-consultant/access).
   const [highlightedCategoryId, setHighlightedCategoryId] = useState<number | null>(null)
@@ -373,20 +396,22 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Кнопка-язычок бокового каталога — фиксирована на краю панели */}
+      {/* Кнопка-язычок бокового каталога — фиксирована на краю панели.
+          Под стиль новой шапки: h-8, text-xs, тонкая иконка. Top динамически
+          центрируется по main-bar шапки (sidebarBtnTop). */}
       {catalogVisibility?.sidebar && <button
-        className="fixed top-12 -translate-y-1/2 z-[100] bg-brand-yellow text-black hover:bg-yellow-500 rounded-r-full shadow-lg px-3 pr-4 py-3 flex items-center gap-2 transition-[left] duration-300 ease-in-out cursor-pointer"
-        style={{ left: sidebarOpen ? '90vw' : '0' }}
+        className="fixed -translate-y-1/2 z-[100] bg-brand-yellow text-black hover:bg-yellow-500 rounded-r-full shadow-md hover:shadow-lg h-8 pl-2 pr-3 flex items-center gap-1.5 text-xs font-medium transition-[left,box-shadow] duration-300 ease-in-out cursor-pointer"
+        style={{ left: sidebarOpen ? '90vw' : '0', top: sidebarBtnTop }}
         onClick={() => handleSidebarOpen(!sidebarOpen)}
       >
         {sidebarOpen ? (
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         ) : categoriesLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <List className="h-5 w-5" />
+          <List className="h-4 w-4" />
         )}
-        <span className="hidden sm:inline text-sm font-medium">Каталог</span>
+        <span className="hidden sm:inline">Каталог</span>
       </button>}
 
       <Sheet open={sidebarOpen} onOpenChange={handleSidebarOpen}>
@@ -728,7 +753,7 @@ export default function Header() {
       </Sheet>
 
       <div className="container mx-auto px-4 md:px-6">
-        <div className="flex items-center h-12">
+        <div ref={mainBarRef} className="flex items-center h-12">
           <Link href="/" className="flex items-center flex-shrink-0" prefetch={false}>
             <Image
               src="/ui/big_logo.png"
@@ -903,10 +928,9 @@ export default function Header() {
                                 <>
                             <div
                               className={cn(
-                                "grid",
                                 subcategoryPanelView === "cards"
-                                  ? "grid-cols-1 md:grid-cols-3 gap-4"
-                                  : "gap-x-4 gap-y-1"
+                                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+                                  : "grid gap-x-4 gap-y-1"
                               )}
                               style={
                                 subcategoryPanelView === "list"
@@ -928,52 +952,19 @@ export default function Header() {
                               }
                             >
                               {hoveredCategory.children.map((child) => {
-                                const containerClasses =
-                                  subcategoryPanelView === "cards"
-                                    ? "block"
-                                    : "group space-y-2";
                                 const childCount = getCategoryCount(child)
 
-                                return (
-                                  <div key={child.id} className={containerClasses}>
-                                    {subcategoryPanelView === "cards" ? (
-                                            <Link 
-                                              href={`/category/${child.slug}`}
-                                        className="block h-full"
-                                        onClick={handleMenuItemClick}
-                                      >
-                                        <Card className="group h-full w-full overflow-hidden rounded-2xl border-0 shadow-[0_6px_18px_rgba(0,0,0,0.18)] hover:shadow-[0_12px_32px_rgба(0,0,0,0.28)] hover:scale-[1.01] transition-transform duration-300">
-                                          <CardContent className="p-0 h-full flex flex-col">
-                                            <div className="relative h-[150px] w-full bg-white flex items-center justify-center overflow-hidden">
-                                              <Badge className="absolute top-3 right-3 z-10 bg-brand-yellow text-black transition-colors group-hover:bg-gray-900 group-hover:text-white">
-                                                {childCount}
-                                              </Badge>
-                                              {child.image_url ? (
-                                                <Image
-                                                  src={getImageUrl(child.image_url)}
-                                                  alt={child.name}
-                                                  fill
-                                                  className="object-contain transition-transform duration-300 group-hover:scale-105"
-                                                  sizes="150px"
-                                                />
-                                              ) : (
-                                                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-semibold text-gray-500">
-                                                  {child.name.charAt(0).toUpperCase()}
-                                                </div>
-                                              )}
-                                            </div>
-                                            <div className="relative bg-brand-yellow text-black font-medium flex items-center justify-between px-4 py-3 rounded-t-2xl rounded-b-2xl mt-auto">
-                                              <span className="text-sm leading-tight">{child.name}</span>
-                                              <div className="absolute top-0 right-0 w-8 h-full">
-                                                <div className="absolute top-0 right-0 h-8 w-8 rounded-tr-2xl bg-gray-900"></div>
-                                                <div className="absolute bottom-0 right-0 h-8 w-8 bg-gray-900"></div>
-                                                <ChevronRight className="absolute top-1/2 right-2 -translate-y-1/2 h-3.5 w-3.5 text-white" />
-                                        </div>
-                                    </div>
-                                          </CardContent>
-                                        </Card>
-                                      </Link>
-                                    ) : (
+                                return subcategoryPanelView === "cards" ? (
+                                  <div key={child.id} className="h-64">
+                                    <CategoryCard
+                                      category={child}
+                                      onClick={handleMenuItemClick}
+                                      productCount={childCount}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div key={child.id} className="group space-y-2">
+                                    {(
                                       <>
                                           <div className="flex items-center">
                                             {child.children && child.children.length > 0 ? (

@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ShoppingCart, Loader2 } from 'lucide-react'
+import { ShoppingCart, Check, Loader2 } from 'lucide-react'
 import { addToCart } from '@/app/actions/cart'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useCart } from '@/context/cart-context'
+import { cn } from '@/lib/utils'
 
 interface AddToCartButtonProps {
   productId: number
@@ -40,18 +42,27 @@ export function AddToCartButton({
   children
 }: AddToCartButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
   const { user } = useAuth()
-  const { updateCartCount, addToGuestCart } = useCart()
+  const { updateCartCount, addToGuestCart, cartProductIds } = useCart()
 
   // Скрываем кнопку для системных пользователей (админ, модератор)
   if (user && user.role !== 'client') {
     return null
   }
 
+  const inCart = cartProductIds.has(productId)
+
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+
+    // Товар уже в корзине — не добавляем повторно, а ведём в саму корзину.
+    if (inCart) {
+      router.push('/profile/cart')
+      return
+    }
 
     // Гостевая корзина — сохраняем в localStorage
     if (!user) {
@@ -110,11 +121,18 @@ export function AddToCartButton({
     }
   }
 
+  // В состоянии "уже в корзине" переопределяем цвета (белый фон + чёрная
+  // рамка + чёрный текст) поверх переданного `className` — twMerge из cn
+  // корректно вытеснит bg-brand-yellow/hover-класс из родительского стиля.
+  const inCartClassName = inCart
+    ? "bg-white text-black border-2 border-black hover:bg-gray-50 hover:text-black"
+    : ""
+
   return (
     <Button
       variant={variant}
       size={size}
-      className={className}
+      className={cn(className, inCartClassName)}
       onClick={handleAddToCart}
       disabled={disabled || isLoading}
     >
@@ -124,10 +142,12 @@ export function AddToCartButton({
         <>
           {isLoading ? (
             <Loader2 className={`h-4 w-4 animate-spin ${showText ? "mr-2" : ""}`} />
+          ) : inCart ? (
+            <Check className={`h-4 w-4 ${showText ? "mr-2" : ""}`} />
           ) : (
             <ShoppingCart className={`h-4 w-4 ${showText ? "mr-2" : ""}`} />
           )}
-          {showText && "В корзину"}
+          {showText && (inCart ? "В корзине" : "В корзину")}
         </>
       )}
     </Button>

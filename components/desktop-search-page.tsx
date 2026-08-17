@@ -17,9 +17,7 @@ import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem 
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
-import { AddToKPButton } from "@/components/add-to-kp-button"
+import { ProductCard } from "@/components/product-card"
 import { Slider } from "@/components/ui/slider"
 import { QuickViewButton } from "@/components/quick-view-modal"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
@@ -1024,133 +1022,9 @@ export default function DesktopSearchPage() {
 
             {visibleResults.length > 0 && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {visibleResults.map((product) => (
-                    <div key={product.id} className="group">
-                      <Link href={`/product/${product.slug}`}>
-                        <Card className="hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer bg-white rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
-                          <CardContent className="p-3">
-                            <div className="relative">
-                              <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
-                                {product.image_url ? (
-                                  <Image
-                                    src={getImageUrl(product.image_url)}
-                                    alt={product.name}
-                                    fill
-                                    className="object-contain group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full text-2xl text-gray-400">📦</div>
-                                )}
-
-                                {/* Status badge */}
-                                {product.status && (
-                                  <div className="absolute top-2 left-2 z-10">
-                                    <Badge
-                                      className="text-xs px-2 py-1 shadow-md"
-                                      style={{ backgroundColor: product.status.background_color, color: product.status.text_color }}
-                                    >
-                                      {product.status.name}
-                                    </Badge>
-                                  </div>
-                                )}
-
-                                {/* Favorite */}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                                  <FavoriteButton
-                                    productId={product.id}
-                                    productName={product.name}
-                                    className="w-7 h-7 bg-white/95 hover:bg-white rounded-full shadow-md hover:shadow-lg"
-                                    size="sm"
-                                  />
-                                </div>
-
-                                {/* Кнопка быстрого просмотра */}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                                  <QuickViewButton slug={product.slug} />
-                                </div>
-
-                                {/* Brand on hover */}
-                                {product.brand_info && (
-                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                                    <div className="p-3">
-                                      <div className="text-xs text-white"><span className="font-medium">Бренд:</span> {product.brand_info.name}</div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Product info */}
-                              <div className="space-y-1.5">
-                                <div className="text-xs text-gray-600">
-                                  <span className="font-medium">Товар:</span> {product.name}
-                                </div>
-                                <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
-                                </div>
-                                {wholesaleUser && (
-                                  <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
-                                    <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
-                                  </div>
-                                )}
-                                <div className="text-xs text-gray-600">
-                                  <span className="font-medium">Наличие:</span>{" "}
-                                  {product.availability_status ? (
-                                    <span
-                                      style={{
-                                        backgroundColor: product.availability_status.background_color,
-                                        color: product.availability_status.text_color,
-                                        padding: "2px 6px", borderRadius: "4px", fontSize: "11px"
-                                      }}
-                                    >
-                                      {formatAvailabilityStatusLabel(product.availability_status)}
-                                    </span>
-                                  ) : (
-                                    <span>{product.quantity} шт.</span>
-                                  )}
-                                </div>
-                                {/* Поставщики (только для админов) */}
-                                {isSystemUser && (() => {
-                                  const txt = getSuppliersText(product as any)
-                                  return txt ? (
-                                    <div className="text-xs text-gray-500 truncate">
-                                      <span className="font-medium">Поставщик:</span> {txt}
-                                    </div>
-                                  ) : null
-                                })()}
-                                <div onClick={(e) => e.preventDefault()}>
-                                  <AddToCartButton
-                                    productId={product.id}
-                                    productName={product.name}
-                                    productSlug={product.slug}
-                                    productPrice={product.price}
-                                    productImageUrl={product.image_url}
-                                    productArticle={product.article || ''}
-                                    className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
-                                    size="sm"
-                                  />
-                                </div>
-                                <div onClick={(e) => e.preventDefault()}>
-                                  <AddToKPButton
-                                    productId={product.id}
-                                    productName={product.name}
-                                    productSlug={product.slug}
-                                    productPrice={product.price}
-                                    productWholesalePrice={product.wholesale_price}
-                                    productImageUrl={product.image_url}
-                                    productDescription={product.description}
-                                    productSupplierName={product.supplier_name}
-                                    productBrandName={product.brand_info?.name}
-                                    className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
-                                    size="sm"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </div>
+                    <ProductCard key={product.id} product={product as any} showKP />
                   ))}
                 </div>
 

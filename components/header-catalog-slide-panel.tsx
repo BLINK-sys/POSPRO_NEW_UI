@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { getImageUrl } from "@/lib/image-utils"
 import { CatalogTabs, type CatalogTab } from "@/components/catalog-tabs"
 import { CatalogDriversView } from "@/components/catalog-drivers-view"
+import { CategoryCard } from "@/components/category-card"
 import { measureMaxTextWidth } from "@/lib/measure-text"
 
 // Раньше headerHeight был константой 96 (h-24 старой шапки). После
@@ -256,51 +257,15 @@ export default function HeaderCatalogSlidePanel() {
                         {/* Контент с подкатегориями */}
                         <div className="p-6 pt-4">
                           {subcategoryViewMode === 'cards' ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                               {hoveredCategory.children.map((child) => (
-                                <Link
-                                  key={child.id}
-                                  href={`/category/${child.slug}`}
-                                  onClick={handleLinkClick}
-                                >
-                                  <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] h-64 w-56 flex-shrink-0 bg-white rounded-xl">
-                                    <CardContent className="p-0 h-full flex flex-col">
-                                      <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
-                                        <Badge className="absolute top-3 right-3 z-10 bg-brand-yellow text-black transition-colors group-hover:bg-gray-900 group-hover:text-white">
-                                          {getCategoryCount(child)}
-                                        </Badge>
-                                        {child.image_url ? (
-                                          <div className="relative w-full h-full flex items-center justify-center">
-                                            <Image
-                                              src={getImageUrl(child.image_url)}
-                                              alt={child.name}
-                                              fill
-                                              className="object-contain group-hover:scale-110 transition-transform duration-300"
-                                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                            />
-                                          </div>
-                                        ) : (
-                                          <div className="text-4xl text-gray-400">📁</div>
-                                        )}
-                                      </div>
-                                      <div className="relative bg-yellow-400 h-16 rounded-xl p-4 flex items-center justify-between">
-                                        <div className="flex-1">
-                                          <h3 className="font-bold text-gray-900 text-sm leading-tight">
-                                            {child.name}
-                                          </h3>
-                                          {child.description && (
-                                            <p className="text-gray-700 text-xs mt-1 line-clamp-2">
-                                              {child.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                        <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-                                          <ChevronRight className="w-4 h-4 text-white" />
-                                        </div>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                </Link>
+                                <div key={child.id} className="h-64">
+                                  <CategoryCard
+                                    category={child}
+                                    onClick={handleLinkClick}
+                                    productCount={getCategoryCount(child)}
+                                  />
+                                </div>
                               ))}
                             </div>
                           ) : (

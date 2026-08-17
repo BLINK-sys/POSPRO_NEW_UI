@@ -8,6 +8,7 @@ import { getHomepageData } from "./actions/public"
 import HomepageBlockComponent from "@/components/homepage-block"
 import HomepageBannerWrapper from "@/components/homepage-banner-wrapper"
 import MobileHomeWrapper from "@/components/mobile/mobile-home-wrapper"
+import { getApiUrl } from "@/lib/api-address"
 
 export const dynamic = 'force-dynamic'
 
@@ -36,11 +37,16 @@ function ErrorFallback() {
 }
 
 // Десктопный контент (выделен для передачи в wrapper)
-function DesktopHomepageContent({ data }: { data: any }) {
+function DesktopHomepageContent({ data, hasSlideCatalog }: { data: any; hasSlideCatalog: boolean }) {
+  const hasBanner = Array.isArray(data.banners) && data.banners.length > 0
+  // Доп top-padding нужен ровно ОДНОМУ элементу — самому первому, который
+  // виден пользователю: баннер если он есть, иначе первый блок.
+  const bannerNeedsExtraTop = hasSlideCatalog && hasBanner
+  const firstBlockNeedsExtraTop = hasSlideCatalog && !hasBanner
   return (
     <div className="bg-white dark:bg-gray-950">
       {/* Баннеры или панель каталога */}
-      <HomepageBannerWrapper banners={data.banners} />
+      <HomepageBannerWrapper banners={data.banners} extraTop={bannerNeedsExtraTop} />
 
       {/* Блоки контента */}
       {data.blocks && data.blocks.length > 0 ? (
@@ -48,7 +54,9 @@ function DesktopHomepageContent({ data }: { data: any }) {
           <HomepageBlockComponent
             key={block.id}
             block={block}
+            isFirstBlock={index === 0}
             isLastBlock={index === data.blocks.length - 1}
+            hasSlideCatalog={firstBlockNeedsExtraTop}
           />
         ))
       ) : (
@@ -82,16 +90,33 @@ function DesktopHomepageContent({ data }: { data: any }) {
   )
 }
 
+// Дёргаем на сервере: включена ли slide-панель каталога. Кнопка «Каталог»
+// торчит из-под шапки на 28px и наезжает на первый блок — если панель
+// включена, первому блоку нужен доп top-padding.
+async function getSlideCatalogEnabled(): Promise<boolean> {
+  try {
+    const res = await fetch(getApiUrl('/api/catalog-visibility'), { cache: 'no-store' })
+    if (!res.ok) return true
+    const json = await res.json()
+    return json?.visibility?.slide !== false
+  } catch {
+    return true
+  }
+}
+
 // Компонент с данными
 async function HomepageContent() {
   try {
-    const data = await getHomepageData()
+    const [data, hasSlideCatalog] = await Promise.all([
+      getHomepageData(),
+      getSlideCatalogEnabled(),
+    ])
 
     return (
       <MobileHomeWrapper
         banners={data.banners || []}
         blocks={data.blocks || []}
-        desktopContent={<DesktopHomepageContent data={data} />}
+        desktopContent={<DesktopHomepageContent data={data} hasSlideCatalog={hasSlideCatalog} />}
       />
     )
   } catch (error) {

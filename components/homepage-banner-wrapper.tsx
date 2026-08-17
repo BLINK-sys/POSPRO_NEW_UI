@@ -18,8 +18,9 @@ interface Banner {
 
 interface HomepageBannerWrapperProps {
   banners: Banner[]
+  extraTop?: boolean
 }
 
-export default function HomepageBannerWrapper({ banners }: HomepageBannerWrapperProps) {
-  return <HomepageBanner banners={banners} />
+export default function HomepageBannerWrapper({ banners, extraTop = false }: HomepageBannerWrapperProps) {
+  return <HomepageBanner banners={banners} extraTop={extraTop} />
 }

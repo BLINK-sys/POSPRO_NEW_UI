@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
-import { getCartCount } from '@/app/actions/cart'
+import { getCart, getCartCount } from '@/app/actions/cart'
 import { useAuth } from '@/context/auth-context'
 
 const GUEST_CART_KEY = 'guest-cart'
@@ -29,6 +29,9 @@ interface CartContextType {
   removeFromGuestCart: (productId: number) => void
   clearGuestCart: () => void
   isGuest: boolean
+  /** ID товаров, лежащих в корзине. Для гостей — из localStorage, для
+      залогиненных клиентов — тянется вместе с обновлением счётчика. */
+  cartProductIds: Set<number>
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -55,6 +58,7 @@ function saveGuestCartToStorage(items: GuestCartItem[]) {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cartCount, setCartCount] = useState(0)
   const [guestCartItems, setGuestCartItems] = useState<GuestCartItem[]>([])
+  const [serverCartIds, setServerCartIds] = useState<number[]>([])
   const { user } = useAuth()
 
   const isGuest = !user
@@ -78,19 +82,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return
       }
       setCartCount(0)
+      setServerCartIds([])
       return
     }
 
     try {
-      const result = await getCartCount()
-      if (result.success) {
-        setCartCount(result.data.count)
+      // Одним запросом получаем и count, и список product-id. `getCart`
+      // возвращает полный список items — из него берём id, чтобы кнопка
+      // "В корзину" могла показать состояние "В корзине" без доп. запросов.
+      const result = await getCart()
+      if (result.success && result.data) {
+        const items = result.data.items || []
+        setCartCount(result.data.items_count ?? items.reduce((sum: number, it: any) => sum + (it.quantity ?? 0), 0))
+        setServerCartIds(items.map((it: any) => it.product?.id ?? it.product_id).filter((id: any): id is number => typeof id === 'number'))
       } else {
         setCartCount(0)
+        setServerCartIds([])
       }
     } catch (error) {
-      console.error('Error loading cart count:', error)
+      console.error('Error loading cart:', error)
       setCartCount(0)
+      setServerCartIds([])
     }
   }, [user, isGuest])
 
@@ -157,6 +169,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  const cartProductIds = isGuest
+    ? new Set(guestCartItems.map(i => i.product_id))
+    : new Set(serverCartIds)
+
   const value: CartContextType = {
     cartCount,
     updateCartCount,
@@ -168,7 +184,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     updateGuestCartQuantity,
     removeFromGuestCart,
     clearGuestCart,
-    isGuest
+    isGuest,
+    cartProductIds,
   }
 
   return (

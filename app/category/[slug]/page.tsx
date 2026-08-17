@@ -19,6 +19,8 @@ import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { ProductCard } from "@/components/product-card"
+import { CategoryCard } from "@/components/category-card"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface CategoryPageData {
@@ -407,138 +409,17 @@ export default function CategoryPage() {
           <div
             className={
               viewMode === "grid"
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
                 : "space-y-0"
             }
           >
             {paginatedProducts.map((product) => (
+              viewMode === "grid" ? (
+                <ProductCard key={product.id} product={product as any} />
+              ) : (
                 <Link key={product.id} href={`/product/${product.slug}`}>
-                  <Card className={`hover:shadow-md transition-shadow cursor-pointer ${viewMode === "list" ? "mb-4" : ""}`}>
-                   <CardContent className="p-4">
-                                     {viewMode === "grid" ? (
-                     // Сетка
-                     <div className="group relative">
-                                               {/* Изображение товара */}
-                        <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
-                          {product.image_url ? (
-                            <Image
-                              src={getImageUrl(product.image_url)}
-                              alt={product.name}
-                              fill
-                              className="object-contain group-hover:scale-105 transition-transform duration-300"
-                            />
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <Package className="h-12 w-12 text-gray-400" />
-                            </div>
-                          )}
-                          
-                          {/* Статус товара - верхний левый угол */}
-                          {product.status && (
-                            <div className="absolute top-2 left-2 z-10">
-                              <Badge 
-                                className="text-xs px-2 py-1"
-                                style={{
-                                  backgroundColor: product.status.background_color,
-                                  color: product.status.text_color
-                                }}
-                              >
-                                {product.status.name}
-                              </Badge>
-                            </div>
-                          )}
-                          
-                          {/* Кнопка "В избранное" - только при наведении */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                            <FavoriteButton
-                              productId={product.id}
-                              productName={product.name}
-                              className="w-8 h-8 bg-white/90 hover:bg-white rounded-full shadow-md"
-                              size="sm"
-                            />
-                          </div>
-                          
-                           {/* Кнопка быстрого просмотра */}
-                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                             <QuickViewButton slug={product.slug} />
-                           </div>
-
-                           {/* Панель с дополнительной информацией при наведении - только снизу */}
-                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                             <div className="p-3 w-full">
-                               {product.brand_info && (
-                                 <div className="text-xs text-white mb-1">
-                                   <span className="font-medium">Бренд:</span> {product.brand_info.name}
-                                 </div>
-                               )}
-                               {product.brand_info?.country && (
-                                 <div className="text-xs text-white mb-1">
-                                   <span className="font-medium">Страна:</span> {product.brand_info.country}
-                                 </div>
-                               )}
-                             </div>
-                           </div>
-                        </div>
-                       
-                         {/* Информация о товаре */}
-                         <div className="space-y-2">
-                           <div className="text-sm text-gray-600">
-                             <span className="font-medium">Товар:</span> {product.name}
-                           </div>
-                           
-                           <div className={`text-sm font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                             <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
-                           </div>
-
-                           {wholesaleUser && (
-                             <div className={`text-sm font-bold ${getWholesalePriceClass()}`}>
-                               <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
-                             </div>
-                           )}
-                           
-                           <div className="text-sm text-gray-600">
-                             <span className="font-medium">Наличие:</span>{" "}
-                             {product.availability_status ? (
-                               <span
-                                 style={{
-                                   backgroundColor: product.availability_status.background_color,
-                                   color: product.availability_status.text_color,
-                                   padding: "3px 8px",
-                                   borderRadius: "4px",
-                                   fontSize: "12px"
-                                 }}
-                               >
-                                 {formatAvailabilityStatusLabel(product.availability_status)}
-                               </span>
-                             ) : (
-                               <span>{product.quantity} шт.</span>
-                             )}
-                           </div>
-                           
-                           {/* Поставщик (только для админов) */}
-                           {isSystemUser && product.supplier_name && (
-                             <div className="text-xs text-gray-500 truncate">
-                               <span className="font-medium">Поставщик:</span> {product.supplier_name}
-                             </div>
-                           )}
-
-                           {/* Кнопка "Добавить в корзину" */}
-                           <AddToCartButton
-                             productId={product.id}
-                             productName={product.name}
-                             productSlug={product.slug}
-                             productPrice={product.price}
-                             productImageUrl={product.image_url}
-                             productArticle={product.article || ''}
-                             className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-4 rounded-lg"
-                             size="sm"
-                           />
-                         </div>
-                       
-                       
-                     </div>
-                                                       ) : (
-                    // Список
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer mb-4">
+                    <CardContent className="p-4">
                     <div className="grid grid-cols-7 gap-4 items-center">
                       {/* Изображение */}
                       <div className="w-20 h-20 relative bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -639,10 +520,10 @@ export default function CategoryPage() {
                         />
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+              )
             ))}
           </div>
         )}
@@ -713,44 +594,11 @@ export default function CategoryPage() {
       {data.subcategories.length > 0 && (
         <div className="mt-10">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Подкатегории</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {data.subcategories.map((subcategory) => (
-              <Link key={subcategory.id} href={`/category/${subcategory.slug}`}>
-                <Card className="group h-64 w-56 flex-shrink-0 overflow-hidden rounded-xl border-0 bg-white shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_14px_36px_rgba(0,0,0,0.22)] hover:scale-[1.03]">
-                  <CardContent className="p-0 h-full flex flex-col">
-                    <div className="relative h-48 bg-white flex items-center justify-center rounded-t-xl overflow-hidden p-4">
-                      {subcategory.image_url ? (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          <Image
-                            src={getImageUrl(subcategory.image_url)}
-                            alt={subcategory.name}
-                            fill
-                            className="object-contain transition-transform duration-300 group-hover:scale-110"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-4xl text-gray-400">📁</div>
-                      )}
-                    </div>
-
-                    <div className="relative bg-yellow-400 h-16 rounded-xl p-4 flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-gray-900 text-sm leading-tight">
-                          {subcategory.name}
-                        </h3>
-                        {subcategory.description && (
-                          <p className="text-gray-700 text-xs mt-1 line-clamp-2">{subcategory.description}</p>
-                        )}
-                      </div>
-
-                      <div className="absolute top-0 right-0 w-8 h-8 bg-gray-900 rounded-tr-lg rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-                        <ChevronRight className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+              <div key={subcategory.id} className="h-64">
+                <CategoryCard category={subcategory as any} />
+              </div>
             ))}
           </div>
         </div>

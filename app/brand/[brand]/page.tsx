@@ -11,8 +11,8 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Filter, Package, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react"
 import { getProductsByBrandDetailed, getCategoriesByBrand, getProductsByBrandAndCategory, getAllBrands } from "@/app/actions/public"
 import { CategoryData, AllBrandsData, PaginatedBrandProducts } from "@/app/actions/public"
-import { FavoriteButton } from "@/components/favorite-button"
-import { AddToCartButton } from "@/components/add-to-cart-button"
+import { ProductCard } from "@/components/product-card"
+import { BrandCard } from "@/components/brand-card"
 import Image from "next/image"
 import Link from "next/link"
 import { API_BASE_URL } from "@/lib/api-address"
@@ -443,139 +443,10 @@ export default function BrandPage() {
             </div>
           ) : brandData.products.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {brandData.products.map((product) => {
-                  return (
-                    <div key={product.id} className="group">
-                      <Link href={`/product/${product.slug}`}>
-                        <Card className="hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer bg-white rounded-xl border-0 shadow-lg">
-                          <CardContent className="p-3">
-                            <div className="relative">
-                              {/* Изображение товара */}
-                              <div className="aspect-square relative bg-white rounded-lg overflow-hidden mb-3">
-                                {product.image_url ? (
-                                  <Image
-                                    src={getImageUrl(product.image_url)}
-                                    alt={product.name}
-                                    fill
-                                    className="object-contain group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full">
-                                    <div className="text-gray-400 text-2xl">📦</div>
-                                  </div>
-                                )}
-                                
-                                {/* Статус товара - верхний левый угол */}
-                                {product.status && (
-                                  <div className="absolute top-2 left-2 z-10">
-                                    <Badge 
-                                      className="text-xs px-2 py-1 shadow-md"
-                                      style={{
-                                        backgroundColor: product.status.background_color,
-                                        color: product.status.text_color
-                                      }}
-                                    >
-                                      {product.status.name}
-                                    </Badge>
-                                  </div>
-                                )}
-                                
-                                {/* Кнопка "В избранное" - только при наведении */}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                                  <FavoriteButton
-                                    productId={product.id}
-                                    productName={product.name}
-                                    className="w-7 h-7 bg-white/95 hover:bg-white rounded-full shadow-md hover:shadow-lg"
-                                    size="sm"
-                                  />
-                                </div>
-                                
-                                {/* Кнопка быстрого просмотра */}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                                  <QuickViewButton slug={product.slug} />
-                                </div>
-
-                                {/* Панель с дополнительной информацией при наведении - только снизу */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                                  <div className="p-3 w-full">
-                                    {/* Бренд */}
-                                    {product.brand_info && (
-                                      <div className="text-xs text-white mb-1">
-                                        <span className="font-medium">Бренд:</span> {product.brand_info.name}
-                                      </div>
-                                    )}
-                                    {/* Страна */}
-                                    {product.brand_info?.country && (
-                                      <div className="text-xs text-white mb-1">
-                                        <span className="font-medium">Страна:</span> {product.brand_info.country}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Информация о товаре */}
-                              <div className="space-y-2">
-                                <div className="text-xs text-gray-600">
-                                  <span className="font-medium">Товар:</span> {product.name}
-                                </div>
-                                
-                                <div className={`text-xs font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-                                  <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}
-                                </div>
-
-                                {wholesaleUser && (
-                                  <div className={`text-xs font-bold ${getWholesalePriceClass()}`}>
-                                    <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
-                                  </div>
-                                )}
-                                
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium">Наличие:</span>{" "}
-                                  {product.availability_status ? (
-                                    <span
-                                      style={{
-                                        backgroundColor: product.availability_status.background_color,
-                                        color: product.availability_status.text_color,
-                                        padding: "3px 8px",
-                                        borderRadius: "4px",
-                                        fontSize: "12px"
-                                      }}
-                                    >
-                                      {formatAvailabilityStatusLabel(product.availability_status)}
-                                    </span>
-                                  ) : (
-                                    <span>{product.quantity} шт.</span>
-                                  )}
-                                </div>
-                                
-                                {/* Поставщик (только для админов) */}
-                                {isSystemUser && product.supplier_name && (
-                                  <div className="text-xs text-gray-500 truncate">
-                                    <span className="font-medium">Поставщик:</span> {product.supplier_name}
-                                  </div>
-                                )}
-
-                                {/* Кнопка "Добавить в корзину" */}
-                                <AddToCartButton
-                                  productId={product.id}
-                                  productName={product.name}
-                                  productSlug={product.slug}
-                                  productPrice={product.price}
-                                  productImageUrl={product.image_url}
-                                  productArticle={product.article || ''}
-                                  className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-2 px-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs"
-                                  size="sm"
-                                />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </div>
-                  )
-                })}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {brandData.products.map((product) => (
+                  <ProductCard key={product.id} product={product as any} />
+                ))}
               </div>
               {brandData.total_pages >= 1 && (
                 <div className="mt-8 space-y-3 flex flex-col items-center justify-center">
@@ -659,41 +530,16 @@ export default function BrandPage() {
       {/* Все бренды */}
       <div className="mt-12">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Все бренды</h2>
-        <div className="flex flex-wrap gap-4" ref={brandsContainerRef}>
+        <div
+          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3"
+          ref={brandsContainerRef}
+        >
           {visibleBrands.map((brand) => (
-            <button 
-              key={brand.id} 
+            <BrandCard
+              key={brand.id}
+              brand={brand as any}
               onClick={() => handleBrandChange(brand.name)}
-              className="group hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-md h-44 w-44 flex-shrink-0 bg-white rounded-xl"
-            >
-              <div className="p-0 h-full flex flex-col">
-                <div className="relative h-full bg-white rounded-xl overflow-hidden">
-                  {brand.image_url ? (
-                    <Image
-                      src={getImageUrl(brand.image_url)}
-                      alt={brand.name}
-                      fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-300"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-2xl text-gray-400">🏢</div>
-                    </div>
-                  )}
-                  
-                  {/* Hover overlay с темной полупрозрачной карточкой */}
-                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center rounded-xl pointer-events-none">
-                    <div className="text-center text-white p-2">
-                      <h3 className="font-bold text-sm mb-1 leading-tight">{brand.name}</h3>
-                      {brand.country && (
-                        <p className="text-white/90 text-xs">{brand.country}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </button>
+            />
           ))}
         </div>
         {canShowMoreBrands && (

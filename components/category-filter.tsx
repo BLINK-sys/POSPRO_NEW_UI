@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { CategoryData } from "@/app/actions/public"
+import { cn } from "@/lib/utils"
 
 interface CategoryFilterProps {
   categories: CategoryData[]
@@ -11,49 +10,47 @@ interface CategoryFilterProps {
   className?: string
 }
 
-export default function CategoryFilter({ 
-  categories, 
-  selectedCategoryId, 
+/**
+ * Компактный фильтр категорий для блоков товаров на главной. Кнопки
+ * оформлены как пункты нижней полосы шапки (мелкий text-[11px], тонкие
+ * pill-таблетки с hover-bg-yellow), а не крупные bg-gray Button'ы.
+ * Активная — жёлтая заливка + чёрный текст.
+ */
+export default function CategoryFilter({
+  categories,
+  selectedCategoryId,
   onCategorySelect,
-  className = ""
+  className = "",
 }: CategoryFilterProps) {
-  if (!categories || categories.length === 0) {
-    return null
-  }
+  if (!categories || categories.length === 0) return null
+
+  const chipCls = (active: boolean) => cn(
+    "whitespace-nowrap px-2.5 py-1 text-[11px] rounded-full transition-colors border cursor-pointer",
+    active
+      ? "bg-brand-yellow text-black border-brand-yellow shadow-sm font-medium"
+      : "bg-white text-gray-700 border-gray-200 hover:bg-yellow-50 hover:border-yellow-200 hover:text-black",
+  )
 
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
-      {/* Кнопка "Все категории" */}
-      <Button
-        variant={selectedCategoryId === null ? "default" : "outline"}
-        size="sm"
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
+      <button
+        type="button"
         onClick={() => onCategorySelect(null)}
-        className={`text-sm px-4 py-2 rounded-full transition-all duration-200 ${
-          selectedCategoryId === null
-            ? "bg-brand-yellow text-black hover:bg-yellow-500 shadow-md"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900"
-        }`}
+        className={chipCls(selectedCategoryId === null)}
       >
         Все категории
-      </Button>
+      </button>
 
-      {/* Кнопки категорий */}
       {categories.map((category) => (
-        <Button
+        <button
           key={category.id}
-          variant={selectedCategoryId === category.id ? "default" : "outline"}
-          size="sm"
+          type="button"
           onClick={() => onCategorySelect(category.id)}
-          className={`text-sm px-4 py-2 rounded-full transition-all duration-200 ${
-            selectedCategoryId === category.id
-              ? "bg-brand-yellow text-black hover:bg-yellow-500 shadow-md"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900"
-          }`}
+          className={chipCls(selectedCategoryId === category.id)}
         >
           {category.name}
-        </Button>
+        </button>
       ))}
     </div>
   )
 }
-

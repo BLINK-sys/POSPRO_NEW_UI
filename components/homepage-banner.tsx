@@ -24,9 +24,10 @@ interface Banner {
 
 interface HomepageBannerProps {
   banners: Banner[]
+  extraTop?: boolean
 }
 
-export default function HomepageBanner({ banners }: HomepageBannerProps) {
+export default function HomepageBanner({ banners, extraTop = false }: HomepageBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
   const [isClient, setIsClient] = useState(false)
@@ -55,8 +56,8 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
   if (!isClient) {
     const firstBanner = banners[0]
     return (
-      <section className="py-8 md:py-12">
-        <div className="w-[90vw] mx-auto">
+      <section className={`${extraTop ? "pt-12" : "pt-4"} pb-4`}>
+        <div className="container mx-auto px-4 md:px-6">
           <div className="relative">
             <Card 
               className="overflow-hidden hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-all duration-300 w-full shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
@@ -64,13 +65,14 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
               <CardContent className="p-0">
                 <div className="relative">
                   {firstBanner.image ? (
-                    <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem]">
-                      <Image
+                    <div className="relative w-full">
+                      {/* Native img: ширина 100% контейнера, высота = auto
+                          (сохраняет натуральную пропорцию картинки). */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={getImageUrl(firstBanner.image)}
                         alt={firstBanner.title}
-                        fill
-                        className="object-fill"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
+                        className="w-full h-auto block"
                       />
                       {(firstBanner.title || firstBanner.subtitle || (firstBanner.show_button && firstBanner.button_text)) && (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -112,7 +114,7 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                       )}
                     </div>
                   ) : (
-                    <div className="h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-100 flex items-center justify-center">
+                    <div className="aspect-[16/5] min-h-[220px] bg-gray-100 flex items-center justify-center">
                       <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
                         <CardContent className="p-6">
                           <div className="text-center text-white">
@@ -169,11 +171,11 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
   const currentBanner = banners[currentIndex]
 
   return (
-    <section className="py-8 md:py-12">
-      <div className="w-[90vw] mx-auto">
+    <section className={`${extraTop ? "pt-12" : "pt-4"} pb-4`}>
+      <div className="container mx-auto px-4 md:px-6">
         <div className="relative">
-          <Card 
-            className="overflow-hidden hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-all duration-300 w-full shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
+          <Card
+            className="group overflow-hidden hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-all duration-300 w-full shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
           >
             <CardContent className="p-0">
                 <div className="relative overflow-hidden">
@@ -184,13 +186,12 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                     {banners.map((banner, index) => (
                       <div key={banner.id} className="w-full flex-shrink-0">
                         {banner.image ? (
-                          <div className="relative h-80 md:h-96 lg:h-[28rem] xl:h-[32rem]">
-                            <Image
+                          <div className="relative w-full">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
                               src={getImageUrl(banner.image)}
                               alt={banner.title}
-                              fill
-                              className="object-fill"
-                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 100vw"
+                              className="w-full h-auto block"
                             />
                             {(banner.title || banner.subtitle || (banner.show_button && banner.button_text)) && (
                               <div className="absolute inset-0 flex items-center justify-center">
@@ -232,7 +233,7 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                             )}
                           </div>
                         ) : (
-                          <div className="h-80 md:h-96 lg:h-[28rem] xl:h-[32rem] bg-gray-100 flex items-center justify-center">
+                          <div className="aspect-[16/5] min-h-[220px] bg-gray-100 flex items-center justify-center">
                             <Card className="bg-black/60 backdrop-blur-sm border-0 shadow-lg">
                               <CardContent className="p-6">
                                 <div className="text-center text-white">
@@ -271,18 +272,20 @@ export default function HomepageBanner({ banners }: HomepageBannerProps) {
                     ))}
                   </div>
 
-                {/* Кнопки навигации - только если больше 1 баннера */}
+                {/* Кнопки навигации — прямоугольные, прижаты к краям,
+                    скруглены только с внутренней стороны. Появляются при
+                    hover на баннере (group), полупрозрачные жёлтые. */}
                 {banners.length > 1 && (
                   <>
                     <Button
                       onClick={goToPrevious}
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-brand-yellow hover:bg-yellow-500 text-black shadow-[0_4px_12px_rgba(0,0,0,0.25)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.35)] transition-all duration-300"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-20 p-0 rounded-none rounded-r-lg bg-brand-yellow/70 hover:bg-brand-yellow text-black shadow-lg transition-all duration-300 opacity-0 group-hover:opacity-100"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </Button>
                     <Button
                       onClick={goToNext}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-brand-yellow hover:bg-yellow-500 text-black shadow-[0_4px_12px_rgba(0,0,0,0.25)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.35)] transition-all duration-300"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-20 p-0 rounded-none rounded-l-lg bg-brand-yellow/70 hover:bg-brand-yellow text-black shadow-lg transition-all duration-300 opacity-0 group-hover:opacity-100"
                     >
                       <ChevronRight className="w-6 h-6" />
                     </Button>
