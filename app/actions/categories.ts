@@ -13,6 +13,9 @@ export interface Category {
   parent_id: number | null
   order: number
   show_in_menu?: boolean
+  /** Кол-во товаров непосредственно в этой категории (не рекурсивно).
+      Заполняется в GET /categories/ для нужд админ-сортировки. */
+  products_count?: number
   children?: Category[]
 }
 
@@ -186,6 +189,37 @@ export async function setCategoryImageUrl(category: Category, imageUrl: string):
     return { success: true, message: "URL изображения установлен." }
   } catch (e) {
     return { error: "Ошибка сети при установке URL." }
+  }
+}
+
+export type CategorySortMode =
+  | "alpha_asc"
+  | "alpha_desc"
+  | "products_desc"
+  | "products_asc"
+  | "children_desc"
+
+export async function applyCategorySort(
+  mode: CategorySortMode,
+  includeChildren: boolean,
+): Promise<CategoryActionState> {
+  const token = getToken()
+  try {
+    const res = await fetch(`${API_BASE_URL}/categories/apply-sort`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ mode, include_children: includeChildren }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      return { error: err.error || err.message || "Ошибка сортировки" }
+    }
+    const data = await res.json()
+    revalidateTag('categories')
+    revalidateTag('homepage')
+    return { success: true, message: `Порядок применён (${data.updated} категорий обновлено).` }
+  } catch (e) {
+    return { error: "Ошибка сети." }
   }
 }
 
