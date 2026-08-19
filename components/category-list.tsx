@@ -6,7 +6,8 @@ import { type Category, getCategories } from "@/app/actions/categories"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PlusCircle, Search, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
+import { PlusCircle, Search, ChevronsDownUp, ChevronsUpDown, Shuffle } from "lucide-react"
+import Link from "next/link"
 import { CategoryTreeItem } from "./category-tree-item"
 import { CategoryEditDialog } from "./category-edit-dialog"
 
@@ -329,6 +330,18 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
           >
             <ChevronsDownUp className="mr-2 h-4 w-4" />
             Свернуть все
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            title="Управление алиасами категорий (маппинг имён поставщиков → наши категории)"
+            className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+          >
+            <Link href="/admin/catalog/categories/aliases">
+              <Shuffle className="mr-2 h-4 w-4" />
+              Пути перенаправления категорий
+            </Link>
           </Button>
           <Button
             onClick={() => setCreateModalOpen(true)}
