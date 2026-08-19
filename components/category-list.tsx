@@ -342,12 +342,18 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
     [categories, getCategoriesToHighlight],
   )
 
+  // Общий класс для селектов — убирает focus-ring чтобы UI не мигал
+  // жёлтой обводкой при переключении.
+  const selectNoRingCls = "focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-1 gap-4 items-center w-full sm:w-auto">
+      {/* Строка 1: фильтры + кнопки. flex-wrap чтобы контент не вылезал за
+          пределы при большом числе элементов. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-3 items-center justify-between">
+        <div className="flex flex-wrap gap-4 items-center">
           {/* Поиск */}
-          <div className="relative flex-1 sm:flex-initial sm:w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Поиск по названию или slug..."
@@ -359,7 +365,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
 
           {/* Фильтр по видимости */}
           <Select value={visibilityFilter} onValueChange={(value) => setVisibilityFilter(value as "all" | "visible" | "hidden")}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className={`w-[140px] ${selectNoRingCls}`}>
               <SelectValue placeholder="Видимость" />
             </SelectTrigger>
             <SelectContent>
@@ -374,7 +380,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
             value={sortMode}
             onValueChange={(v) => setSortMode(v as CategorySortMode | "default")}
           >
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className={`w-[220px] ${selectNoRingCls}`}>
               <ArrowDownAZ className="h-4 w-4 mr-2 shrink-0 text-gray-500" />
               <SelectValue placeholder="Сортировка" />
             </SelectTrigger>
@@ -387,41 +393,9 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
               <SelectItem value="children_desc">По кол-ву подкатегорий ↓</SelectItem>
             </SelectContent>
           </Select>
-
-          {sortMode !== "default" && (
-            <>
-              <label className="flex items-center gap-2 text-xs text-gray-700 select-none cursor-pointer">
-                <Switch checked={sortIncludeChildren} onCheckedChange={setSortIncludeChildren} />
-                Включая подкатегории
-              </label>
-              <Button
-                size="sm"
-                onClick={handleApplySort}
-                disabled={isApplyingSort}
-                className="bg-brand-yellow text-black hover:bg-yellow-500"
-                title="Записать текущий порядок в БД — станет виден на сайте"
-              >
-                {isApplyingSort ? (
-                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4 mr-1.5" />
-                )}
-                Применить к сайту
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setSortMode("default")}
-                disabled={isApplyingSort}
-                title="Вернуть отображение к порядку в БД"
-              >
-                Сброс
-              </Button>
-            </>
-          )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -463,6 +437,44 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
           </Button>
         </div>
       </div>
+
+      {/* Строка 2 (только при активной сортировке): свитч + Применить/Сброс.
+          Отдельная строка — чтобы не ломать layout основной шапки. */}
+      {sortMode !== "default" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50/60 px-3 py-2 text-xs">
+          <span className="font-medium text-gray-700">Превью сортировки:</span>
+          <label className="flex items-center gap-2 text-gray-700 select-none cursor-pointer">
+            <Switch checked={sortIncludeChildren} onCheckedChange={setSortIncludeChildren} />
+            Включая подкатегории
+          </label>
+          <div className="flex gap-2 ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSortMode("default")}
+              disabled={isApplyingSort}
+              title="Вернуть отображение к порядку в БД"
+            >
+              Сброс
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleApplySort}
+              disabled={isApplyingSort}
+              className="bg-brand-yellow text-black hover:bg-yellow-500"
+              title="Записать текущий порядок в БД — станет виден на сайте"
+            >
+              {isApplyingSort ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-1.5" />
+              )}
+              Применить к сайту
+            </Button>
+          </div>
+        </div>
+      )}
+
       <motion.div
         className="rounded-xl border border-gray-200 bg-white p-4 space-y-2 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         layout
