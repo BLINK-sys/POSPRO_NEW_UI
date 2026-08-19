@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { Search, X, Loader2, SlidersHorizontal, RotateCcw, ChevronUp, Tag, Building2, Sparkles } from "lucide-react"
+import { Search, X, Loader2, SlidersHorizontal, RotateCcw, ChevronUp, Tag, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -27,18 +26,6 @@ const PAGE_SIZE = 20
 export default function MobileSearchPage() {
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
-  const router = useRouter()
-
-  // AI-консультант — гейт тот же что в desktop-search-page.
-  const [aiAccess, setAiAccess] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/ai-consultant/access", { cache: "no-store" })
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setAiAccess(Boolean(d?.has_access)) })
-      .catch(() => { if (!cancelled) setAiAccess(false) })
-    return () => { cancelled = true }
-  }, [user?.id, user?.email])
 
   const [query, setQuery] = useState("")
   const [allResults, setAllResults] = useState<ProductData[]>([])
@@ -437,16 +424,8 @@ export default function MobileSearchPage() {
           >
             Найти
           </Button>
-          {aiAccess && (
-            <Button
-              size="sm"
-              onClick={() => router.push("/ai")}
-              className="h-10 w-10 p-0 shrink-0 bg-gradient-to-r from-brand-yellow to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-black rounded-full"
-              title="AI-подбор товаров"
-            >
-              <Sparkles className="h-5 w-5" />
-            </Button>
-          )}
+          {/* AI-консультант доступен только на десктопе. Кнопка перехода
+              на /ai в мобильной версии не рендерится ни для одной роли. */}
         </div>
 
         {/* Filter toggle bar — only show when there are results */}

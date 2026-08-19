@@ -20,7 +20,9 @@ import {
   ExternalLink,
   Play,
   Image as ImageIcon,
-  Pencil
+  Pencil,
+  ChevronRight,
+  Scale,
 } from "lucide-react"
 import { getProductBySlug } from "@/app/actions/products"
 import { createBitrixPriceInquiry } from "@/app/actions/bitrix"
@@ -28,6 +30,7 @@ import { toast } from "@/hooks/use-toast"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
+import { CompareButton } from "@/components/compare-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
 import { getProductAvailabilityStatus, ProductAvailabilityStatus } from "@/app/actions/public"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
@@ -342,21 +345,36 @@ export default function ProductPage() {
   if (isMobile) return <MobileProductPage slug={slug} />
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Навигация */}
-      <div className="mb-6">
-        <button 
-          onClick={() => router.back()} 
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <span>Назад</span>
-        </button>
-      </div>
+    <div className="container mx-auto px-4 md:px-6 py-4">
+      {/* Хлебные крошки — компактно, вместо крупной кнопки «Назад».
+          Категорию берём через as-any, потому что бэк отдаёт разные
+          формы (строка или объект) в зависимости от эндпоинта; не хочу
+          расширять локальный ProductDetail ради двух ссылок. */}
+      <nav className="mb-4 flex items-center gap-1.5 text-xs text-gray-500 flex-wrap">
+        <Link href="/" className="hover:text-brand-yellow transition-colors">Главная</Link>
+        <ChevronRight className="h-3 w-3 text-gray-300" />
+        {(() => {
+          const cat: any = (product as any).category
+          const categoryName = typeof cat === "string" ? cat : cat?.name
+          const categorySlug = typeof cat === "string" ? undefined : cat?.slug
+          if (!categoryName) return null
+          return (
+            <>
+              {categorySlug ? (
+                <Link href={`/category/${categorySlug}`} className="hover:text-brand-yellow transition-colors">
+                  {categoryName}
+                </Link>
+              ) : (
+                <span>{categoryName}</span>
+              )}
+              <ChevronRight className="h-3 w-3 text-gray-300" />
+            </>
+          )
+        })()}
+        <span className="text-gray-800 font-medium truncate max-w-[400px]">{product.name}</span>
+      </nav>
 
-      {/* Родительская карточка для всех элементов */}
-      <Card className="p-6 shadow-lg">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Левая колонка - Медиа */}
         <div className="space-y-4">
           {/* Основное медиа */}
@@ -438,7 +456,7 @@ export default function ProductPage() {
 
           {/* Миниатюры медиа */}
           {productMedia.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-1.5">
               {productMedia.map((media, index) => (
                 <button
                   key={media.id}
@@ -497,11 +515,11 @@ export default function ProductPage() {
         </div>
 
         {/* Правая колонка - Информация о товаре */}
-        <div className="space-y-6">
-          {/* Название товара */}
+        <div className="space-y-3">
+          {/* Название товара + быстрые действия для админов/КП */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">{product.name}</h1>
-            <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-gray-900 mb-2 leading-tight">{product.name}</h1>
+            <div className="flex items-center gap-1.5 flex-wrap">
               <AddToKPButton
                 productId={product.id}
                 productName={product.name}
@@ -514,99 +532,103 @@ export default function ProductPage() {
                 productBrandName={product.brand_info?.name}
                 productSupplierName={product.supplier?.name || product.supplier_name}
                 productCharacteristics={product.characteristics?.map(c => ({ key: c.key, value: c.value }))}
-                className="font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                className="h-8 text-xs font-medium px-3 rounded-full shadow-sm hover:shadow-md transition-all duration-200"
+                size="sm"
               />
-              {/* Только для админов/системных — быстрый редирект в админку
-                  с предзаполненным поиском по названию товара. */}
               {(user?.role === "admin" || user?.role === "system") && (
                 <Button
                   onClick={() => router.push(`/admin/catalog/products?q=${encodeURIComponent(product.name)}`)}
                   variant="outline"
-                  className="border-2 border-black text-black bg-transparent hover:bg-gray-100 font-medium py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+                  size="sm"
+                  className="h-8 text-xs border-2 border-black text-black bg-transparent hover:bg-gray-100 font-medium px-3 rounded-full shadow-sm hover:shadow-md transition-all duration-200"
                   title="Открыть в админке для редактирования"
                 >
-                  <Pencil className="h-4 w-4 mr-2" />
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
                   Редактировать
                 </Button>
               )}
+              <CompareButton
+                productId={product.id}
+                productName={product.name}
+                productSlug={product.slug}
+                categoryId={product.category_id}
+                categoryName={
+                  typeof (product as any).category === "string"
+                    ? (product as any).category
+                    : (product as any).category?.name
+                }
+                className="h-8 w-8 shadow-sm hover:shadow-md"
+              />
             </div>
           </div>
 
-          {/* Информация о товаре */}
-          <div className="space-y-3">
+          {/* Мета: бренд / поставщик / страна — компактный ряд */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-600">
             {product.brand_info && (
-              <div className="text-sm text-gray-600 relative">
-                <span className="font-medium">Бренд:</span>{" "}
+              <div className="relative">
+                <span className="font-medium text-gray-700">Бренд:</span>{" "}
                 <Link
                   href={`/brand/${encodeURIComponent(product.brand_info.name)}`}
-                  className="inline-block px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md shadow-sm hover:shadow-md transition-all duration-200 text-xs font-medium"
+                  className="inline-block px-1.5 py-0.5 bg-gray-100 hover:bg-brand-yellow/60 text-gray-800 rounded font-medium transition-colors"
                   onMouseEnter={() => setShowBrandTooltip(true)}
                   onMouseLeave={() => setShowBrandTooltip(false)}
                 >
                   {product.brand_info.name}
                 </Link>
-                
-                {/* Кастомная подсказка */}
                 {showBrandTooltip && (
-                  <div className="absolute z-50 px-3 py-2 bg-white text-black text-xs rounded-lg shadow-lg border border-gray-200 -top-12 left-0 whitespace-nowrap">
-                    Посмотрите все товары бренда "{product.brand_info.name}"
-                    {/* Стрелка вниз */}
-                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
+                  <div className="absolute z-50 px-2 py-1 bg-gray-900 text-white text-[10px] rounded shadow-lg -top-8 left-0 whitespace-nowrap">
+                    Все товары бренда
                   </div>
                 )}
               </div>
             )}
-            
             {(user?.role === "admin" || user?.role === "system") && (() => {
               const txt = getSuppliersText(product as any)
               return txt ? (
-                <div className="text-sm text-gray-600">
-                  <span className="font-medium">Поставщик:</span> {txt}
+                <div>
+                  <span className="font-medium text-gray-700">Поставщик:</span> {txt}
                 </div>
               ) : null
             })()}
-
             {(product.country || product.brand_info?.country) && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Страна производитель:</span> {product.country || product.brand_info?.country}
+              <div>
+                <span className="font-medium text-gray-700">Страна:</span>{" "}
+                {product.country || product.brand_info?.country}
               </div>
             )}
-
-            {/* Статус наличия */}
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">Наличие:</span>{" "}
-              {product.availability_status ? (
-                <span
-                  style={{
-                    backgroundColor: product.availability_status.background_color,
-                    color: product.availability_status.text_color,
-                    padding: "4px 8px",
-                    borderRadius: "6px",
-                    fontSize: "12px",
-                    fontWeight: "500"
-                  }}
-                >
-                  {formatAvailabilityStatusLabel(product.availability_status)}
-                </span>
-              ) : (
-                <span>{product.quantity} шт.</span>
-              )}
-            </div>
           </div>
 
-          {/* Цены */}
-          <div className="pt-2 border-t border-gray-200 space-y-2">
-            <div className="text-sm">
-              <span className="font-medium">Цена:</span>{" "}
-              <span className={retailPriceColor}>
+          {/* Наличие */}
+          <div className="text-xs">
+            <span className="font-medium text-gray-700">Наличие:</span>{" "}
+            {product.availability_status ? (
+              <span
+                className="inline-block px-2 py-0.5 rounded text-[11px] font-medium"
+                style={{
+                  backgroundColor: product.availability_status.background_color,
+                  color: product.availability_status.text_color,
+                }}
+              >
+                {formatAvailabilityStatusLabel(product.availability_status)}
+              </span>
+            ) : (
+              <span className="text-gray-600">{product.quantity} шт.</span>
+            )}
+          </div>
+
+          {/* Цены — крупным акцентом */}
+          <div className="pt-3 border-t border-gray-200 space-y-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-medium text-gray-700">Цена:</span>
+              <span className={`text-lg font-bold ${retailPriceColor}`}>
                 {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, user?.role === "admin" || user?.role === "system")}
               </span>
             </div>
 
             {showWholesalePrice && (
-              <div className="text-sm">
-                <span className="font-medium">Оптовая цена:</span>{" "}
-                <span className={wholesalePriceColor}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-medium text-gray-700">Оптовая:</span>
+                <span className={`text-base font-bold ${wholesalePriceColor}`}>
                   {formatProductPrice(product.wholesale_price)}
                 </span>
               </div>
@@ -716,7 +738,7 @@ export default function ProductPage() {
           )}
 
           {/* Кнопки действий */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 pt-3">
             <AddToCartButton
               productId={product.id}
               productName={product.name}
@@ -724,16 +746,16 @@ export default function ProductPage() {
               productPrice={product.price}
               productImageUrl={product.media?.[0]?.url || null}
               productArticle={product.article || ''}
-              className="flex-1 bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-3 px-6 rounded-full shadow-md hover:shadow-lg transition-all duration-200"
+              className="flex-1 bg-brand-yellow hover:bg-yellow-500 text-black font-medium h-10 rounded-full shadow-sm hover:shadow-md text-sm transition-all duration-200"
             >
-              <ShoppingCart className="h-5 w-5 mr-2" />
-              Добавить в корзину
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              В корзину
             </AddToCartButton>
-            
+
             <FavoriteButton
               productId={product.id}
               productName={product.name}
-              className="flex-shrink-0 border border-gray-200 rounded-full p-3 shadow-md hover:shadow-lg transition-all duration-200"
+              className="flex-shrink-0 h-10 w-10 border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all duration-200"
               variant="ghost"
             />
           </div>
@@ -743,17 +765,17 @@ export default function ProductPage() {
 
         {/* Табы с дополнительной информацией - внизу страницы */}
         {activeTabsCount > 0 ? (
-          <div className="mt-8 pt-8 border-t border-gray-200">
+          <div className="mt-6 pt-6 border-t border-gray-200">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className={`grid w-full ${gridColsClass} rounded-full shadow-md h-12 p-1`}>
+              <TabsList className={`grid w-full ${gridColsClass} rounded-full shadow-sm h-10 p-1`}>
                 {product.characteristics.length > 0 && (
-                  <TabsTrigger value="characteristics" className="rounded-full data-[state=active]:shadow-md mx-1">Характеристики</TabsTrigger>
+                  <TabsTrigger value="characteristics" className="rounded-full text-xs data-[state=active]:shadow-sm mx-0.5">Характеристики</TabsTrigger>
                 )}
                 {product.documents.length > 0 && (
-                  <TabsTrigger value="documents" className="rounded-full data-[state=active]:shadow-md mx-1">Документы</TabsTrigger>
+                  <TabsTrigger value="documents" className="rounded-full text-xs data-[state=active]:shadow-sm mx-0.5">Документы</TabsTrigger>
                 )}
                 {product.drivers.length > 0 && (
-                  <TabsTrigger value="drivers" className="rounded-full data-[state=active]:shadow-md mx-1">Драйверы</TabsTrigger>
+                  <TabsTrigger value="drivers" className="rounded-full text-xs data-[state=active]:shadow-sm mx-0.5">Драйверы</TabsTrigger>
                 )}
               </TabsList>
 
@@ -797,40 +819,28 @@ export default function ProductPage() {
               {product.documents.length > 0 ? (
                 <div className="space-y-3">
                   {product.documents.map((doc) => (
-                    <div key={doc.id} className="flex items-start gap-4 p-4 bg-gray-100 rounded-lg shadow-md">
-                      {/* Черная карточка с логотипом - 20% ширины, 60% высоты */}
-                      <div className="w-1/5 bg-black rounded-lg flex items-center justify-center flex-shrink-0 relative shadow-md" style={{ height: '60%', aspectRatio: '5/3' }}>
+                    <div key={doc.id} className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-brand-yellow transition-all">
+                      <div className="w-10 h-10 bg-black rounded flex items-center justify-center flex-shrink-0 relative">
                         <Image
                           src="/ui/for_docs_driver.png"
-                          alt="Document"
+                          alt=""
                           fill
-                          className="object-contain p-6"
+                          className="object-contain p-1.5"
                         />
                       </div>
-                      
-                      {/* Информация о документе */}
-                      <div className="flex-1 flex flex-col">
-                        <p className="font-medium text-gray-900 text-lg mb-3">{doc.filename}</p>
-                        
-                        {/* Кнопка скачать под названием */}
-                        <Button
-                          onClick={() => downloadFile(doc.url, doc.filename)}
-                          disabled={downloadingFiles.has(`${doc.url}-${doc.filename}`)}
-                          className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200 self-start"
-                        >
-                          {downloadingFiles.has(`${doc.url}-${doc.filename}`) ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                              Скачивание...
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-2" />
-                              Скачать
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      <p className="font-medium text-gray-900 text-sm truncate flex-1 min-w-0" title={doc.filename}>{doc.filename}</p>
+                      <Button
+                        onClick={() => downloadFile(doc.url, doc.filename)}
+                        disabled={downloadingFiles.has(`${doc.url}-${doc.filename}`)}
+                        size="sm"
+                        className="h-8 px-3 text-xs bg-brand-yellow hover:bg-yellow-500 text-black font-medium rounded-md shrink-0"
+                      >
+                        {downloadingFiles.has(`${doc.url}-${doc.filename}`) ? (
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-gray-900" />
+                        ) : (
+                          <><Download className="h-3.5 w-3.5 mr-1.5" />Скачать</>
+                        )}
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -843,40 +853,28 @@ export default function ProductPage() {
               {product.drivers.length > 0 ? (
                 <div className="space-y-3">
                   {product.drivers.map((driver) => (
-                    <div key={driver.id} className="flex items-start gap-4 p-4 bg-gray-100 rounded-lg shadow-md">
-                      {/* Черная карточка с логотипом - 20% ширины, 60% высоты */}
-                      <div className="w-1/5 bg-black rounded-lg flex items-center justify-center flex-shrink-0 relative shadow-md" style={{ height: '60%', aspectRatio: '5/3' }}>
+                    <div key={driver.id} className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-brand-yellow transition-all">
+                      <div className="w-10 h-10 bg-black rounded flex items-center justify-center flex-shrink-0 relative">
                         <Image
                           src="/ui/for_docs_driver.png"
-                          alt="Driver"
+                          alt=""
                           fill
-                          className="object-contain p-6"
+                          className="object-contain p-1.5"
                         />
                       </div>
-                      
-                      {/* Информация о драйвере */}
-                      <div className="flex-1 flex flex-col">
-                        <p className="font-medium text-gray-900 text-lg mb-3">{driver.filename}</p>
-                        
-                        {/* Кнопка скачать под названием */}
-                        <Button
-                          onClick={() => downloadFile(driver.url, driver.filename)}
-                          disabled={downloadingFiles.has(`${driver.url}-${driver.filename}`)}
-                          className="bg-brand-yellow hover:bg-yellow-500 text-black font-medium px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all duration-200 self-start"
-                        >
-                          {downloadingFiles.has(`${driver.url}-${driver.filename}`) ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                              Скачивание...
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-2" />
-                              Скачать
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      <p className="font-medium text-gray-900 text-sm truncate flex-1 min-w-0" title={driver.filename}>{driver.filename}</p>
+                      <Button
+                        onClick={() => downloadFile(driver.url, driver.filename)}
+                        disabled={downloadingFiles.has(`${driver.url}-${driver.filename}`)}
+                        size="sm"
+                        className="h-8 px-3 text-xs bg-brand-yellow hover:bg-yellow-500 text-black font-medium rounded-md shrink-0"
+                      >
+                        {downloadingFiles.has(`${driver.url}-${driver.filename}`) ? (
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-gray-900" />
+                        ) : (
+                          <><Download className="h-3.5 w-3.5 mr-1.5" />Скачать</>
+                        )}
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -887,7 +885,6 @@ export default function ProductPage() {
           </Tabs>
           </div>
         ) : null}
-      </Card>
     </div>
   )
 }

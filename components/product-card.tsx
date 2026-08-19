@@ -19,6 +19,7 @@ import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { QuickViewButton } from "@/components/quick-view-modal"
+import { CompareButton } from "@/components/compare-button"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 export interface ProductCardProps {
@@ -93,6 +94,17 @@ export function ProductCard({
                       size="sm"
                     />
                   )}
+                  <CompareButton
+                    productId={product.id}
+                    productName={product.name}
+                    productSlug={product.slug}
+                    categoryId={product.category_id ?? (product.category as any)?.id}
+                    categoryName={
+                      typeof product.category === "string"
+                        ? product.category
+                        : product.category?.name
+                    }
+                  />
                 </div>
 
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">

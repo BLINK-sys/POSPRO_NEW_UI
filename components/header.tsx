@@ -19,12 +19,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, ChevronDown as ChevronDownIcon, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, ChevronDown as ChevronDownIcon, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone, Scale } from "lucide-react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useCart } from "@/context/cart-context"
 import { useKP } from "@/context/kp-context"
+import { useCompare } from "@/context/compare-context"
 import { useCatalogPanel } from "@/context/catalog-panel-context"
 import { getCatalogCategories, CategoryData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
@@ -56,6 +57,7 @@ export default function Header() {
   const { user, logout, isLoading } = useAuth()
   const { cartCount } = useCart()
   const { kpCount } = useKP()
+  const { count: compareCount } = useCompare()
   const { closeCatalogPanel } = useCatalogPanel()
   const router = useRouter()
   const pathname = usePathname()
@@ -1064,6 +1066,14 @@ export default function Header() {
           </div>
 
           <div className="flex items-center gap-1 ml-auto shrink-0">
+            {/* Сравнение — доступно всем (гостю и авторизованным),
+                поэтому кнопка живёт перед развилкой по роли. */}
+            <HeaderIconLink
+              href="/compare"
+              icon={<Scale className="h-4 w-4" />}
+              label="Сравнение"
+              badge={compareCount > 0 ? String(compareCount) : undefined}
+            />
             {user ? (
               <>
                 {/* Общий стиль «иконка + подпись под ней» — плоские кнопки

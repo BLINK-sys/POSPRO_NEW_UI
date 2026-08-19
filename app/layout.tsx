@@ -9,8 +9,10 @@ import { CartProvider } from "@/context/cart-context"
 import { CatalogPanelProvider } from "@/context/catalog-panel-context"
 import { KPProvider } from "@/context/kp-context"
 import { BulkRecalcProvider } from "@/context/bulk-recalc-context"
+import { CompareProvider } from "@/context/compare-context"
 import { BulkRecalcFloatingButton } from "@/components/bulk-recalc-floating-button"
 import { BulkRecalcDialog } from "@/components/bulk-recalc-dialog"
+import { CompareReplaceDialog } from "@/components/compare-replace-dialog"
 import { getProfile } from "./actions/auth"
 import { Toaster } from "@/components/ui/toaster"
 import ConditionalLayout from "./conditional-layout"
@@ -70,16 +72,23 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             <KPProvider>
               <CatalogPanelProvider>
                 <BulkRecalcProvider>
-                  <ConditionalLayout>{children}</ConditionalLayout>
-                  {/* Плавающая кнопка свёрнутого массового пересчёта.
-                      Видна на любой странице если контекст в режиме minimized. */}
-                  <BulkRecalcFloatingButton />
-                  {/* Сама модалка тоже глобальная — открывается через
-                      ctx.openModal() с любой страницы. Решает кейс:
-                      жмём floating-кнопку на не-страницах, она просит
-                      контекст открыть модалку, а её бы не было в DOM. */}
-                  <BulkRecalcDialog />
-                  <Toaster />
+                  <CompareProvider>
+                    <ConditionalLayout>{children}</ConditionalLayout>
+                    {/* Плавающая кнопка свёрнутого массового пересчёта.
+                        Видна на любой странице если контекст в режиме minimized. */}
+                    <BulkRecalcFloatingButton />
+                    {/* Сама модалка тоже глобальная — открывается через
+                        ctx.openModal() с любой страницы. Решает кейс:
+                        жмём floating-кнопку на не-страницах, она просит
+                        контекст открыть модалку, а её бы не было в DOM. */}
+                    <BulkRecalcDialog />
+                    {/* Сравнение товаров: только модалка подтверждения
+                        замены при cross-category. Счётчик выбранных
+                        доступен через иконку «Сравнение» в шапке —
+                        плавающая полоса больше не нужна. */}
+                    <CompareReplaceDialog />
+                    <Toaster />
+                  </CompareProvider>
                 </BulkRecalcProvider>
               </CatalogPanelProvider>
             </KPProvider>
