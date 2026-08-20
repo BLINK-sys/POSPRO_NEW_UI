@@ -110,6 +110,7 @@ export const HOMEPAGE_BLOCK_TYPES = {
   BRANDS: "brands",
   BENEFITS: "benefits",
   INFO_CARDS: "info_cards",
+  SECTION_CARDS: "section_cards",
 } as const
 
 export type HomepageBlockType = typeof HOMEPAGE_BLOCK_TYPES[keyof typeof HOMEPAGE_BLOCK_TYPES]
@@ -120,6 +121,7 @@ export const HOMEPAGE_BLOCK_TYPE_LABELS: Record<HomepageBlockType, string> = {
   [HOMEPAGE_BLOCK_TYPES.BRANDS]: "Бренды",
   [HOMEPAGE_BLOCK_TYPES.BENEFITS]: "Преимущества",
   [HOMEPAGE_BLOCK_TYPES.INFO_CARDS]: "Информационные карточки",
+  [HOMEPAGE_BLOCK_TYPES.SECTION_CARDS]: "Карточки разделов",
 }
 
 export const TITLE_ALIGN_OPTIONS = [
@@ -159,6 +161,12 @@ export interface CreateHomepageBlockData {
   carusel?: boolean
   show_title?: boolean
   title_align?: TitleAlign
+  /** Только для type='products': hex-цвет фона карточки-обёртки блока.
+      "" или null = дефолт (bg-gray-100). */
+  background_color?: string | null
+  /** Только для type='products': показывать полосу фильтров категорий
+      над списком товаров. true по умолчанию. */
+  show_products_categories_filter?: boolean
   items?: number[]
 }
 

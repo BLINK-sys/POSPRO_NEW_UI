@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { BrandData } from "@/app/actions/public"
 import { getImageUrl } from "@/lib/image-utils"
+import { CardAdminEditButton } from "@/components/card-admin-edit-button"
 
 export interface BrandCardProps {
   brand: BrandData
@@ -25,6 +26,15 @@ export function BrandCard({ brand, onClick }: BrandCardProps) {
   const inner = (
     <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] aspect-square w-full bg-white rounded-xl">
       <CardContent className="p-0 h-full flex flex-col">
+        {/* Кнопка редактирования (только админ/system) — в правом верхнем
+            углу при hover. z-20 чтобы быть над hover-overlay. */}
+        <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CardAdminEditButton
+            entityType="brand"
+            entityId={brand.id}
+            entityName={brand.name}
+          />
+        </div>
         <div className="relative h-full bg-white rounded-xl overflow-hidden">
           {brand.image_url ? (
             <Image

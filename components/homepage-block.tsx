@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
-import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
+import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData, SectionCardData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
@@ -126,15 +126,22 @@ export default function HomepageBlockComponent({
       const products = block.items as ProductData[]
       const uniqueCategories = getUniqueCategories(products)
       const filteredProducts = getFilteredProducts(products)
-      
+      // Кастомизация из админки: цвет фона карточки-обёртки и переключатель
+      // полосы фильтров категорий. Без цвета — дефолтный bg-gray-100.
+      const customBg = block.background_color || undefined
+      const showCategoriesFilter = block.show_products_categories_filter !== false
+      const cardClass = customBg ? "shadow-lg rounded-xl border-0 p-6" : "bg-gray-100 shadow-lg rounded-xl border-0 p-6"
+      const cardStyle = customBg ? { backgroundColor: customBg } : undefined
+
       // Если карусель включена - показываем с переключателем
       if (block.carusel) {
         return (
           <div>
-            <Card className="bg-gray-100 shadow-lg rounded-xl border-0 p-6">
+            <Card className={cardClass} style={cardStyle}>
               <CardContent className="p-0">
-                {/* Фильтр категорий - только если есть категории */}
-                {uniqueCategories.length > 0 && (
+                {/* Фильтр категорий — только если есть категории и админ
+                    не отключил переключатель. */}
+                {showCategoriesFilter && uniqueCategories.length > 0 && (
                   <div className="mb-6">
                     <CategoryFilter
                       categories={uniqueCategories}
@@ -144,9 +151,9 @@ export default function HomepageBlockComponent({
                     />
                   </div>
                 )}
-                
+
                 {viewMode === 'carousel' ? renderCarousel(filteredProducts) : renderGrid(filteredProducts)}
-                
+
                 {/* Кнопка переключения режима просмотра */}
                 <div className="flex justify-center mt-6">
                   <Button
@@ -169,14 +176,13 @@ export default function HomepageBlockComponent({
           </div>
         )
       }
-      
+
       // Если карусель выключена - показываем сразу сетку без кнопки
       return (
         <div>
-          <Card className="bg-gray-100 shadow-lg rounded-xl border-0 p-6">
+          <Card className={cardClass} style={cardStyle}>
             <CardContent className="p-0">
-              {/* Фильтр категорий - только если есть категории */}
-              {uniqueCategories.length > 0 && (
+              {showCategoriesFilter && uniqueCategories.length > 0 && (
                 <div className="mb-6">
                   <CategoryFilter
                     categories={uniqueCategories}
@@ -186,7 +192,7 @@ export default function HomepageBlockComponent({
                   />
                 </div>
               )}
-              
+
               {renderGrid(filteredProducts)}
             </CardContent>
           </Card>
@@ -692,6 +698,20 @@ export default function HomepageBlockComponent({
       )
     }
 
+    // Для карточек разделов - средняя сетка (2-4 колонки). Финальная
+    // компоновка будет доработана — сейчас простая рабочая заглушка.
+    if (block.type === 'section_card' || block.type === 'section_cards') {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {itemsToRender.map((item, index) => (
+            <div key={item.id || index}>
+              {renderItem(item)}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
     // Для остальных типов - стандартная сетка (более плотная для товаров)
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -723,9 +743,53 @@ export default function HomepageBlockComponent({
       case 'small_banners':
       case 'info_cards':
         return renderSmallBannerItem(item as SmallBannerData)
+      case 'section_card':
+      case 'section_cards':
+        return renderSectionCardItem(item as SectionCardData)
       default:
         return null
     }
+  }
+
+  // Рендер карточки раздела (заглушка — финальный вид доработаем).
+  const renderSectionCardItem = (card: SectionCardData) => {
+    const href = card.target === 'categories'
+      ? `/section/${card.slug}`
+      : (card.link_url || `/section/${card.slug}`)
+    const openNewTab = card.target === 'link' && card.link_new_tab
+    const linkProps = openNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {}
+
+    return (
+      <Link href={href} {...linkProps} className="block group h-full">
+        <Card className="overflow-hidden rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition-all duration-300 h-full flex flex-col bg-white">
+          <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+            {card.image_url ? (
+              <Image
+                src={getImageUrl(card.image_url)}
+                alt={card.name}
+                fill
+                unoptimized
+                className="object-fill group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                Нет изображения
+              </div>
+            )}
+          </div>
+          <CardContent className="p-4 flex-1 flex flex-col gap-1.5">
+            <h3 className="font-semibold text-base leading-tight text-gray-900 line-clamp-2">
+              {card.name}
+            </h3>
+            {card.description && (
+              <p className="text-sm text-gray-600 line-clamp-3">
+                {card.description}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </Link>
+    )
   }
 
   // Рендер категории

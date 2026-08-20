@@ -5,6 +5,7 @@ import { Truck, Shield, Clock, Headphones } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import BenefitsTab from "./benefits-tab"
 import SmallBannersTab from "./small-banners-tab"
+import SectionCardsTab from "./section-cards-tab"
 
 interface InfoCard {
   id: number
@@ -76,7 +77,7 @@ export default function CardsTab() {
       </div>
 
       <Tabs defaultValue="benefits" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1">
+        <TabsList className="grid w-full grid-cols-3 rounded-lg bg-gray-100 p-1">
           <TabsTrigger
             value="benefits"
             className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
@@ -89,6 +90,12 @@ export default function CardsTab() {
           >
             Информация
           </TabsTrigger>
+          <TabsTrigger
+            value="sections"
+            className="rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+          >
+            Карточки разделов
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="benefits" className="mt-6">
@@ -97,6 +104,10 @@ export default function CardsTab() {
 
         <TabsContent value="information" className="mt-6">
           <SmallBannersTab />
+        </TabsContent>
+
+        <TabsContent value="sections" className="mt-6">
+          <SectionCardsTab />
         </TabsContent>
       </Tabs>
     </div>

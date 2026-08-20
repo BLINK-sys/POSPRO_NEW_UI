@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import React from "react"
-import { Loader2, X, Grid3X3, Package, Tag, Star, Info } from "lucide-react"
+import { Loader2, X, Grid3X3, Package, Tag, Star, Info, Layers } from "lucide-react"
 import { getIcon } from "@/lib/icon-mapping"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
@@ -20,6 +20,7 @@ import { getProductsByIds } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
+import { getSectionCards } from "@/app/actions/section-cards"
 import { cn } from "@/lib/utils"
 
 interface SelectedElementsDisplayProps {
@@ -86,6 +87,9 @@ function SelectedElementsDisplay({
           break
         case HOMEPAGE_BLOCK_TYPES.INFO_CARDS:
           allElements = await getSmallBanners()
+          break
+        case HOMEPAGE_BLOCK_TYPES.SECTION_CARDS:
+          allElements = await getSectionCards()
           break
         default:
           allElements = []
@@ -204,6 +208,7 @@ function SelectedElementsDisplay({
             {blockType === HOMEPAGE_BLOCK_TYPES.BRANDS && <Tag className="h-8 w-8 text-muted-foreground" />}
             {blockType === HOMEPAGE_BLOCK_TYPES.BENEFITS && <Star className="h-8 w-8 text-muted-foreground" />}
             {blockType === HOMEPAGE_BLOCK_TYPES.INFO_CARDS && <Info className="h-8 w-8 text-muted-foreground" />}
+            {blockType === HOMEPAGE_BLOCK_TYPES.SECTION_CARDS && <Layers className="h-8 w-8 text-muted-foreground" />}
             <p className="text-sm text-muted-foreground">
               Элементы не выбраны
             </p>

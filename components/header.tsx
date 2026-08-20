@@ -957,7 +957,7 @@ export default function Header() {
                                 const childCount = getCategoryCount(child)
 
                                 return subcategoryPanelView === "cards" ? (
-                                  <div key={child.id} className="h-64">
+                                  <div key={child.id} className="aspect-square">
                                     <CategoryCard
                                       category={child}
                                       onClick={handleMenuItemClick}

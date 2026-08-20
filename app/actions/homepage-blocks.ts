@@ -70,6 +70,8 @@ export async function createHomepageBlock(
       carusel: data.carusel === "true",
       show_title: data.show_title === "true",
       title_align: data.title_align as any || "left",
+      background_color: (data.background_color as string) || null,
+      show_products_categories_filter: data.show_products_categories_filter !== "false",
       items: data.items ? JSON.parse(data.items as string) : [],
     }
 
@@ -123,6 +125,8 @@ export async function updateHomepageBlock(
       carusel: data.carusel === "true",
       show_title: data.show_title === "true",
       title_align: data.title_align as any || "left",
+      background_color: (data.background_color as string) || null,
+      show_products_categories_filter: data.show_products_categories_filter !== "false",
       items: data.items ? JSON.parse(data.items as string) : [],
     }
 

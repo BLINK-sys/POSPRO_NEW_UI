@@ -22,6 +22,7 @@ import { getProducts } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
+import { getSectionCards } from "@/app/actions/section-cards"
 import { getSuppliers } from "@/app/actions/suppliers"
 import { ParentCategoryDialog } from "./parent-category-dialog"
 import { BrandSelectDialog } from "./brand-select-dialog"
@@ -183,6 +184,9 @@ function GenericElementsSelectionDialog({
         case HOMEPAGE_BLOCK_TYPES.INFO_CARDS:
           data = await getSmallBanners()
           break
+        case HOMEPAGE_BLOCK_TYPES.SECTION_CARDS:
+          data = await getSectionCards()
+          break
         default:
           data = []
       }
@@ -255,6 +259,13 @@ function GenericElementsSelectionDialog({
     if (blockType === HOMEPAGE_BLOCK_TYPES.BENEFITS || blockType === HOMEPAGE_BLOCK_TYPES.INFO_CARDS) {
       return (
         element.title?.toLowerCase().includes(searchLower) ||
+        (element.description && element.description.toLowerCase().includes(searchLower))
+      )
+    }
+
+    if (blockType === HOMEPAGE_BLOCK_TYPES.SECTION_CARDS) {
+      return (
+        element.name?.toLowerCase().includes(searchLower) ||
         (element.description && element.description.toLowerCase().includes(searchLower))
       )
     }

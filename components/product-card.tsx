@@ -20,6 +20,7 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { AddToKPButton } from "@/components/add-to-kp-button"
 import { QuickViewButton } from "@/components/quick-view-modal"
 import { CompareButton } from "@/components/compare-button"
+import { CardAdminEditButton } from "@/components/card-admin-edit-button"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 export interface ProductCardProps {
@@ -104,6 +105,12 @@ export function ProductCard({
                         ? product.category
                         : product.category?.name
                     }
+                  />
+                  <CardAdminEditButton
+                    entityType="product"
+                    entityId={product.id}
+                    entitySlug={product.slug}
+                    entityName={product.name}
                   />
                 </div>
 

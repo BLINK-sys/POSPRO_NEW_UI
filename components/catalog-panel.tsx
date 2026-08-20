@@ -132,7 +132,7 @@ export default function CatalogPanel({ categories }: CatalogPanelProps) {
                 {subcategoryViewMode === 'cards' ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     {hoveredCategory.children.map((child) => (
-                      <div key={child.id} className="h-64">
+                      <div key={child.id} className="aspect-square">
                         <CategoryCard
                           category={child}
                           onClick={closeCatalogPanel}

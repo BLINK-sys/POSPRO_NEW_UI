@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback, useMemo, useTransition } from "react"
+import { useState, useCallback, useMemo, useTransition, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { type Category, type CategorySortMode, getCategories, applyCategorySort } from "@/app/actions/categories"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,11 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
   const [sortIncludeChildren, setSortIncludeChildren] = useState(false)
   const [isApplyingSort, startApplySort] = useTransition()
   const { toast } = useToast()
+  // Deep-link: `?edit=<categoryId>` открывает модалку конкретной категории
+  // (используется кнопкой «Открыть в админке» из карточек магазина).
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [editingCategoryFromUrl, setEditingCategoryFromUrl] = useState<Category | null>(null)
 
   const updateCategories = useCallback(async () => {
     const updatedCategories = await getCategories()
@@ -87,6 +93,17 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
   }, [updateCategories])
 
   const flatCategories = flattenTree(categories)
+
+  // Читаем `?edit=<id>` при первом рендере — открываем модалку категории.
+  useEffect(() => {
+    const editId = searchParams.get("edit")
+    if (!editId) return
+    const cat = flatCategories.find((c) => c.id === Number(editId))
+    if (cat) {
+      setEditingCategoryFromUrl(cat)
+      router.replace("/admin/catalog/categories", { scroll: false })
+    }
+  }, [searchParams, flatCategories, router])
 
   // Функция для определения категорий, которые должны быть развернуты
   const getCategoriesToExpand = useCallback(
@@ -508,6 +525,14 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
         <CategoryEditDialog
           allCategories={flatCategories}
           onClose={() => setCreateModalOpen(false)}
+          onUpdate={handleCategoryUpdate}
+        />
+      )}
+      {editingCategoryFromUrl && (
+        <CategoryEditDialog
+          category={editingCategoryFromUrl}
+          allCategories={flatCategories}
+          onClose={() => setEditingCategoryFromUrl(null)}
           onUpdate={handleCategoryUpdate}
         />
       )}

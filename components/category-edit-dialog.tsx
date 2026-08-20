@@ -32,6 +32,9 @@ interface CategoryEditDialogProps {
   parentId?: number | null
   onClose: () => void
   onUpdate?: (updatedCategory?: Category) => void
+  /** URL страницы редактирования в админке — если передан, в footer
+      появляется кнопка «Открыть в админке» (target=_blank). */
+  openInAdminUrl?: string
 }
 
 type ImageSource = "none" | "url" | "upload"
@@ -115,6 +118,7 @@ export function CategoryEditDialog({
   parentId: passedInParentId,
   onClose,
   onUpdate,
+  openInAdminUrl,
 }: CategoryEditDialogProps) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
@@ -378,7 +382,11 @@ export function CategoryEditDialog({
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent
+        className="sm:max-w-2xl"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDownOutside={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Редактировать категорию" : "Создать категорию"}</DialogTitle>
         </DialogHeader>
@@ -535,17 +543,30 @@ export function CategoryEditDialog({
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isPending}
-            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
-          >
-            {isPending ? "Сохранение..." : "Сохранить"}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {openInAdminUrl ? (
+            <a
+              href={openInAdminUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-gray-600 hover:text-brand-yellow hover:underline inline-flex items-center gap-1"
+            >
+              Открыть в админке →
+            </a>
+          ) : <span />}
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={isPending}
+              className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+            >
+              {isPending ? "Сохранение..." : "Сохранить"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
 

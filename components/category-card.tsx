@@ -2,19 +2,28 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { ChevronRight } from "lucide-react"
+import { Check, ChevronRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CategoryData } from "@/app/actions/public"
 import { getImageUrl } from "@/lib/image-utils"
+import { CardAdminEditButton } from "@/components/card-admin-edit-button"
+import { cn } from "@/lib/utils"
 
 export interface CategoryCardProps {
   category: CategoryData
   /** Клик по карточке — если задан, вызывается ДО навигации (например,
-      чтобы закрыть панель каталога). Ссылка на /category/{slug} остаётся. */
+      чтобы закрыть панель каталога). Ссылка на /category/{slug} остаётся,
+      если не задан `asButton`. */
   onClick?: () => void
   /** Счётчик товаров в правом верхнем углу картинки — для каталог-панелей. */
   productCount?: number
+  /** Рендерить как кнопку без навигации (для фильтров / тоглов),
+      например на странице /section/[slug]. */
+  asButton?: boolean
+  /** Визуальное «выбрано» — актуально с `asButton`: подсвечивает рамку +
+      чёрный уголок сменяется на галочку. */
+  selected?: boolean
 }
 
 /**
@@ -28,10 +37,14 @@ export interface CategoryCardProps {
  * Внешние размеры (высота/ширина) задаются оборачивающим контейнером —
  * например `h-64` в grid или `w-56 h-64` в carousel-слайдере.
  */
-export function CategoryCard({ category, onClick, productCount }: CategoryCardProps) {
-  return (
-    <Link href={`/category/${category.slug}`} onClick={onClick} className="block w-full h-full">
-      <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] w-full h-full bg-white rounded-xl">
+export function CategoryCard({
+  category, onClick, productCount, asButton, selected,
+}: CategoryCardProps) {
+  const cardBody = (
+      <Card className={cn(
+        "group hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-300 cursor-pointer overflow-hidden border-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] w-full h-full bg-white rounded-xl",
+        selected && "ring-2 ring-brand-yellow shadow-[0_8px_24px_rgba(250,204,21,0.35)]",
+      )}>
         {/* Grid-раскладка вместо flex-col с flex-1 — раньше flex-1 в
             некоторых обёртках (carousel с фикс-высотой + Link inline) не
             давал ребёнку явной высоты и <Image fill> отрисовывал 0px.
@@ -44,6 +57,14 @@ export function CategoryCard({ category, onClick, productCount }: CategoryCardPr
                 {productCount}
               </Badge>
             )}
+            {/* Кнопка редактирования (только админ/system) — при hover */}
+            <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+              <CardAdminEditButton
+                entityType="category"
+                entityId={category.id}
+                entityName={category.name}
+              />
+            </div>
             {category.image_url ? (
               <Image
                 src={getImageUrl(category.image_url)}
@@ -81,12 +102,37 @@ export function CategoryCard({ category, onClick, productCount }: CategoryCardPr
               )}
             </div>
 
-            <div className="absolute top-0 right-0 w-6 h-6 bg-gray-900 rounded-tr-xl rounded-bl-lg flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-              <ChevronRight className="w-3 h-3 text-white" />
+            <div className={cn(
+              "absolute top-0 right-0 w-6 h-6 rounded-tr-xl rounded-bl-lg flex items-center justify-center transition-colors",
+              selected
+                ? "bg-brand-yellow"
+                : "bg-gray-900 group-hover:bg-gray-700",
+            )}>
+              {selected
+                ? <Check className="w-3 h-3 text-black" />
+                : <ChevronRight className="w-3 h-3 text-white" />}
             </div>
           </div>
         </CardContent>
       </Card>
+  )
+
+  if (asButton) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="block w-full h-full text-left"
+        aria-pressed={selected}
+      >
+        {cardBody}
+      </button>
+    )
+  }
+
+  return (
+    <Link href={`/category/${category.slug}`} onClick={onClick} className="block w-full h-full">
+      {cardBody}
     </Link>
   )
 }

@@ -36,6 +36,9 @@ interface ProductEditDialogProps {
   suppliers: Supplier[]
   onClose: () => void
   onUpdate: () => void
+  /** URL страницы редактирования в админке — если передан, в footer
+      появляется кнопка «Открыть в админке» (target=_blank). */
+  openInAdminUrl?: string
 }
 
 function generateSlug(text: string): string {
@@ -93,6 +96,7 @@ export function ProductEditDialog({
   suppliers,
   onClose,
   onUpdate,
+  openInAdminUrl,
 }: ProductEditDialogProps) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
@@ -345,7 +349,10 @@ export function ProductEditDialog({
   if (isInitializing) {
     return (
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent>
+        <DialogContent
+          onClick={(e) => e.stopPropagation()}
+          onPointerDownOutside={(e) => e.stopPropagation()}
+        >
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
             <p className="mt-4 text-gray-600">Создание черновика...</p>
@@ -358,7 +365,11 @@ export function ProductEditDialog({
   return (
     <>
       <Dialog open={true} onOpenChange={handleCancel}>
-        <DialogContent className="sm:max-w-4xl lg:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="sm:max-w-4xl lg:max-w-6xl max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDownOutside={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle>{isEditMode ? `Редактировать: ${name}` : "Создать новый товар"}</DialogTitle>
           </DialogHeader>
@@ -572,15 +583,28 @@ export function ProductEditDialog({
               </Card>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={handleCancel} disabled={isPending}>
-              {isPending && !isEditMode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Отмена
-            </Button>
-            <Button onClick={handleSave} disabled={isPending || !draftId}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Сохранить
-            </Button>
+          <DialogFooter className="sm:justify-between">
+            {openInAdminUrl ? (
+              <a
+                href={openInAdminUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs text-gray-600 hover:text-brand-yellow hover:underline inline-flex items-center gap-1"
+              >
+                Открыть в админке →
+              </a>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={handleCancel} disabled={isPending}>
+                {isPending && !isEditMode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Отмена
+              </Button>
+              <Button onClick={handleSave} disabled={isPending || !draftId}>
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Сохранить
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

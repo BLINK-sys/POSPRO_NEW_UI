@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
+import { useState, useTransition, useMemo, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { type Brand, deleteBrand } from "@/app/actions/meta"
 import { getImageUrl } from "@/lib/constants"
@@ -26,6 +27,21 @@ export function BrandsList({ brands }: BrandsListProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [countryFilter, setCountryFilter] = useState<string>("all")
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  // Deep-link: `?edit=<brandId>` открывает модалку конкретного бренда
+  // (используется кнопкой «Открыть в админке» из карточек магазина).
+  useEffect(() => {
+    const editId = searchParams.get("edit")
+    if (!editId) return
+    const b = brands.find((x) => x.id === Number(editId))
+    if (b) {
+      setEditingBrand(b)
+      // Убираем query-param чтобы при закрытии не открылось повторно.
+      router.replace("/admin/brands-and-statuses", { scroll: false })
+    }
+  }, [searchParams, brands, router])
 
   // Уникальные страны из текущего списка брендов — для опций фильтра.
   // Сортируем по алфавиту, "Страна не указана" уезжает в начало.

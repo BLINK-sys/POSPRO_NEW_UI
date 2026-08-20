@@ -53,6 +53,8 @@ export default function HomepageBlockEditDialog({
     carusel: false,
     show_title: true,
     title_align: "left",
+    background_color: null,
+    show_products_categories_filter: true,
     items: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -72,6 +74,8 @@ export default function HomepageBlockEditDialog({
           carusel: block.carusel,
           show_title: block.show_title,
           title_align: block.title_align,
+          background_color: (block as any).background_color ?? null,
+          show_products_categories_filter: (block as any).show_products_categories_filter ?? true,
           items: block.items,
         })
       } else {
@@ -156,6 +160,11 @@ export default function HomepageBlockEditDialog({
       formDataObj.append("carusel", (formData.carusel ?? false).toString())
       formDataObj.append("show_title", (formData.show_title ?? true).toString())
       formDataObj.append("title_align", formData.title_align ?? "left")
+      formDataObj.append("background_color", formData.background_color ?? "")
+      formDataObj.append(
+        "show_products_categories_filter",
+        (formData.show_products_categories_filter ?? true).toString(),
+      )
       formDataObj.append("items", JSON.stringify(formData.items ?? []))
 
       let result
@@ -326,6 +335,64 @@ export default function HomepageBlockEditDialog({
                     onCheckedChange={(checked) => handleInputChange("show_title", checked)}
                   />
                 </div>
+
+                {/* Кастомизация — только для блоков товаров. */}
+                {formData.type === HOMEPAGE_BLOCK_TYPES.PRODUCTS && (
+                  <>
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                      <div>
+                        <Label htmlFor="show_products_categories_filter" className="cursor-pointer text-sm">
+                          Фильтр категорий
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Полоса «Все категории / Денежные ящики / …» над списком
+                        </p>
+                      </div>
+                      <Switch
+                        id="show_products_categories_filter"
+                        checked={formData.show_products_categories_filter ?? true}
+                        onCheckedChange={(checked) => handleInputChange("show_products_categories_filter", checked)}
+                      />
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                      <div className="mb-2">
+                        <Label htmlFor="background_color" className="cursor-pointer text-sm">Цвет фона блока</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Фон карточки-обёртки. Пусто = дефолт (светло-серый).
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="background_color"
+                          type="color"
+                          value={formData.background_color || "#f3f4f6"}
+                          onChange={(e) => handleInputChange("background_color", e.target.value)}
+                          className="w-10 h-9 rounded-md border border-gray-300 cursor-pointer bg-white p-0.5"
+                        />
+                        <input
+                          type="text"
+                          value={formData.background_color ?? ""}
+                          onChange={(e) => handleInputChange("background_color", e.target.value || null)}
+                          placeholder="#RRGGBB"
+                          className="flex-1 h-9 px-2 rounded-md border border-gray-300 bg-white text-sm font-mono focus:outline-none focus:border-brand-yellow"
+                        />
+                        {formData.background_color && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleInputChange("background_color", null)}
+                            title="Сбросить на дефолт"
+                            className="h-9"
+                          >
+                            Сброс
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

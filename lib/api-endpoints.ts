@@ -132,6 +132,15 @@ export const API_ENDPOINTS = {
       DELETE: (id: number) => `/api/admin/benefits/${id}`,
       REORDER: "/api/admin/benefits/reorder",
     },
+    SECTION_CARDS: {
+      LIST: "/api/admin/section-cards",
+      CREATE: "/api/admin/section-cards",
+      UPDATE: (id: number) => `/api/admin/section-cards/${id}`,
+      DELETE: (id: number) => `/api/admin/section-cards/${id}`,
+      REORDER: "/api/admin/section-cards/reorder",
+      UPLOAD: (id: number) => `/api/admin/section-cards/${id}/upload`,
+      UPLOAD_URL: (id: number) => `/api/admin/section-cards/${id}/upload-url`,
+    },
     PRODUCT_AVAILABILITY_STATUSES: {
       LIST: "/api/admin/product-availability-statuses",
       CREATE: "/api/admin/product-availability-statuses",

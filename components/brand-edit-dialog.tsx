@@ -30,7 +30,15 @@ const SECONDARY_BTN =
 
 type ImageSource = "url" | "upload"
 
-export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onClose: () => void }) {
+export function BrandEditDialog({
+  brand,
+  onClose,
+  openInAdminUrl,
+}: {
+  brand?: Brand | null
+  onClose: () => void
+  openInAdminUrl?: string
+}) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
 
@@ -212,7 +220,11 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent
+        className="sm:max-w-3xl"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDownOutside={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{brand ? "Редактировать бренд" : "Создать бренд"}</DialogTitle>
         </DialogHeader>
@@ -341,13 +353,26 @@ export function BrandEditDialog({ brand, onClose }: { brand?: Brand | null; onCl
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} className={SECONDARY_BTN}>
-            Отмена
-          </Button>
-          <Button onClick={handleSubmit} disabled={isPending} className={PRIMARY_BTN}>
-            {isPending ? "Сохранение..." : "Сохранить"}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {openInAdminUrl ? (
+            <a
+              href={openInAdminUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-gray-600 hover:text-brand-yellow hover:underline inline-flex items-center gap-1"
+            >
+              Открыть в админке →
+            </a>
+          ) : <span />}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose} className={SECONDARY_BTN}>
+              Отмена
+            </Button>
+            <Button onClick={handleSubmit} disabled={isPending} className={PRIMARY_BTN}>
+              {isPending ? "Сохранение..." : "Сохранить"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
 

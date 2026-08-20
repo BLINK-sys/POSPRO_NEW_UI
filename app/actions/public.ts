@@ -49,12 +49,18 @@ export interface Banner {
 
 export interface HomepageBlock {
   id: number
-  type: 'category' | 'categories' | 'brand' | 'brands' | 'benefit' | 'benefits' | 'product' | 'products' | 'small_banner' | 'small_banners' | 'info_cards'
+  type: 'category' | 'categories' | 'brand' | 'brands' | 'benefit' | 'benefits' | 'product' | 'products' | 'small_banner' | 'small_banners' | 'info_cards' | 'section_card' | 'section_cards'
   title: string
   order: number
   carusel: boolean
   show_title: boolean
   title_align: 'left' | 'right' | 'center'
+  /** hex-цвет фона карточки-обёртки блока (например «#facc15»).
+      NULL/undefined = дефолт (bg-gray-100). Актуально для type='products'. */
+  background_color?: string | null
+  /** Показывать ли полосу фильтров категорий над списком товаров
+      (актуально для type='products'). true по умолчанию. */
+  show_products_categories_filter?: boolean
   items: any[]
 }
 
@@ -140,6 +146,18 @@ export interface SmallBannerData {
   button_bg_color: string
   button_link: string
   open_in_new_tab?: boolean
+}
+
+export interface SectionCardData {
+  id: number
+  name: string
+  slug: string
+  description: string
+  image_url: string
+  banner_image_url: string
+  target: "link" | "categories"
+  link_url: string
+  link_new_tab: boolean
 }
 
 export interface FooterSettings {
@@ -395,6 +413,75 @@ export async function getCategoryData(
     throw new Error("Ошибка получения данных категории")
   }
 }
+
+export async function getSectionData(
+  slug: string,
+  options?: {
+    page?: number
+    perPage?: number
+    search?: string
+    brand?: string
+    sort?: string
+    categoryId?: number | null
+  }
+): Promise<{
+  section_card: SectionCardData
+  children: CategoryData[]
+  products: ProductData[]
+  brands: Array<{
+    id: number
+    name: string
+    country?: string
+    description?: string
+    image_url?: string
+  }>
+  pagination?: {
+    page: number
+    per_page: number
+    total_count: number
+    total_pages: number
+  }
+}> {
+  const params = new URLSearchParams()
+  if (options?.page) params.append("page", String(options.page))
+  if (options?.perPage) params.append("per_page", String(options.perPage))
+  if (options?.search) params.append("search", options.search)
+  if (options?.brand && options.brand !== "all") params.append("brand", options.brand)
+  if (options?.sort) params.append("sort", options.sort)
+  if (options?.categoryId != null) params.append("category_id", String(options.categoryId))
+  const qs = params.toString() ? `?${params.toString()}` : ""
+
+  const response = await fetch(getApiUrl(`/api/public/section/${slug}${qs}`), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      ...await getOptionalAuthHeaders(),
+    },
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  const data = await response.json()
+
+  const productsWithStatuses = await Promise.all(
+    (data.products || []).map(async (product: any) => {
+      const availabilityStatus = await getProductAvailabilityStatus(product.quantity, product.supplier_id)
+      return {
+        ...product,
+        brand_info: product.brand_info || product.brand,
+        brand_id: product.brand_id || product.brand?.id,
+        availability_status: availabilityStatus,
+      }
+    }),
+  )
+
+  return { ...data, products: productsWithStatuses }
+}
+
 
 // Footer-настройки одинаковы для всех ролей — кэшируем безусловно.
 async function fetchFooterSettingsRaw(): Promise<FooterSettings> {
