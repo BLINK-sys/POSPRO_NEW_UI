@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Edit, ExternalLink, Layers, Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -17,12 +18,18 @@ import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 
 export default function SectionCardsTab() {
   const { toast } = useToast()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [cards, setCards] = useState<SectionCard[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<SectionCard | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState<SectionCard | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Один раз обрабатываем deep-link ?edit-section-card=<id> — после
+  // открытия модалки чистим query, чтобы повторное открытие не
+  // тригерилось на каждом рендере.
+  const deepLinkHandled = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -38,6 +45,24 @@ export default function SectionCardsTab() {
   }, [toast])
 
   useEffect(() => { load() }, [load])
+
+  // Deep-link из кнопки-карандаша на витрине: как только карточки
+  // подгрузились и в URL есть ?edit-section-card=<id>, находим нужную
+  // и открываем модалку. URL сразу чистим.
+  useEffect(() => {
+    if (deepLinkHandled.current) return
+    if (loading || cards.length === 0) return
+    const raw = searchParams.get("edit-section-card")
+    if (!raw) return
+    const id = Number(raw)
+    if (!Number.isFinite(id)) return
+    const found = cards.find((c) => c.id === id)
+    if (!found) return
+    deepLinkHandled.current = true
+    setEditing(found)
+    setEditOpen(true)
+    router.replace("/admin/pages", { scroll: false })
+  }, [loading, cards, searchParams, router])
 
   const openCreate = () => { setEditing(null); setEditOpen(true) }
   const openEdit = (c: SectionCard) => { setEditing(c); setEditOpen(true) }

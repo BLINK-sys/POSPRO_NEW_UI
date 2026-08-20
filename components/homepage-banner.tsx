@@ -7,6 +7,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { getImageUrl } from "@/lib/image-utils"
+import { CardAdminEditButton } from "@/components/card-admin-edit-button"
 
 interface Banner {
   id: number
@@ -173,7 +174,12 @@ export default function HomepageBanner({ banners, extraTop = false }: HomepageBa
   return (
     <section className={`${extraTop ? "pt-12" : "pt-4"} pb-4`}>
       <div className="container mx-auto px-4 md:px-6">
-        <div className="relative">
+        <div className="relative group">
+          {/* Карандаш для admin/system — открывает общий список баннеров
+              в админке. К id конкретного баннера не привязан. */}
+          <div className="absolute top-2 left-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <CardAdminEditButton entityType="banner" entityName="Баннеры" />
+          </div>
           <Card
             className="group overflow-hidden hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-all duration-300 w-full shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
           >

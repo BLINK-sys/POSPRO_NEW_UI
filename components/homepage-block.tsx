@@ -22,6 +22,7 @@ import { ProductCard } from "@/components/product-card"
 import { CategoryCard } from "@/components/category-card"
 import { BrandCard } from "@/components/brand-card"
 import CategoryFilter from "@/components/category-filter"
+import { CardAdminEditButton } from "@/components/card-admin-edit-button"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface HomepageBlockComponentProps {
@@ -760,7 +761,17 @@ export default function HomepageBlockComponent({
     const linkProps = openNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {}
 
     return (
-      <Link href={href} {...linkProps} className="block group h-full">
+      <Link href={href} {...linkProps} className="block group h-full relative">
+        {/* Карандаш для админа/system — открывает /admin/pages со
+            вставленным deep-link'ом, который сам переключит вкладки
+            и откроет модалку этой карточки. */}
+        <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CardAdminEditButton
+            entityType="section-card"
+            entityId={card.id}
+            entityName={card.name}
+          />
+        </div>
         <Card className="overflow-hidden rounded-xl border-0 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition-all duration-300 h-full flex flex-col bg-white">
           <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
             {card.image_url ? (

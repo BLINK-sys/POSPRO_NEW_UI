@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Truck, Shield, Clock, Headphones } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import BenefitsTab from "./benefits-tab"
@@ -17,6 +18,15 @@ interface InfoCard {
 }
 
 export default function CardsTab() {
+  const searchParams = useSearchParams()
+  const [innerTab, setInnerTab] = useState<string>("benefits")
+
+  // Deep-link из карандашика: если пришли по ?edit-section-card=<id> —
+  // переключаемся на «Карточки разделов» (модалку откроет SectionCardsTab).
+  useEffect(() => {
+    if (searchParams.get("edit-section-card")) setInnerTab("sections")
+  }, [searchParams])
+
   const [cards, setCards] = useState<InfoCard[]>([
     {
       id: 1,
@@ -76,7 +86,7 @@ export default function CardsTab() {
         </p>
       </div>
 
-      <Tabs defaultValue="benefits" className="w-full">
+      <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 rounded-lg bg-gray-100 p-1">
           <TabsTrigger
             value="benefits"

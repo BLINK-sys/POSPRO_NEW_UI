@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { getCategoryData } from "@/app/actions/public"
 import { getImageUrl, isImageUrl } from "@/lib/image-utils"
+import { useTrackCategoryView } from "@/lib/track-customer-activity"
 import { isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import MobileProductCard from "./mobile-product-card"
@@ -22,6 +23,7 @@ export default function MobileCategoryPage({ slug }: MobileCategoryPageProps) {
   const wholesaleUser = isWholesaleUser(user)
 
   const [category, setCategory] = useState<any>(null)
+  useTrackCategoryView(category?.id, category?.name, category?.slug)
   const [products, setProducts] = useState<any[]>([])
   const [subcategories, setSubcategories] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])

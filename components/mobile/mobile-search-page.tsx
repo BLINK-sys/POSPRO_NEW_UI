@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/drawer"
 import { isWholesaleUser } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
+import { trackCustomerActivity } from "@/lib/track-customer-activity"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
@@ -234,6 +235,13 @@ export default function MobileSearchPage() {
         setTotalCount(total)
         setCurrentPage(page)
         setHasSearched(true)
+        if (!append && trimmedQuery && trimmedQuery.length >= 2) {
+          trackCustomerActivity({
+            event_type: "search",
+            query: trimmedQuery,
+            results_count: typeof total === "number" ? total : items.length,
+          })
+        }
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") {

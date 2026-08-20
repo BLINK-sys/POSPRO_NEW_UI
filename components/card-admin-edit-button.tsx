@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/context/auth-context"
 import { cn } from "@/lib/utils"
 
-export type CardEntityType = "product" | "category" | "brand"
+export type CardEntityType = "product" | "category" | "brand" | "section-card" | "banner"
 
 interface CardAdminEditButtonProps {
   entityType: CardEntityType
@@ -49,6 +49,17 @@ export function CardAdminEditButton({
     }
     if (entityType === "brand" && entityId) {
       return `/admin/brands-and-statuses?edit=${entityId}`
+    }
+    if (entityType === "section-card" && entityId) {
+      // Отдельной страницы у section-card нет — редирект на список
+      // (Управление страницами → Карточки → Карточки разделов) +
+      // deep-link, который сам переключит вкладки и откроет модалку.
+      return `/admin/pages?edit-section-card=${entityId}`
+    }
+    if (entityType === "banner") {
+      // Для баннеров конкретной страницы редактирования нет — просто
+      // открываем общий список во вкладке «Баннеры» (в модалку не идём).
+      return `/admin/pages?tab=banners`
     }
     return undefined
   })()

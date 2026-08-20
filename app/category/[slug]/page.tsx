@@ -22,6 +22,7 @@ import { QuickViewButton } from "@/components/quick-view-modal"
 import { ProductCard } from "@/components/product-card"
 import { CategoryCard } from "@/components/category-card"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
+import { useTrackCategoryView } from "@/lib/track-customer-activity"
 
 interface CategoryPageData {
   category: CategoryData
@@ -54,6 +55,8 @@ export default function CategoryPage() {
   const isSystemUser = user?.role === "admin" || user?.role === "system"
 
   const [data, setData] = useState<CategoryPageData | null>(null)
+  // Трекинг посещения категории клиентом (бэк сам режет админов и ботов).
+  useTrackCategoryView(data?.category?.id, data?.category?.name, data?.category?.slug)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   

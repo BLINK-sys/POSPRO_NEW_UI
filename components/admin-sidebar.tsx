@@ -22,6 +22,7 @@ import {
   MonitorSmartphone,
   RefreshCw,
   MapPin,
+  Search,
   type LucideIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -175,6 +176,15 @@ export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
           {hasAccess("dashboard") && (
             <NavItem href="/admin" icon={LayoutDashboard} label="Дашборд" active={isActive("/admin")} />
+          )}
+
+          {hasAccess("dashboard") && (
+            <NavItem
+              href="/admin/customer-activity"
+              icon={Search}
+              label="Поисковые запросы"
+              active={isActive("/admin/customer-activity")}
+            />
           )}
 
           {hasAccess("orders") && (

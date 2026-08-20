@@ -20,6 +20,7 @@ import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWhol
 import { useAuth } from "@/context/auth-context"
 import { QuickViewButton } from "@/components/quick-view-modal"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
+import { useTrackBrandView } from "@/lib/track-customer-activity"
 
 const PER_PAGE = 20
 
@@ -43,6 +44,7 @@ export default function BrandPage() {
   const isSystemUser = user?.role === "admin" || user?.role === "system"
   
   const [brandData, setBrandData] = useState<PaginatedBrandProducts | null>(null)
+  useTrackBrandView(brandData?.brand?.id ?? null, brandData?.brand?.name)
   const [categories, setCategories] = useState<CategoryWithCount[]>([])
   const [allBrands, setAllBrands] = useState<AllBrandsData[]>([])
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)

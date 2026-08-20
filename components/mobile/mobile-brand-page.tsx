@@ -11,6 +11,7 @@ import { getImageUrl } from "@/lib/image-utils"
 import { isWholesaleUser } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import MobileProductCard from "./mobile-product-card"
+import { useTrackBrandView } from "@/lib/track-customer-activity"
 
 interface MobileBrandPageProps {
   brandName: string
@@ -22,6 +23,7 @@ export default function MobileBrandPage({ brandName }: MobileBrandPageProps) {
 
   const [products, setProducts] = useState<any[]>([])
   const [brand, setBrand] = useState<any>(null)
+  useTrackBrandView(brand?.id ?? null, brand?.name)
   const [categories, setCategories] = useState<any[]>([])
   const [allBrands, setAllBrands] = useState<AllBrandsData[]>([])
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)

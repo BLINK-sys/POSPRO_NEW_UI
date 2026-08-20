@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass, cn } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
+import { trackCustomerActivity } from "@/lib/track-customer-activity"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
@@ -335,6 +336,15 @@ export default function DesktopSearchPage() {
         setTotalCount(total)
         setCurrentPage(page)
         setHasSearched(true)
+        // Трекинг поискового запроса: только для НОВОГО поиска (не «показать
+        // ещё»/пагинация), и только если у юзера был осмысленный ввод.
+        if (!append && trimmedQuery && trimmedQuery.length >= 2) {
+          trackCustomerActivity({
+            event_type: "search",
+            query: trimmedQuery,
+            results_count: typeof total === "number" ? total : items.length,
+          })
+        }
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") {
@@ -442,6 +452,14 @@ export default function DesktopSearchPage() {
     setAppliedBrand(null)
     clearFiltersIfAny()
     doSearch({ categoryIds: [cat.id], page: 1 })
+    // Явный трек — на этой странице клик по категории — фильтр, а не
+    // навигация; хук useTrackCategoryView не сработает.
+    trackCustomerActivity({
+      event_type: "category_view",
+      category_id: cat.id,
+      category_name: cat.name,
+      category_slug: cat.slug,
+    })
   }
 
   const searchByBrand = (brand: SearchPageBrandItem) => {
@@ -450,6 +468,13 @@ export default function DesktopSearchPage() {
     setAppliedCategory(null)
     clearFiltersIfAny()
     doSearch({ brandIds: [brand.id], page: 1 })
+    // Трекаем «переход в бренд» — тут навигации нет, только фильтр внутри
+    // страницы поиска, так что хук useTrackBrandView не срабатывает.
+    trackCustomerActivity({
+      event_type: "brand_view",
+      brand_id: brand.id,
+      brand_name: brand.name,
+    })
   }
 
   // Полный сброс — возвращаемся к стартовому экрану с табами

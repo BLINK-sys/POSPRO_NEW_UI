@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import HeaderGroupTabs from "./header-group-tabs"
 import BannersTab from "./banners-tab"
@@ -11,13 +13,30 @@ import SearchPageTab from "./search-page-tab"
 const TRIGGER_CLS =
   "rounded-md data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
 
+const VALID_TABS = new Set(["header", "banners", "main-blocks", "cards", "search-page", "footer-info"])
+
 // Верхнеуровневые вкладки страниц сайта. «Шапка» — родительский; внутри
 // открывается вложенная панель с настройками, относящимися к шапке
 // (уведомление, разделы категорий, оплата и доставка, о компании, помощь,
 // типы каталогов). Остальные вкладки — независимые разделы контента.
 export default function PagesManagementTabs() {
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<string>("header")
+
+  // Deep-link'и с витрины / других страниц админки:
+  //   ?edit-section-card=<id> → «Карточки» (модалку откроет вложенный таб)
+  //   ?tab=<name>              → любая внешняя вкладка (напр. banners)
+  useEffect(() => {
+    if (searchParams.get("edit-section-card")) {
+      setTab("cards")
+      return
+    }
+    const explicit = searchParams.get("tab")
+    if (explicit && VALID_TABS.has(explicit)) setTab(explicit)
+  }, [searchParams])
+
   return (
-    <Tabs defaultValue="header" className="w-full">
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
       <TabsList className="grid w-full grid-cols-6 rounded-lg bg-gray-100 p-1">
         <TabsTrigger value="header" className={TRIGGER_CLS}>Шапка</TabsTrigger>
         <TabsTrigger value="banners" className={TRIGGER_CLS}>Баннеры</TabsTrigger>
