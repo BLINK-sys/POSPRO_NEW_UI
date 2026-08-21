@@ -13,6 +13,7 @@ import {
   Tag,
   Star,
   Info,
+  Layers,
   Loader2,
   Check,
   GripVertical,
@@ -31,6 +32,7 @@ import { getProductsByIds } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
+import { getSectionCards } from "@/app/actions/section-cards"
 import { reorderHomepageBlockItems } from "@/app/actions/homepage-blocks"
 import {
   DndContext,
@@ -210,6 +212,9 @@ export default function HomepageBlockItemsReorderDialogV2({
         case HOMEPAGE_BLOCK_TYPES.INFO_CARDS:
           allItems = await getSmallBanners()
           break
+        case HOMEPAGE_BLOCK_TYPES.SECTION_CARDS:
+          allItems = await getSectionCards()
+          break
         default:
           allItems = []
       }
@@ -279,6 +284,8 @@ export default function HomepageBlockItemsReorderDialogV2({
         return <Star className="h-4 w-4" />
       case HOMEPAGE_BLOCK_TYPES.INFO_CARDS:
         return <Info className="h-4 w-4" />
+      case HOMEPAGE_BLOCK_TYPES.SECTION_CARDS:
+        return <Layers className="h-4 w-4" />
       default:
         return <Package className="h-4 w-4" />
     }

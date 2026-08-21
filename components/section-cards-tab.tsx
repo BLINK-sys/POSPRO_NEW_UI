@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Edit, ExternalLink, Layers, Plus, Trash2 } from "lucide-react"
+import { Edit, ExternalLink, GripVertical, Layers, Plus, Trash2 } from "lucide-react"
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -68,6 +71,29 @@ export default function SectionCardsTab() {
   const openEdit = (c: SectionCard) => { setEditing(c); setEditOpen(true) }
   const askDelete = (c: SectionCard) => { setDeleting(c); setDeleteOpen(true) }
 
+  // DnD-reorder — тот же паттерн что в benefits-tab: PointerSensor +
+  // arrayMove + POST на /reorder, при ошибке — reload с сервера.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = cards.findIndex((c) => c.id === active.id)
+    const newIndex = cards.findIndex((c) => c.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const reordered = arrayMove(cards, oldIndex, newIndex)
+    setCards(reordered)
+    try {
+      await apiClient.post(
+        "/api/admin/section-cards/reorder",
+        reordered.map((c, i) => ({ id: c.id, order: i })),
+      )
+    } catch (e: any) {
+      toast({ title: "Ошибка", description: e?.message ?? "Не удалось сохранить порядок", variant: "destructive" })
+      load()
+    }
+  }
+
   const confirmDelete = async () => {
     if (!deleting) return
     try {
@@ -116,77 +142,20 @@ export default function SectionCardsTab() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => (
-            <Card
-              key={c.id}
-              className="relative group overflow-hidden rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all"
-            >
-              <div className="relative aspect-[4/3] w-full bg-gray-100">
-                {c.image_url ? (
-                  <Image
-                    src={getImageUrl(c.image_url) || "/placeholder.svg"}
-                    alt={c.name}
-                    fill
-                    unoptimized
-                    className="object-fill"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-                    Нет изображения
-                  </div>
-                )}
-                {!c.active && (
-                  <div className="absolute top-2 left-2">
-                    <Badge variant="secondary" className="bg-gray-800 text-white">Скрыта</Badge>
-                  </div>
-                )}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    size="icon"
-                    className="h-8 w-8 rounded-full bg-white text-blue-600 hover:bg-blue-50 shadow"
-                    onClick={() => openEdit(c)}
-                    title="Редактировать"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    className="h-8 w-8 rounded-full bg-white text-red-500 hover:bg-red-50 shadow"
-                    onClick={() => askDelete(c)}
-                    title="Удалить"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <CardContent className="p-4 space-y-2">
-                <div>
-                  <h5 className="font-semibold text-base leading-tight line-clamp-2">{c.name}</h5>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    /section/{c.slug}
-                  </p>
-                </div>
-                {c.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{c.description}</p>
-                )}
-                <div className="flex items-center gap-2 pt-1">
-                  {c.target === "categories" ? (
-                    <Badge variant="outline" className="gap-1">
-                      <Layers className="h-3 w-3" />
-                      {c.category_ids?.length ?? 0} категорий
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="gap-1 max-w-full truncate">
-                      <ExternalLink className="h-3 w-3" />
-                      <span className="truncate">{c.link_url || "нет URL"}</span>
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={cards.map((c) => c.id)} strategy={rectSortingStrategy}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {cards.map((c) => (
+                <SortableSectionCard
+                  key={c.id}
+                  card={c}
+                  onEdit={() => openEdit(c)}
+                  onDelete={() => askDelete(c)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <SectionCardEditDialog
@@ -203,6 +172,105 @@ export default function SectionCardsTab() {
         title="Удалить карточку раздела"
         description={`Удалить «${deleting?.name}»? Также будут удалены загруженные изображения.`}
       />
+    </div>
+  )
+}
+
+// ── Sortable-обёртка карточки раздела ───────────────────────────────
+
+function SortableSectionCard({
+  card,
+  onEdit,
+  onDelete,
+}: {
+  card: SectionCard
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className="relative group overflow-hidden rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all">
+        <div className="relative aspect-[4/3] w-full bg-gray-100">
+          {card.image_url ? (
+            <Image
+              src={getImageUrl(card.image_url) || "/placeholder.svg"}
+              alt={card.name}
+              fill
+              unoptimized
+              className="object-fill"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+              Нет изображения
+            </div>
+          )}
+          {!card.active && (
+            <div className="absolute top-2 left-12">
+              <Badge variant="secondary" className="bg-gray-800 text-white">Скрыта</Badge>
+            </div>
+          )}
+          {/* Drag-handle всегда виден (не только на hover) — иначе неочевидно
+              что карточка перетаскивается. */}
+          <div
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 left-2 p-1.5 rounded-full bg-white/85 text-gray-600 hover:text-gray-900 hover:bg-white shadow cursor-grab active:cursor-grabbing touch-none"
+            title="Перетащите для смены порядка"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
+          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              size="icon"
+              className="h-8 w-8 rounded-full bg-white text-blue-600 hover:bg-blue-50 shadow"
+              onClick={onEdit}
+              title="Редактировать"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-8 w-8 rounded-full bg-white text-red-500 hover:bg-red-50 shadow"
+              onClick={onDelete}
+              title="Удалить"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <CardContent className="p-4 space-y-2">
+          <div>
+            <h5 className="font-semibold text-base leading-tight line-clamp-2">{card.name}</h5>
+            <p className="text-xs text-muted-foreground mt-1">
+              /section/{card.slug}
+            </p>
+          </div>
+          {card.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">{card.description}</p>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            {card.target === "categories" ? (
+              <Badge variant="outline" className="gap-1">
+                <Layers className="h-3 w-3" />
+                {card.category_ids?.length ?? 0} категорий
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 max-w-full truncate">
+                <ExternalLink className="h-3 w-3" />
+                <span className="truncate">{card.link_url || "нет URL"}</span>
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

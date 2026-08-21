@@ -6,7 +6,9 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingCart, Eye, EyeOff, Loader2 } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData, SectionCardData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
@@ -46,8 +48,38 @@ export default function HomepageBlockComponent({
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
   const blockRef = useRef<HTMLElement | null>(null)
   const { user } = useAuth()
+  const { toast } = useToast()
   const wholesaleUser = isWholesaleUser(user)
   const isSystemUser = user?.role === "admin" || user?.role === "system"
+
+  // Локальный override переключателя «полоса категорий» — админ может
+  // включить/выключить прямо на витрине без перезагрузки страницы.
+  const [localShowFilter, setLocalShowFilter] = useState<boolean | null>(null)
+  const [toggleBusy, setToggleBusy] = useState(false)
+
+  const toggleCategoriesFilter = async () => {
+    if (toggleBusy) return
+    const current = localShowFilter !== null
+      ? localShowFilter
+      : block.show_products_categories_filter !== false
+    const next = !current
+    setToggleBusy(true)
+    setLocalShowFilter(next)
+    try {
+      await apiClient.put(`/api/admin/homepage-blocks/${block.id}`, {
+        show_products_categories_filter: next,
+      })
+    } catch (e: any) {
+      setLocalShowFilter(current)
+      toast({
+        title: "Ошибка",
+        description: e?.message ?? "Не удалось переключить фильтр",
+        variant: "destructive",
+      })
+    } finally {
+      setToggleBusy(false)
+    }
+  }
 
   // Автоматическое вращение карусели
   useEffect(() => {
@@ -130,7 +162,9 @@ export default function HomepageBlockComponent({
       // Кастомизация из админки: цвет фона карточки-обёртки и переключатель
       // полосы фильтров категорий. Без цвета — дефолтный bg-gray-100.
       const customBg = block.background_color || undefined
-      const showCategoriesFilter = block.show_products_categories_filter !== false
+      const showCategoriesFilter = localShowFilter !== null
+        ? localShowFilter
+        : block.show_products_categories_filter !== false
       const cardClass = customBg ? "shadow-lg rounded-xl border-0 p-6" : "bg-gray-100 shadow-lg rounded-xl border-0 p-6"
       const cardStyle = customBg ? { backgroundColor: customBg } : undefined
 
@@ -140,6 +174,13 @@ export default function HomepageBlockComponent({
           <div>
             <Card className={cardClass} style={cardStyle}>
               <CardContent className="p-0">
+                {isSystemUser && uniqueCategories.length > 0 && (
+                  <AdminFilterToggle
+                    show={showCategoriesFilter}
+                    busy={toggleBusy}
+                    onToggle={toggleCategoriesFilter}
+                  />
+                )}
                 {/* Фильтр категорий — только если есть категории и админ
                     не отключил переключатель. */}
                 {showCategoriesFilter && uniqueCategories.length > 0 && (
@@ -183,6 +224,13 @@ export default function HomepageBlockComponent({
         <div>
           <Card className={cardClass} style={cardStyle}>
             <CardContent className="p-0">
+              {isSystemUser && uniqueCategories.length > 0 && (
+                <AdminFilterToggle
+                  show={showCategoriesFilter}
+                  busy={toggleBusy}
+                  onToggle={toggleCategoriesFilter}
+                />
+              )}
               {showCategoriesFilter && uniqueCategories.length > 0 && (
                 <div className="mb-6">
                   <CategoryFilter
@@ -929,5 +977,42 @@ export default function HomepageBlockComponent({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Мини-панель управления «показывать/скрыть полосу категорий» для блока
+ * товаров. Видна только admin/system. Тумблер переключает
+ * `show_products_categories_filter` через PUT и мгновенно перерисовывает
+ * блок за счёт локального override состояния.
+ */
+function AdminFilterToggle({
+  show,
+  busy,
+  onToggle,
+}: {
+  show: boolean
+  busy: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="mb-3 flex justify-end">
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={busy}
+        title={show ? "Скрыть отображение категорий этого блока для всех" : "Показать отображение категорий этого блока для всех"}
+        className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : show ? (
+          <EyeOff className="h-3.5 w-3.5" />
+        ) : (
+          <Eye className="h-3.5 w-3.5" />
+        )}
+        {show ? "Скрыть категории" : "Показать категории"}
+      </button>
+    </div>
   )
 } 
