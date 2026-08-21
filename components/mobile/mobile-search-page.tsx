@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/drawer"
 import { isWholesaleUser } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
-import { trackCustomerActivity } from "@/lib/track-customer-activity"
+import { useCustomerActivityTracker } from "@/lib/track-customer-activity"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
@@ -26,6 +26,7 @@ const PAGE_SIZE = 20
 
 export default function MobileSearchPage() {
   const { user } = useAuth()
+  const trackActivity = useCustomerActivityTracker()
   const wholesaleUser = isWholesaleUser(user)
 
   const [query, setQuery] = useState("")
@@ -236,7 +237,7 @@ export default function MobileSearchPage() {
         setCurrentPage(page)
         setHasSearched(true)
         if (!append && trimmedQuery && trimmedQuery.length >= 2) {
-          trackCustomerActivity({
+          trackActivity({
             event_type: "search",
             query: trimmedQuery,
             results_count: typeof total === "number" ? total : items.length,
@@ -253,7 +254,7 @@ export default function MobileSearchPage() {
         isLoadingMoreRef.current = false
       }
     }
-  }, [])
+  }, [trackActivity])
 
   // Live-search debounce 300ms. Реагирует на смену query И фильтров —
   // фильтры теперь идут на бэк. Пропускаем когда активен применённый

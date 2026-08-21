@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { isWholesaleUser, formatProductPrice, getRetailPriceClass, getWholesalePriceClass, cn } from "@/lib/utils"
 import { type ProductData, searchProducts as searchProductsAction } from "@/app/actions/public"
-import { trackCustomerActivity } from "@/lib/track-customer-activity"
+import { useCustomerActivityTracker } from "@/lib/track-customer-activity"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
 import { getApiUrl } from "@/lib/api-address"
@@ -29,6 +29,7 @@ export default function DesktopSearchPage() {
   const { user } = useAuth()
   const wholesaleUser = isWholesaleUser(user)
   const isSystemUser = user?.role === "admin" || user?.role === "system"
+  const trackActivity = useCustomerActivityTracker()
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -339,7 +340,7 @@ export default function DesktopSearchPage() {
         // Трекинг поискового запроса: только для НОВОГО поиска (не «показать
         // ещё»/пагинация), и только если у юзера был осмысленный ввод.
         if (!append && trimmedQuery && trimmedQuery.length >= 2) {
-          trackCustomerActivity({
+          trackActivity({
             event_type: "search",
             query: trimmedQuery,
             results_count: typeof total === "number" ? total : items.length,
@@ -356,7 +357,7 @@ export default function DesktopSearchPage() {
         isLoadingMoreRef.current = false
       }
     }
-  }, [])
+  }, [trackActivity])
 
   // Initial search on mount — восстанавливаем фильтры из URL и стартуем
   // первую страницу. Зависит ТОЛЬКО от mount чтобы не reflowить когда мы
@@ -454,7 +455,7 @@ export default function DesktopSearchPage() {
     doSearch({ categoryIds: [cat.id], page: 1 })
     // Явный трек — на этой странице клик по категории — фильтр, а не
     // навигация; хук useTrackCategoryView не сработает.
-    trackCustomerActivity({
+    trackActivity({
       event_type: "category_view",
       category_id: cat.id,
       category_name: cat.name,
@@ -470,7 +471,7 @@ export default function DesktopSearchPage() {
     doSearch({ brandIds: [brand.id], page: 1 })
     // Трекаем «переход в бренд» — тут навигации нет, только фильтр внутри
     // страницы поиска, так что хук useTrackBrandView не срабатывает.
-    trackCustomerActivity({
+    trackActivity({
       event_type: "brand_view",
       brand_id: brand.id,
       brand_name: brand.name,
