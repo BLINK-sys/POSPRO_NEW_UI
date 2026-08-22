@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,7 @@ import {
   HOMEPAGE_BLOCK_TYPE_LABELS,
 } from "@/lib/constants"
 import { getCategories } from "@/app/actions/categories"
-import { getProducts } from "@/app/actions/products"
+import { getProducts, getProductsByIds } from "@/app/actions/products"
 import { getBrands } from "@/app/actions/brands"
 import { getBenefits } from "@/app/actions/benefits"
 import { getSmallBanners } from "@/app/actions/small-banners"
@@ -334,7 +334,16 @@ function GenericElementsSelectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
+      <DialogContent
+        className={cn(
+          "flex flex-col",
+          // Полный экран — только для брендов (там 12 карточек в ряд
+          // и нужен полный простор). Остальные типы — обычная модалка.
+          blockType === HOMEPAGE_BLOCK_TYPES.BRANDS
+            ? "w-screen h-screen max-w-none max-h-none rounded-none border-none top-0 left-0 translate-x-0 translate-y-0 p-6"
+            : "max-w-2xl h-[80vh]",
+        )}
+      >
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Выбор элементов
@@ -375,20 +384,97 @@ function GenericElementsSelectionDialog({
                 <div className="text-center py-8 text-gray-500">
                   {searchTerm ? "Элементы не найдены" : "Элементы не найдены"}
                 </div>
+              ) : blockType === HOMEPAGE_BLOCK_TYPES.CATEGORIES ? (
+                <div className="space-y-1 p-1">
+                  {filteredElements.map((category) => (
+                    <CategoryTreeItem
+                      key={category.id}
+                      category={category}
+                      level={0}
+                      selectedItems={selectedItems}
+                      onToggleItem={handleToggleItem}
+                      resolveImageUrl={resolveImageUrl}
+                    />
+                  ))}
+                </div>
+              ) : blockType === HOMEPAGE_BLOCK_TYPES.BRANDS ? (
+                // Бренды — крупные квадратные плитки. Если у бренда
+                // нет картинки, вместо неё крупное название по центру.
+                <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 p-3 pb-6">
+                  {filteredElements.map((el: any) => {
+                    const isSel = selectedItems.includes(el.id)
+                    const hasImg = !!el.image_url
+                    const brandName = el.name || "Без названия"
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => handleToggleItem(el.id)}
+                        className={cn(
+                          "group relative bg-white rounded-lg overflow-hidden transition-all duration-200 cursor-pointer border-2 shadow-[0_2px_6px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.22)] hover:scale-[1.03] hover:z-10",
+                          isSel ? "border-brand-yellow ring-2 ring-brand-yellow/40" : "border-transparent",
+                        )}
+                      >
+                        <div className="aspect-square relative bg-white p-2">
+                          {hasImg ? (
+                            <Image
+                              src={resolveImageUrl(el.image_url)}
+                              alt={brandName}
+                              fill
+                              unoptimized
+                              className="object-contain p-2"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-center px-2">
+                              <span className="text-sm font-bold text-gray-900 line-clamp-3">{brandName}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : blockType === HOMEPAGE_BLOCK_TYPES.SECTION_CARDS ? (
+                // Карточки разделов — крупные плитки сеткой (аналогично
+                // товарам), а не узкая строка со скромной иконкой.
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 p-3 pb-6">
+                  {filteredElements.map((el: any) => {
+                    const isSel = selectedItems.includes(el.id)
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => handleToggleItem(el.id)}
+                        className={cn(
+                          "group relative bg-white rounded-lg overflow-hidden transition-all duration-200 cursor-pointer border-2 shadow-[0_2px_6px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.22)] hover:scale-[1.03] hover:z-10",
+                          isSel ? "border-brand-yellow ring-2 ring-brand-yellow/40" : "border-transparent",
+                        )}
+                      >
+                        <div className="aspect-[4/3] relative bg-gray-100">
+                          {el.image_url ? (
+                            <Image
+                              src={resolveImageUrl(el.image_url)}
+                              alt={el.name || "Карточка"}
+                              fill
+                              unoptimized
+                              className="object-fill"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                              Нет изображения
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2 text-sm font-medium text-center text-gray-900 line-clamp-2 leading-tight">
+                          {el.name || "Без названия"}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               ) : (
                 <div className="space-y-1 p-1">
-                  {blockType === HOMEPAGE_BLOCK_TYPES.CATEGORIES
-                    ? filteredElements.map((category) => (
-                        <CategoryTreeItem
-                          key={category.id}
-                          category={category}
-                          level={0}
-                          selectedItems={selectedItems}
-                          onToggleItem={handleToggleItem}
-                          resolveImageUrl={resolveImageUrl}
-                        />
-                      ))
-                    : filteredElements.map(renderElementItem)}
+                  {filteredElements.map(renderElementItem)}
                 </div>
               )}
             </ScrollArea>
@@ -430,6 +516,12 @@ function ProductElementsSelectionDialog({
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null)
   const [brandFilter, setBrandFilter] = useState<string>("all")
   const [supplierFilter, setSupplierFilter] = useState<string>("all")
+  const [priceFilter, setPriceFilter] = useState<string>("all")
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false)
+  // Отдельный массив полных объектов для «Показать только выбранные»:
+  // грузим по ID точечно, чтобы не листать всю базу в поисках.
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
+  const [selectedLoading, setSelectedLoading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -454,6 +546,8 @@ function ProductElementsSelectionDialog({
       setCategoryFilter(null)
       setBrandFilter("all")
       setSupplierFilter("all")
+      setPriceFilter("all")
+      setShowSelectedOnly(false)
       setProducts([])
       setPage(1)
       setTotalPages(1)
@@ -538,6 +632,7 @@ function ProductElementsSelectionDialog({
           categoryId: categoryFilter === null ? undefined : categoryFilter,
           brand: brandFilter === "all" ? undefined : brandFilter,
           supplier: supplierFilter === "all" ? undefined : supplierFilter,
+          price: priceFilter === "all" ? undefined : priceFilter,
         })
 
         const fetchedProducts = data.products ?? []
@@ -566,7 +661,7 @@ function ProductElementsSelectionDialog({
         setIsLoadingMore(false)
       }
     },
-    [debouncedSearch, categoryFilter, brandFilter, supplierFilter, toast]
+    [debouncedSearch, categoryFilter, brandFilter, supplierFilter, priceFilter, toast]
   )
 
   useEffect(() => {
@@ -584,11 +679,52 @@ function ProductElementsSelectionDialog({
     [selectedItems, onItemsChange]
   )
 
-  const handleLoadMore = () => {
-    if (page < totalPages && !isLoadingMore) {
+  // При включённой галочке «только выбранные» — грузим ВЫБРАННЫЕ товары
+  // отдельным запросом по id, чтобы не полагаться на текущую страницу
+  // (иначе часть выбранных за пределами загруженного списка не покажется).
+  useEffect(() => {
+    if (!showSelectedOnly) return
+    if (selectedItems.length === 0) {
+      setSelectedProducts([])
+      return
+    }
+    let cancelled = false
+    setSelectedLoading(true)
+    getProductsByIds(selectedItems)
+      .then((res) => {
+        if (cancelled) return
+        // Сохраним порядок выбора юзера
+        const map = new Map(res.map((p) => [p.id, p]))
+        setSelectedProducts(selectedItems.map((id) => map.get(id)).filter(Boolean) as Product[])
+      })
+      .catch(() => { if (!cancelled) setSelectedProducts([]) })
+      .finally(() => { if (!cancelled) setSelectedLoading(false) })
+    return () => { cancelled = true }
+  }, [showSelectedOnly, selectedItems])
+
+  const handleLoadMore = useCallback(() => {
+    if (page < totalPages && !isLoadingMore && !isLoading) {
       loadProducts(page + 1, true)
     }
-  }
+  }, [page, totalPages, isLoadingMore, isLoading, loadProducts])
+
+  // Infinite scroll — вместо кнопки «Показать ещё» ловим sentinel в
+  // конце списка через IntersectionObserver. Порог 300px запаса
+  // (rootMargin), чтобы подгружалось до достижения самого низа.
+  const scrollRootRef = useRef<HTMLDivElement | null>(null)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) handleLoadMore()
+      },
+      { root: scrollRootRef.current ?? null, rootMargin: "300px" },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [handleLoadMore, products.length])
 
   const priceFormatter = useMemo(
     () =>
@@ -604,45 +740,41 @@ function ProductElementsSelectionDialog({
     const isSelected = selectedItems.includes(product.id)
     const imageSrc = buildImageUrl(product.image || (product as any).image_url || null)
 
+    // Стиль в тон клиентской ProductCard, но без hover-действий, статуса
+    // и лишних полей — только фото / название / цена. Клик по карточке
+    // = переключение выбора; чекбокс всегда виден в правом верхнем углу.
     return (
       <div
         key={product.id}
-        className={cn(
-          "relative border rounded-lg p-3 flex flex-col gap-3 bg-card hover:shadow-md transition cursor-pointer",
-          isSelected ? "border-primary ring-2 ring-primary/40" : "border-border"
-        )}
         onClick={() => handleProductToggle(product.id)}
+        className={cn(
+          "group relative h-full bg-white rounded-lg transition-all duration-200 cursor-pointer border-2",
+          "shadow-[0_2px_6px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.22)] hover:scale-[1.04] hover:z-10",
+          isSelected ? "border-brand-yellow ring-2 ring-brand-yellow/40" : "border-transparent",
+        )}
       >
-        <div
-          className="absolute top-3 right-3 z-10 rounded bg-background/80 backdrop-blur px-1"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <Checkbox checked={isSelected} onCheckedChange={() => handleProductToggle(product.id)} />
-        </div>
+        <div className="p-1.5 flex flex-col h-full">
+          <div className="aspect-square relative bg-white rounded mb-1 shrink-0">
+            <Image
+              src={imageSrc}
+              alt={product.name}
+              fill
+              unoptimized
+              className="object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+            />
+          </div>
 
-        <div className="h-32 bg-muted/30 rounded.flex items-center justify-center overflow-hidden">
-          <Image
-            src={imageSrc}
-            alt={product.name}
-            width={160}
-            height={160}
-            className="object-contain max-h-full"
-            unoptimized
-            onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg"
-            }}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <div className="text-sm font-medium leading-tight line-clamp-2">{product.name}</div>
-          {product.article && <div className="text-xs text-muted-foreground">Артикул: {product.article}</div>}
-          {product.brand_info?.name && (
-            <div className="text-xs text-muted-foreground">Бренд: {product.brand_info.name}</div>
-          )}
-          {typeof product.price === "number" && (
-            <div className="text-sm.font-semibold">{priceFormatter.format(product.price)}</div>
-          )}
+          <div className="flex flex-col flex-1 gap-0.5 px-1 pb-1">
+            <div className="text-[11px] text-gray-800 line-clamp-2 leading-tight">
+              {product.name}
+            </div>
+            {typeof product.price === "number" && (
+              <div className="text-[11px] font-bold text-red-600 leading-tight">
+                {priceFormatter.format(product.price)}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -650,7 +782,7 @@ function ProductElementsSelectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] h-[90vh] max-w-none max-h-none overflow-hidden flex flex-col">
+      <DialogContent className="w-screen h-screen max-w-none max-h-none rounded-none border-none top-0 left-0 translate-x-0 translate-y-0 overflow-hidden flex flex-col p-6">
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2">
             Выбор товаров
@@ -659,7 +791,8 @@ function ProductElementsSelectionDialog({
         </DialogHeader>
 
         <div className="flex flex-1 gap-6 min-h-0">
-          <div className="flex-shrink-0 w-full max-w-xs space-y-6 border-r pr-4 overflow-y-auto">
+          <div className="flex-shrink-0 w-full max-w-xs border-r pr-4 flex flex-col min-h-0">
+          <div className="flex-1 space-y-6 overflow-y-auto pr-1">
             <div className="space-y-2">
               <p className="text-sm font-medium">Поиск</p>
               <div className="relative">
@@ -745,18 +878,81 @@ function ProductElementsSelectionDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Цена</p>
+              <Select value={priceFilter} onValueChange={setPriceFilter}>
+                <SelectTrigger className="shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none focus-visible:border-gray-300">
+                  <SelectValue placeholder="Цена" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любая</SelectItem>
+                  <SelectItem value="gt0">Больше нуля</SelectItem>
+                  <SelectItem value="eq0">Нулевая</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+              <Checkbox
+                checked={showSelectedOnly}
+                onCheckedChange={(v) => setShowSelectedOnly(!!v)}
+              />
+              <span className="text-sm">Показать только выбранные</span>
+            </label>
+          </div>
+
+          {/* Футер левой панели — фикс. кнопки Отмена/Готово вместо
+              общей DialogFooter под всей модалкой. */}
+          <div className="border-t pt-3 mt-3 flex flex-col gap-2">
+            <div className="text-xs text-muted-foreground">
+              Выбрано товаров: <span className="font-semibold text-foreground">{selectedItems.length}</span>
+            </div>
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="w-full rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+            >
+              Сохранить
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="w-full rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+            >
+              Отмена
+            </Button>
+          </div>
           </div>
 
           <div className="flex-1 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-muted-foreground">
-                {isLoading ? "Загружаем товары..." : `Найдено товаров: ${totalCount}`}
+                {showSelectedOnly
+                  ? `Показано выбранных: ${selectedProducts.length} из ${selectedItems.length}`
+                  : isLoading
+                    ? "Загружаем товары..."
+                    : `Найдено товаров: ${totalCount}`}
               </div>
               <Badge variant="secondary">Выбрано: {selectedItems.length}</Badge>
             </div>
 
-            <div className="flex-1 overflow-auto">
-              {isLoading && products.length === 0 ? (
+            <div ref={scrollRootRef} className="flex-1 overflow-auto p-2">
+              {showSelectedOnly ? (
+                selectedItems.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    Ничего не выбрано
+                  </div>
+                ) : selectedLoading && selectedProducts.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    Загружаем выбранные…
+                  </div>
+                ) : (
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 pb-4 px-1">
+                    {selectedProducts.map(renderProductCard)}
+                  </div>
+                )
+              ) : isLoading && products.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <Loader2 className="h-6 w-6 animate-spin mr-2" />
                   Загрузка товаров...
@@ -766,36 +962,31 @@ function ProductElementsSelectionDialog({
                   Товары не найдены
                 </div>
               ) : (
-                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 pb-4">
-                  {products.map(renderProductCard)}
-                </div>
+                <>
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 pb-4 px-1">
+                    {products.map(renderProductCard)}
+                  </div>
+                  {/* Sentinel для infinite scroll — при появлении в
+                      viewport подгружаем следующую страницу. Не показываем
+                      в режиме «только выбранные» — там пагинации нет. */}
+                  {page < totalPages && (
+                    <div
+                      ref={sentinelRef}
+                      className="h-8 flex items-center justify-center text-xs text-muted-foreground"
+                    >
+                      {isLoadingMore && (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Подгружаем ещё…
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
-
-            {page < totalPages && (
-              <div className="pt-4 border-t mt-4">
-                <Button onClick={handleLoadMore} disabled={isLoadingMore} className="w-full rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow" variant="outline">
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Загружаем ещё...
-                    </>
-                  ) : (
-                    "Показать ещё"
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         </div>
-
-        <DialogFooter className="mt-4">
-          <div className="mr-auto text-sm text-muted-foreground">Выбрано товаров: {selectedItems.length}</div>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
-            Отмена
-          </Button>
-          <Button onClick={() => onOpenChange(false)} className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow">Готово</Button>
-        </DialogFooter>
 
         <ParentCategoryDialog
           open={categoryDialogOpen}

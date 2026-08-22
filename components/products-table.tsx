@@ -485,8 +485,10 @@ export function ProductsTable({
   // потом перейти в /kp где они уже будут.
   const addToKP = useAddToKP()
   const { kpItems } = useKP()
-  const handleAddToKP = useCallback(async (product: Product) => {
-    await addToKP({
+  // Открывает модалку выбора поставщика; собственно добавление +
+  // toast «Добавлено в КП» происходит в KPProvider после Ok в модалке.
+  const handleAddToKP = useCallback((product: Product) => {
+    addToKP({
       id: product.id,
       name: product.name,
       slug: product.slug,
@@ -499,8 +501,7 @@ export function ProductsTable({
       supplier_name: product.supplier?.name || product.supplier_name || null,
       characteristics: product.characteristics?.map(c => ({ key: c.key, value: c.value })),
     })
-    toast({ title: 'Добавлено в КП', description: product.name })
-  }, [addToKP, toast])
+  }, [addToKP])
 
   // Сколько штук этого товара уже в КП (для бейджа на строке/карточке).
   const getKpCount = useCallback((productId: number) => {

@@ -204,7 +204,7 @@ export default function HomepageBlockEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[1400px] max-h-[90vh] w-[95vw] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[90vw] h-[90vh] max-w-none max-h-none flex flex-col p-0 overflow-hidden [&>button.absolute]:hidden">
         <DialogHeader className="px-6 pt-6 flex-shrink-0">
           <DialogTitle>
             {block ? "Редактировать блок" : "Создать новый блок"}
@@ -215,9 +215,12 @@ export default function HomepageBlockEditDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-1 min-h-0 px-6 py-4">
-            {/* Колонка 1 — Основные настройки */}
-            <div className="space-y-3 min-h-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-6 flex-1 min-h-0 px-6 py-4">
+            {/* Левая колонка — Основные настройки + Настройки отображения
+                со скроллом, снизу — кнопки Отмена / Сохранить. */}
+            <div className="flex flex-col h-full min-h-0 gap-3">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
+              <div className="space-y-3">
               <h3 className="text-base font-semibold">Основные настройки</h3>
 
               <div className="space-y-3">
@@ -245,107 +248,109 @@ export default function HomepageBlockEditDialog({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Тип блока</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(value) => handleInputChange("type", value)}
-                    >
-                      <SelectTrigger className={SOFT_CONTROL}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(HOMEPAGE_BLOCK_TYPE_LABELS).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="type" className="text-xs">Тип блока</Label>
+                      <Select
+                        value={formData.type}
+                        onValueChange={(value) => handleInputChange("type", value)}
+                      >
+                        <SelectTrigger className={SOFT_CONTROL}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(HOMEPAGE_BLOCK_TYPE_LABELS).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="title_align">Выравнивание заголовка</Label>
-                    <Select
-                      value={formData.title_align}
-                      onValueChange={(value) => handleInputChange("title_align", value)}
-                    >
-                      <SelectTrigger className={SOFT_CONTROL}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TITLE_ALIGN_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="title_align" className="text-xs">Выравнивание</Label>
+                      <Select
+                        value={formData.title_align}
+                        onValueChange={(value) => handleInputChange("title_align", value)}
+                      >
+                        <SelectTrigger className={SOFT_CONTROL}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TITLE_ALIGN_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </div>
 
-            {/* Колонка 2 — Настройки отображения */}
-            <div className="space-y-3 min-h-0">
+            {/* Раздел под «Основными настройками» в той же левой колонке */}
+            <div className="space-y-3">
               <h3 className="text-base font-semibold">Настройки отображения</h3>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                  <div>
-                    <Label htmlFor="active" className="cursor-pointer text-sm">Статус</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Блок будет отображаться на главной странице
-                    </p>
+                {/* Свитчи в 2 колонки — экономят место в узкой левой
+                    колонке. Описание под названием — как раньше. */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                    <div className="min-w-0">
+                      <Label htmlFor="active" className="cursor-pointer text-xs">Статус</Label>
+                      <p className="text-[10px] leading-tight text-muted-foreground">
+                        Показывать блок на главной
+                      </p>
+                    </div>
+                    <Switch
+                      id="active"
+                      checked={formData.active}
+                      onCheckedChange={(checked) => handleInputChange("active", checked)}
+                    />
                   </div>
-                  <Switch
-                    id="active"
-                    checked={formData.active}
-                    onCheckedChange={(checked) => handleInputChange("active", checked)}
-                  />
-                </div>
 
-                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                  <div>
-                    <Label htmlFor="carusel" className="cursor-pointer text-sm">Карусель</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {isCarouselDisabled
-                        ? "Недоступно для данного типа блока"
-                        : "Отображать элементы в виде карусели"
-                      }
-                    </p>
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                    <div className="min-w-0">
+                      <Label htmlFor="show_title" className="cursor-pointer text-xs">Заголовок</Label>
+                      <p className="text-[10px] leading-tight text-muted-foreground">
+                        Показывать название блока
+                      </p>
+                    </div>
+                    <Switch
+                      id="show_title"
+                      checked={formData.show_title}
+                      onCheckedChange={(checked) => handleInputChange("show_title", checked)}
+                    />
                   </div>
-                  <Switch
-                    id="carusel"
-                    checked={formData.carusel}
-                    disabled={isCarouselDisabled}
-                    onCheckedChange={(checked) => handleInputChange("carusel", checked)}
-                  />
-                </div>
 
-                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                  <div>
-                    <Label htmlFor="show_title" className="cursor-pointer text-sm">Показывать заголовок</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Отображать заголовок блока на странице
-                    </p>
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                    <div className="min-w-0">
+                      <Label htmlFor="carusel" className="cursor-pointer text-xs">Карусель</Label>
+                      <p className="text-[10px] leading-tight text-muted-foreground">
+                        {isCarouselDisabled
+                          ? "Недоступно для типа"
+                          : "Элементы каруселью"}
+                      </p>
+                    </div>
+                    <Switch
+                      id="carusel"
+                      checked={formData.carusel}
+                      disabled={isCarouselDisabled}
+                      onCheckedChange={(checked) => handleInputChange("carusel", checked)}
+                    />
                   </div>
-                  <Switch
-                    id="show_title"
-                    checked={formData.show_title}
-                    onCheckedChange={(checked) => handleInputChange("show_title", checked)}
-                  />
-                </div>
 
-                {/* Кастомизация — только для блоков товаров. */}
-                {formData.type === HOMEPAGE_BLOCK_TYPES.PRODUCTS && (
-                  <>
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                      <div>
-                        <Label htmlFor="show_products_categories_filter" className="cursor-pointer text-sm">
+                  {formData.type === HOMEPAGE_BLOCK_TYPES.PRODUCTS && (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                      <div className="min-w-0">
+                        <Label htmlFor="show_products_categories_filter" className="cursor-pointer text-xs">
                           Фильтр категорий
                         </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Полоса «Все категории / Денежные ящики / …» над списком
+                        <p className="text-[10px] leading-tight text-muted-foreground">
+                          Полоса категорий над списком
                         </p>
                       </div>
                       <Switch
@@ -354,6 +359,12 @@ export default function HomepageBlockEditDialog({
                         onCheckedChange={(checked) => handleInputChange("show_products_categories_filter", checked)}
                       />
                     </div>
+                  )}
+                </div>
+
+                {/* Кастомизация — только для блоков товаров. */}
+                {formData.type === HOMEPAGE_BLOCK_TYPES.PRODUCTS && (
+                  <>
 
                     <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
                       <div className="mb-2">
@@ -395,52 +406,57 @@ export default function HomepageBlockEditDialog({
                 )}
               </div>
             </div>
+              </div>
 
-            {/* Колонка 3 — Выбор элементов */}
-            <div className="flex flex-col min-h-0">
-              {/* Шапка колонки: заголовок + бейдж типа в одной строке,
-                  кнопка «Выбрать элементы» — отдельной строкой на всю ширину.
-                  Так колонка одинаково хорошо смотрится при любой ширине. */}
-              <div className="flex-shrink-0 mb-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold">Выбор элементов</h3>
-                  <Badge variant="outline" className="text-xs">
-                    {HOMEPAGE_BLOCK_TYPE_LABELS[formData.type]}
-                  </Badge>
-                </div>
+              {/* Кнопки внизу левой колонки — вместо общей DialogFooter,
+                  в одну строку 50/50. */}
+              <div className="border-t pt-3 flex gap-2 flex-shrink-0">
                 <Button
                   type="button"
-                  onClick={() => setElementsSelectionOpen(true)}
-                  className={cn("w-full flex items-center justify-center gap-2", PRIMARY_BTN)}
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className={cn("flex-1", SECONDARY_BTN)}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Выбрать элементы</span>
+                  Отмена
+                </Button>
+                <Button type="submit" disabled={isSubmitting} className={cn("flex-1", PRIMARY_BTN)}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {block ? "Сохранить" : "Создать"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Правая колонка — маленькая кнопка «+ Выбрать» в шапке,
+                остальную высоту занимает список выбранных карточек. */}
+            <div className="flex flex-col h-full min-h-0">
+              <div className="flex-shrink-0 mb-3 flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-semibold">Выбор элементов</h3>
+                <Badge variant="outline" className="text-xs">
+                  {HOMEPAGE_BLOCK_TYPE_LABELS[formData.type]}
+                </Badge>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setElementsSelectionOpen(true)}
+                  className={cn("ml-auto h-8 gap-1.5", PRIMARY_BTN)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Выбрать</span>
                 </Button>
               </div>
 
-            {/* Контейнер для списка элементов — карточка фиксированной высоты,
-                внутри список прокручивается. Сама карточка не скроллится. */}
-            <div className="flex-1 min-h-0 rounded-xl border border-gray-200 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-              <SelectedElementsDisplay
-                blockType={formData.type}
-                selectedItemIds={formData.items || []}
-                onRemoveItem={handleRemoveItem}
-                onClearAll={handleClearAllItems}
-                className="h-full"
-              />
-            </div>
+              <div className="flex-1 min-h-0 rounded-xl border border-gray-200 bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+                <SelectedElementsDisplay
+                  blockType={formData.type}
+                  selectedItemIds={formData.items || []}
+                  onRemoveItem={handleRemoveItem}
+                  onClearAll={handleClearAllItems}
+                  className="h-full"
+                  layout="grid"
+                />
+              </div>
             </div>
           </div>
-
-          <DialogFooter className="flex-shrink-0 px-6 py-4 border-t bg-gray-50/50">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className={SECONDARY_BTN}>
-              Отмена
-            </Button>
-            <Button type="submit" disabled={isSubmitting} className={PRIMARY_BTN}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {block ? "Сохранить" : "Создать"}
-            </Button>
-          </DialogFooter>
         </form>
 
         {/* Диалог выбора элементов */}

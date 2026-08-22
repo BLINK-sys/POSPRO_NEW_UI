@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -186,6 +187,12 @@ export default function MainBlocksTab() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<HomepageBlock | null>(null)
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  // Флаг, чтобы deep-link открытие сработало ровно один раз за жизнь компонента —
+  // иначе после закрытия модалки её бы открывало снова каждым ре-рендером.
+  const deepLinkOpenedRef = useRef(false)
 
 
 
@@ -323,6 +330,28 @@ export default function MainBlocksTab() {
     setEditingBlock(block)
     setEditDialogOpen(true)
   }, [])
+
+  // Deep-link из витрины: /admin/pages?tab=main-blocks&edit-block=<id>.
+  // Ждём пока блоки прогрузятся, находим нужный по id, открываем модалку.
+  // После открытия сносим query-параметр, чтобы обновление страницы
+  // не перезапускало этот же сценарий.
+  useEffect(() => {
+    if (deepLinkOpenedRef.current) return
+    if (loading) return
+    const editId = searchParams.get("edit-block")
+    if (!editId) return
+    const idNum = Number(editId)
+    if (!Number.isFinite(idNum)) return
+    const target = blocks.find(b => b.id === idNum)
+    if (!target) return
+    deepLinkOpenedRef.current = true
+    setEditingBlock(target)
+    setEditDialogOpen(true)
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("edit-block")
+    const qs = nextParams.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [loading, blocks, searchParams, router, pathname])
 
   const handleAddBlock = useCallback(() => {
     setEditingBlock(null)

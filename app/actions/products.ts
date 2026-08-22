@@ -122,6 +122,8 @@ export interface GetProductsParams {
   supplier?: string
   visibility?: string
   quantity?: string
+  /** Фильтр по цене: 'all' | 'gt0' (больше 0) | 'eq0' (только 0). */
+  price?: string
 }
 
 // Получить товары (с поддержкой пагинации и фильтров)
@@ -162,6 +164,9 @@ export async function getProducts(params: GetProductsParams = {}): Promise<Pagin
     }
     if (params.quantity && params.quantity !== "all") {
       url.searchParams.set("quantity", params.quantity)
+    }
+    if (params.price && params.price !== "all") {
+      url.searchParams.set("price", params.price)
     }
 
     const response = await fetch(url.toString(), {

@@ -29,6 +29,9 @@ interface SelectedElementsDisplayProps {
   onRemoveItem: (itemId: number) => void
   onClearAll: () => void
   className?: string
+  /** 'row' — компактный список строкой (по умолчанию), 'grid' —
+      квадратные карточки в сетке (для полноэкранного редактора блока). */
+  layout?: "row" | "grid"
 }
 
 function SelectedElementsDisplay({
@@ -36,7 +39,8 @@ function SelectedElementsDisplay({
   selectedItemIds,
   onRemoveItem,
   onClearAll,
-  className
+  className,
+  layout = "row",
 }: SelectedElementsDisplayProps) {
   const [elements, setElements] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -120,6 +124,124 @@ function SelectedElementsDisplay({
     } finally {
       setLoading(false)
     }
+  }
+
+  // Квадратная плитка для grid-layout. Пропорции контента зависят от
+  // типа блока: у товаров 70/30 (картинка/текст), у карточек разделов
+  // текст крупный по центру, у брендов — если есть картинка, текст
+  // скрыт, если нет — вместо картинки крупный fallback с названием.
+  const renderElementTile = (element: any) => {
+    const imgSrc =
+      blockType === HOMEPAGE_BLOCK_TYPES.BENEFITS && element.icon
+        ? null
+        : element.image || element.image_url
+
+    const isProduct = blockType === HOMEPAGE_BLOCK_TYPES.PRODUCTS
+    const isBrand = blockType === HOMEPAGE_BLOCK_TYPES.BRANDS
+    const isSectionCard = blockType === HOMEPAGE_BLOCK_TYPES.SECTION_CARDS
+    const isBenefit = blockType === HOMEPAGE_BLOCK_TYPES.BENEFITS
+    const hasImage = !!imgSrc && !isBenefit
+    const name = element.name || element.title || "Без названия"
+
+    // Товары — 70/30 без aspect-square, чтобы соотношение точно
+    // держалось. Остальные — квадратные с текстом «на своей строке».
+    const wrapperClass = isProduct
+      ? "aspect-square flex flex-col"
+      : "aspect-square flex flex-col"
+
+    return (
+      <div
+        key={element.id}
+        className="relative group h-full bg-white rounded-lg border-2 border-transparent shadow-[0_2px_6px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.22)] hover:scale-[1.04] hover:z-10 transition-all duration-200 overflow-hidden"
+      >
+        <button
+          type="button"
+          onClick={() => onRemoveItem(element.id)}
+          className="absolute top-1 right-1 z-20 w-5 h-5 rounded-full bg-white/95 text-red-500 hover:text-red-700 hover:bg-white shadow flex items-center justify-center"
+          title="Убрать из выбора"
+          aria-label="Убрать"
+        >
+          <X className="h-3 w-3" />
+        </button>
+
+        <div className={wrapperClass + " p-1.5"}>
+          {isBrand && !hasImage ? (
+            // Бренд без картинки — крупное название на всю карточку
+            <div className="flex-1 flex items-center justify-center text-center px-1">
+              <span className="text-sm font-bold text-gray-900 line-clamp-3">{name}</span>
+            </div>
+          ) : isProduct ? (
+            <>
+              {/* Товар: 70% картинка / 30% текст. Явные h-[70%]/h-[30%]
+                  нужны, чтобы Image fill получил высоту от родителя;
+                  flex-basis без явной высоты давал картинке 0px и
+                  визуально накладывался на текст. */}
+              <div className="relative bg-white h-[70%] shrink-0">
+                <Image
+                  src={getImageUrl(imgSrc)}
+                  alt={name}
+                  fill
+                  unoptimized
+                  className="object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+                />
+              </div>
+              <div className="px-1 py-1 text-[11px] text-gray-800 line-clamp-2 leading-tight h-[30%] shrink-0 flex items-center">
+                {name}
+              </div>
+            </>
+          ) : isSectionCard ? (
+            <>
+              <div className="relative flex-1 bg-white">
+                {isBenefit && element.icon ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    {getIcon(element.icon, "w-8 h-8 text-gray-600")}
+                  </div>
+                ) : (
+                  <Image
+                    src={getImageUrl(imgSrc)}
+                    alt={name}
+                    fill
+                    unoptimized
+                    className="object-contain"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+                  />
+                )}
+              </div>
+              <div className="px-1 py-1 text-sm font-semibold text-center text-gray-900 line-clamp-2 leading-tight">
+                {name}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Бренды с картинкой / бенефиты / малые баннеры */}
+              <div className="relative flex-1 bg-white">
+                {isBenefit && element.icon ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    {getIcon(element.icon, "w-8 h-8 text-gray-600")}
+                  </div>
+                ) : (
+                  <Image
+                    src={getImageUrl(imgSrc)}
+                    alt={name}
+                    fill
+                    unoptimized
+                    className="object-contain"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/placeholder.svg" }}
+                  />
+                )}
+              </div>
+              {/* Для брендов с картинкой имя НЕ показываем */}
+              {!isBrand && (
+                <div className="px-1 py-1 text-[11px] text-gray-800 line-clamp-2 leading-tight">
+                  {name}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    )
   }
 
   const renderElementCard = (element: any) => {
@@ -223,7 +345,7 @@ function SelectedElementsDisplay({
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      <div className="flex items-center justify-between flex-shrink-0 mb-3">
+      <div className="flex items-center justify-between flex-shrink-0 mb-2 px-3 pt-2">
         <div className="flex items-center space-x-2">
           <h4 className="text-sm font-medium">Выбранные элементы</h4>
           <Badge variant="outline" className="text-xs">
@@ -243,13 +365,19 @@ function SelectedElementsDisplay({
         )}
       </div>
 
-      <div 
-        className="flex-1 min-h-0 overflow-y-auto" 
+      <div
+        className="flex-1 min-h-0 overflow-y-auto"
         style={{ height: 'calc(100% - 60px)' }}
       >
-        <div className="space-y-2 pr-2 pb-2">
-          {elements.map(renderElementCard)}
-        </div>
+        {layout === "grid" ? (
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 p-3 pb-6">
+            {elements.map(renderElementTile)}
+          </div>
+        ) : (
+          <div className="space-y-2 pr-2 pb-2">
+            {elements.map(renderElementCard)}
+          </div>
+        )}
       </div>
     </div>
   )

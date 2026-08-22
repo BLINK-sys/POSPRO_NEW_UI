@@ -25,10 +25,15 @@ export default function PagesManagementTabs() {
 
   // Deep-link'и с витрины / других страниц админки:
   //   ?edit-section-card=<id> → «Карточки» (модалку откроет вложенный таб)
+  //   ?edit-block=<id>        → «Блоки на главной» (модалку откроет MainBlocksTab)
   //   ?tab=<name>              → любая внешняя вкладка (напр. banners)
   useEffect(() => {
     if (searchParams.get("edit-section-card")) {
       setTab("cards")
+      return
+    }
+    if (searchParams.get("edit-block")) {
+      setTab("main-blocks")
       return
     }
     const explicit = searchParams.get("tab")

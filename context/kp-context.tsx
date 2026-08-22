@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useToast } from '@/hooks/use-toast'
+import { SelectKpSupplierDialog, type KpSupplierChoice, type KpSupplierProduct } from '@/components/select-kp-supplier-dialog'
+import { AddToKPInput } from '@/hooks/use-add-to-kp'
 
 // --- Item types ---
 export interface WarehousePriceOption {
@@ -375,6 +377,9 @@ interface KPContextType {
   kpItems: KPItem[]
   kpCount: number
   addItem: (item: Omit<KPItem, 'kpId' | 'quantity' | 'addedAt'>) => string
+  /** Открывает модалку выбора поставщика и после Ok добавляет товар в
+      КП с уже выбранной ценой/поставщиком. Отмена — ничего не добавляет. */
+  startAddToKPWithSupplier: (product: AddToKPInput) => void
   removeItem: (kpId: string) => void
   updateItemQuantity: (kpId: string, quantity: number) => void
   updateItem: (kpId: string, updates: Partial<KPItem>) => void
@@ -599,6 +604,64 @@ export function KPProvider({ children }: { children: ReactNode }) {
   const removeItem = useCallback((kpId: string) => {
     setKpItems(prev => prev.filter(item => item.kpId !== kpId))
   }, [])
+
+  // Модалка выбора поставщика при «Добавить в КП». Открывается любой
+  // кнопкой «Добавить в КП» на карточке товара; после Ok — товар
+  // добавляется в КП с уже выбранными warehouse/supplier.
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false)
+  const [supplierDialogProduct, setSupplierDialogProduct] = useState<AddToKPInput | null>(null)
+
+  const startAddToKPWithSupplier = useCallback((product: AddToKPInput) => {
+    if (!isSystemUser) return
+    setSupplierDialogProduct(product)
+    setSupplierDialogOpen(true)
+  }, [isSystemUser])
+
+  // Юзер выбрал поставщика — добавляем товар в КП уже с этим выбором,
+  // а не потом через отдельный select. Все загруженные warehousePrices
+  // тоже прикладываем — чтобы в самом КП по-прежнему был select для
+  // смены поставщика, если понадобится.
+  const handleSupplierConfirm = useCallback(
+    (choice: KpSupplierChoice, allWarehousePrices: KpSupplierChoice[]) => {
+      const product = supplierDialogProduct
+      if (!product) return
+      const chosenPrice =
+        typeof choice.calculated_price === "number" && choice.calculated_price > 0
+          ? choice.calculated_price
+          : product.price
+      addItem({
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        price: chosenPrice,
+        wholesale_price: product.wholesale_price,
+        image_url: product.image_url,
+        description: product.description,
+        article: product.article,
+        brand_name: product.brand_name,
+        supplier_name: choice.supplier_name ?? null,
+        characteristics: product.characteristics,
+        warehousePrices: allWarehousePrices
+          .filter((wp) => wp.warehouse_id != null)
+          .map((wp) => ({
+            warehouse_id: wp.warehouse_id as number,
+            warehouse_name: wp.warehouse_name || "Склад",
+            supplier_name: wp.supplier_name,
+            cost_price: 0,
+            calculated_price: wp.calculated_price,
+            calculated_delivery: wp.calculated_delivery,
+            currency_code: wp.currency_code || "KZT",
+            vat_enabled: wp.vat_enabled !== false,
+            margin_coef: wp.margin_coef ?? null,
+            pwc_id: wp.pwc_id,
+            note: wp.note ?? null,
+          })),
+        selectedWarehouseId: choice.warehouse_id,
+      } as any)
+      setSupplierDialogProduct(null)
+    },
+    [supplierDialogProduct, addItem],
+  )
 
   const updateItemQuantity = useCallback((kpId: string, quantity: number) => {
     if (quantity < 1) return
@@ -1010,7 +1073,7 @@ export function KPProvider({ children }: { children: ReactNode }) {
 
   const value: KPContextType = {
     kpItems, kpCount: kpItems.length,
-    addItem, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll, isInKP,
+    addItem, startAddToKPWithSupplier, removeItem, updateItemQuantity, updateItem, reorderItems, clearAll, isInKP,
     kpSettings, updateSettings, updateColumns, updateColumnWidth, updateColumnFontSize, updateColumnHeaderFontSize, updateColumnAlign, updateColumnHeaderAlign, updateLogo, addLogoSlot, updateLogoSlot, removeLogoSlot,
     addTextElement, updateTextElement, removeTextElement,
     updateFooter, addFooterTextElement, addFooterImageElement, updateFooterElement, removeFooterElement,
@@ -1024,6 +1087,22 @@ export function KPProvider({ children }: { children: ReactNode }) {
   return (
     <KPContext.Provider value={value}>
       {children}
+      <SelectKpSupplierDialog
+        open={supplierDialogOpen}
+        onOpenChange={setSupplierDialogOpen}
+        product={
+          supplierDialogProduct
+            ? {
+                id: supplierDialogProduct.id,
+                name: supplierDialogProduct.name,
+                image_url: supplierDialogProduct.image_url ?? null,
+                price: supplierDialogProduct.price,
+                supplier_name: supplierDialogProduct.supplier_name ?? null,
+              }
+            : null
+        }
+        onConfirm={handleSupplierConfirm}
+      />
     </KPContext.Provider>
   )
 }

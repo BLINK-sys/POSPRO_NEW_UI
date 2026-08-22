@@ -24,16 +24,29 @@ export interface AddToKPInput {
 }
 
 /**
- * Хук добавления товара в КП. Возвращает функцию, которую можно дёргать из
- * dropdown'ов, контекстных меню, кнопок в админ-таблице — отовсюду, где нет
- * желания/возможности рендерить готовый `<AddToKPButton/>`.
+ * Хук добавления товара в КП. Возвращает функцию, которая ОТКРЫВАЕТ
+ * модалку выбора поставщика — сам addItem вызывается уже внутри
+ * KP-контекста после подтверждения. Отмена → ничего не добавляется.
  *
- * Логика та же что в [`components/add-to-kp-button.tsx`](../components/add-to-kp-button.tsx):
- * 1. `addItem` сразу создаёт запись в KPItem'ах (одного товара может быть N штук — каждый раз новая запись с новым `kpId`).
- * 2. Параллельно тянем warehouse-цены и детали товара (если их не передали).
- * 3. `updateItem` обогащает уже добавленную запись данными.
+ * До 2026-08-21 хук сам вызывал addItem + асинхронно обогащал
+ * warehouse-ценами (juzer тыкает — товар сразу в КП, потом enrichment).
+ * Теперь эту последовательность выполняет KPProvider через
+ * `startAddToKPWithSupplier`.
  */
 export function useAddToKP() {
+  const { startAddToKPWithSupplier } = useKP()
+
+  return useCallback((product: AddToKPInput) => {
+    startAddToKPWithSupplier(product)
+  }, [startAddToKPWithSupplier])
+}
+
+/**
+ * Устаревший «немедленный» вариант — оставлен на случай сценариев где
+ * подтверждение поставщика не нужно (например импорт из истории).
+ * Новых мест использования не создавать — вызывайте `useAddToKP`.
+ */
+export function useAddToKPImmediate() {
   const { addItem, updateItem } = useKP()
 
   return useCallback(async (product: AddToKPInput): Promise<string> => {
