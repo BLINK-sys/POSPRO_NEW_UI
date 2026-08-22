@@ -19,10 +19,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, ChevronDown as ChevronDownIcon, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone, Scale } from "lucide-react"
+import { User, ShoppingCart, Menu, LogOut, Loader2, ChevronRight, ChevronDown as ChevronDownIcon, Star, Plus, Minus, Settings, List, X, Grid3X3, Search, FileText, Sparkles, MonitorSmartphone, MapPin, Phone, Scale, Wrench, Check } from "lucide-react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import { useAdminTools } from "@/context/admin-tools-context"
 import { useCart } from "@/context/cart-context"
 import { useKP } from "@/context/kp-context"
 import { useCompare } from "@/context/compare-context"
@@ -55,6 +56,7 @@ import { CatalogDriversView } from "@/components/catalog-drivers-view"
 
 export default function Header() {
   const { user, logout, isLoading } = useAuth()
+  const { visible: adminToolsVisible, toggle: toggleAdminTools } = useAdminTools()
   const { cartCount } = useCart()
   const { kpCount } = useKP()
   const { count: compareCount } = useCompare()
@@ -1080,10 +1082,10 @@ export default function Header() {
                     вместо dropdown'а профиля, чтобы админ/клиент видел все
                     свои разделы одним взглядом. На md+ подпись видна, на sm
                     скрыта (только иконка + hover-title). */}
-                <HeaderIconLink href="/profile" icon={<User className="h-4 w-4" />} label="Профиль" />
 
                 {user.role === "client" && (
                   <>
+                    <HeaderIconLink href="/profile" icon={<User className="h-4 w-4" />} label="Профиль" />
                     <HeaderIconLink href="/profile/orders" icon={<FileText className="h-4 w-4" />} label="Заказы" />
                     <HeaderIconLink href="/profile/history" icon={<List className="h-4 w-4" />} label="История" />
                     <HeaderIconLink
@@ -1098,6 +1100,9 @@ export default function Header() {
 
                 {(user.role === "admin" || user.role === "system") && (
                   <>
+                    {/* Порядок для админа: Сравнение → Собрать КП → Админ →
+                        Инструменты → Профиль → Выйти. «Сравнение» рендерится
+                        выше (общее для всех), Выйти — ниже. */}
                     <HeaderIconLink
                       href="/kp"
                       icon={<FileText className="h-4 w-4" />}
@@ -1111,6 +1116,29 @@ export default function Header() {
                         label="Админ"
                       />
                     )}
+                    <button
+                      type="button"
+                      onClick={toggleAdminTools}
+                      title={adminToolsVisible
+                        ? "Скрыть админ-инструменты на витрине (карандаши, цвет фона, скрытие категорий)"
+                        : "Показать админ-инструменты на витрине"}
+                      className={cn(
+                        "relative flex flex-col items-center justify-center gap-0.5 h-11 px-2 rounded-lg transition-colors min-w-[56px] border-2",
+                        adminToolsVisible
+                          ? "bg-brand-yellow/20 text-black hover:bg-brand-yellow/30 border-brand-yellow"
+                          : "text-gray-400 hover:bg-gray-100 hover:text-gray-700 border-transparent",
+                      )}
+                      aria-pressed={adminToolsVisible}
+                    >
+                      {adminToolsVisible && (
+                        <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-brand-yellow text-black inline-flex items-center justify-center shadow-sm ring-1 ring-white">
+                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                        </span>
+                      )}
+                      <Wrench className="h-4 w-4" />
+                      <span className="hidden md:inline text-[10px] leading-tight">Инструменты</span>
+                    </button>
+                    <HeaderIconLink href="/profile" icon={<User className="h-4 w-4" />} label="Профиль" />
                   </>
                 )}
 

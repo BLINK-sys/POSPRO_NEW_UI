@@ -5,6 +5,7 @@ import Script from "next/script"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { AuthProvider } from "@/context/auth-context"
+import { AdminToolsProvider } from "@/context/admin-tools-context"
 import { CartProvider } from "@/context/cart-context"
 import { CatalogPanelProvider } from "@/context/catalog-panel-context"
 import { KPProvider } from "@/context/kp-context"
@@ -68,6 +69,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         <AuthProvider initialUser={user}>
+          <AdminToolsProvider>
           <CartProvider>
             <KPProvider>
               <CatalogPanelProvider>
@@ -93,6 +95,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               </CatalogPanelProvider>
             </KPProvider>
           </CartProvider>
+          </AdminToolsProvider>
         </AuthProvider>
       </body>
     </html>

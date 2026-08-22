@@ -3,6 +3,7 @@
 import { Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/context/auth-context"
+import { useAdminTools } from "@/context/admin-tools-context"
 import { cn } from "@/lib/utils"
 
 export type CardEntityType = "product" | "category" | "brand" | "section-card" | "banner"
@@ -37,8 +38,10 @@ export function CardAdminEditButton({
   className,
 }: CardAdminEditButtonProps) {
   const { user } = useAuth()
+  const { visible: adminToolsVisible } = useAdminTools()
   const isSystemUser = user?.role === "admin" || user?.role === "system"
   if (!isSystemUser) return null
+  if (!adminToolsVisible) return null
 
   const adminUrl = (() => {
     if (entityType === "product" && entitySlug) {

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Search, X, Loader2, ChevronUp, RotateCcw, Tag, Building2, ChevronRight, Sparkles } from "lucide-react"
+import { Search, X, Loader2, ChevronUp, RotateCcw, Tag, Building2, ChevronRight, Sparkles, Pencil } from "lucide-react"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { type ProductData, searchProducts as searchProductsAction } from "@/app/
 import { useCustomerActivityTracker } from "@/lib/track-customer-activity"
 import type { SearchPagePublicData, SearchPageCategoryItem, SearchPageBrandItem } from "@/lib/search-page-types"
 import { useAuth } from "@/context/auth-context"
+import { useAdminTools } from "@/context/admin-tools-context"
 import { getApiUrl } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { ProductCard } from "@/components/product-card"
@@ -27,8 +28,9 @@ const PAGE_SIZE = 20
 
 export default function DesktopSearchPage() {
   const { user } = useAuth()
+  const { visible: adminToolsVisible } = useAdminTools()
   const wholesaleUser = isWholesaleUser(user)
-  const isSystemUser = user?.role === "admin" || user?.role === "system"
+  const isSystemUser = (user?.role === "admin" || user?.role === "system") && adminToolsVisible
   const trackActivity = useCustomerActivityTracker()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -882,9 +884,24 @@ export default function DesktopSearchPage() {
 
         return (
           <div className="max-w-6xl mx-auto">
-            {/* Таб-переключатель */}
+            {/* Таб-переключатель. Сам таб центрирован; кнопка админа
+                «Редактировать» прикреплена абсолютом к правому краю
+                внутренней пилюли, чтобы оставаться справа от тумблера
+                и не съезжать по вертикали. */}
             <div className="flex justify-center mb-6">
-              <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
+              <div className="relative inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
+                {isSystemUser && (
+                  <a
+                    href="/admin/pages?tab=search-page"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Редактировать блок «Категории/Бренды» в админке (откроется в новой вкладке)"
+                    className="absolute left-full top-1/2 ml-3 -translate-y-1/2 z-20 inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all whitespace-nowrap"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Редактировать
+                  </a>
+                )}
                 {showCategoriesTab && (
                   <button
                     onClick={() => setActiveTab("categories")}

@@ -6,15 +6,17 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, ShoppingCart, Eye, EyeOff, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingCart, Eye, EyeOff, Loader2, Palette, Pencil } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData, SectionCardData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { getIcon } from "@/lib/icon-mapping"
 import { useAuth } from "@/context/auth-context"
+import { useAdminTools } from "@/context/admin-tools-context"
 import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
@@ -49,12 +51,17 @@ export default function HomepageBlockComponent({
   const blockRef = useRef<HTMLElement | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
+  const { visible: adminToolsVisible } = useAdminTools()
   const wholesaleUser = isWholesaleUser(user)
-  const isSystemUser = user?.role === "admin" || user?.role === "system"
+  // Показываем админ-инструменты (карандаш, цвет фона, тумблер категорий)
+  // только когда юзер — admin/system И глобальный тумблер в шапке включён.
+  const isSystemUser = (user?.role === "admin" || user?.role === "system") && adminToolsVisible
 
-  // Локальный override переключателя «полоса категорий» — админ может
-  // включить/выключить прямо на витрине без перезагрузки страницы.
+  // Локальные оверрайды настроек блока для админа — меняем прямо на
+  // витрине через PATCH-подобный PUT с ОДНИМ полем. Бэк с 2026-08-21
+  // не трогает items когда 'items' ключа нет в data (иначе теряли товары).
   const [localShowFilter, setLocalShowFilter] = useState<boolean | null>(null)
+  const [localBg, setLocalBg] = useState<string | null | undefined>(undefined)
   const [toggleBusy, setToggleBusy] = useState(false)
 
   const toggleCategoriesFilter = async () => {
@@ -78,6 +85,24 @@ export default function HomepageBlockComponent({
       })
     } finally {
       setToggleBusy(false)
+    }
+  }
+
+  // Смена цвета фона блока. Передаём `null` для сброса на дефолт.
+  const changeBackgroundColor = async (value: string | null) => {
+    const before = localBg !== undefined ? localBg : (block.background_color ?? null)
+    setLocalBg(value)
+    try {
+      await apiClient.put(`/api/admin/homepage-blocks/${block.id}`, {
+        background_color: value ?? "",
+      })
+    } catch (e: any) {
+      setLocalBg(before)
+      toast({
+        title: "Ошибка",
+        description: e?.message ?? "Не удалось сохранить цвет фона",
+        variant: "destructive",
+      })
     }
   }
 
@@ -144,6 +169,18 @@ export default function HomepageBlockComponent({
     }
   }
 
+  // Данные, нужные и в renderItems, и в боковой админ-панели.
+  // Держим их на уровне компонента, чтобы панель могла рисоваться
+  // рядом с блоком (customBg, showCategoriesFilter, uniqueCategories).
+  const isProductsBlock = block.type === 'product' || block.type === 'products'
+  const uniqueCategories = isProductsBlock
+    ? getUniqueCategories((block.items as ProductData[]) || [])
+    : []
+  const customBg = (localBg !== undefined ? (localBg || undefined) : (block.background_color || undefined))
+  const showCategoriesFilter = localShowFilter !== null
+    ? localShowFilter
+    : block.show_products_categories_filter !== false
+
   // Рендер элементов в зависимости от типа блока
   const renderItems = () => {
     if (!block.items || block.items.length === 0) {
@@ -155,82 +192,17 @@ export default function HomepageBlockComponent({
     }
 
     // Для товаров добавляем общую карточку-контейнер
-    if (block.type === 'product' || block.type === 'products') {
+    if (isProductsBlock) {
       const products = block.items as ProductData[]
-      const uniqueCategories = getUniqueCategories(products)
       const filteredProducts = getFilteredProducts(products)
-      // Кастомизация из админки: цвет фона карточки-обёртки и переключатель
-      // полосы фильтров категорий. Без цвета — дефолтный bg-gray-100.
-      const customBg = block.background_color || undefined
-      const showCategoriesFilter = localShowFilter !== null
-        ? localShowFilter
-        : block.show_products_categories_filter !== false
       const cardClass = customBg ? "shadow-lg rounded-xl border-0 p-6" : "bg-gray-100 shadow-lg rounded-xl border-0 p-6"
       const cardStyle = customBg ? { backgroundColor: customBg } : undefined
 
       // Если карусель включена - показываем с переключателем
       if (block.carusel) {
         return (
-          <div>
-            <Card className={cardClass} style={cardStyle}>
-              <CardContent className="p-0">
-                {isSystemUser && uniqueCategories.length > 0 && (
-                  <AdminFilterToggle
-                    show={showCategoriesFilter}
-                    busy={toggleBusy}
-                    onToggle={toggleCategoriesFilter}
-                  />
-                )}
-                {/* Фильтр категорий — только если есть категории и админ
-                    не отключил переключатель. */}
-                {showCategoriesFilter && uniqueCategories.length > 0 && (
-                  <div className="mb-6">
-                    <CategoryFilter
-                      categories={uniqueCategories}
-                      selectedCategoryId={selectedCategoryId}
-                      onCategorySelect={setSelectedCategoryId}
-                      className="justify-start"
-                    />
-                  </div>
-                )}
-
-                {viewMode === 'carousel' ? renderCarousel(filteredProducts) : renderGrid(filteredProducts)}
-
-                {/* Кнопка переключения режима просмотра */}
-                <div className="flex justify-center mt-6">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setViewMode(viewMode === 'carousel' ? 'grid' : 'carousel')
-                      // ✅ Прокрутка к началу блока товаров
-                      if (blockRef.current) {
-                        blockRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }
-                    }}
-                    className="text-sm px-6 py-2 bg-white hover:bg-gray-50 shadow-md"
-                  >
-                    {viewMode === 'carousel' ? 'Смотреть весь товар' : 'Скрыть весь товар'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )
-      }
-
-      // Если карусель выключена - показываем сразу сетку без кнопки
-      return (
-        <div>
           <Card className={cardClass} style={cardStyle}>
             <CardContent className="p-0">
-              {isSystemUser && uniqueCategories.length > 0 && (
-                <AdminFilterToggle
-                  show={showCategoriesFilter}
-                  busy={toggleBusy}
-                  onToggle={toggleCategoriesFilter}
-                />
-              )}
               {showCategoriesFilter && uniqueCategories.length > 0 && (
                 <div className="mb-6">
                   <CategoryFilter
@@ -242,10 +214,47 @@ export default function HomepageBlockComponent({
                 </div>
               )}
 
-              {renderGrid(filteredProducts)}
+              {viewMode === 'carousel' ? renderCarousel(filteredProducts) : renderGrid(filteredProducts)}
+
+              {/* Кнопка переключения режима просмотра */}
+              <div className="flex justify-center mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setViewMode(viewMode === 'carousel' ? 'grid' : 'carousel')
+                    if (blockRef.current) {
+                      blockRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  }}
+                  className="text-sm px-6 py-2 bg-white hover:bg-gray-50 shadow-md"
+                >
+                  {viewMode === 'carousel' ? 'Смотреть весь товар' : 'Скрыть весь товар'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        </div>
+        )
+      }
+
+      // Если карусель выключена - показываем сразу сетку без кнопки
+      return (
+        <Card className={cardClass} style={cardStyle}>
+          <CardContent className="p-0">
+            {showCategoriesFilter && uniqueCategories.length > 0 && (
+              <div className="mb-6">
+                <CategoryFilter
+                  categories={uniqueCategories}
+                  selectedCategoryId={selectedCategoryId}
+                  onCategorySelect={setSelectedCategoryId}
+                  className="justify-start"
+                />
+              </div>
+            )}
+
+            {renderGrid(filteredProducts)}
+          </CardContent>
+        </Card>
       )
     }
 
@@ -953,7 +962,33 @@ export default function HomepageBlockComponent({
   const topPad = isFirstBlock && hasSlideCatalog ? "pt-12" : "pt-4"
 
   return (
-    <section ref={blockRef} className={`${topPad} pb-4`}>
+    <section ref={blockRef} className={`${topPad} pb-4 relative`}>
+      {isSystemUser && (
+        <div className="absolute top-1/2 right-4 md:right-6 z-20 -translate-y-1/2 flex flex-col items-end gap-2">
+          {isProductsBlock && (
+            <>
+              <AdminBgColorPicker value={customBg ?? null} onChange={changeBackgroundColor} />
+              {uniqueCategories.length > 0 && (
+                <AdminFilterToggle
+                  show={showCategoriesFilter}
+                  busy={toggleBusy}
+                  onToggle={toggleCategoriesFilter}
+                />
+              )}
+            </>
+          )}
+          <a
+            href={`/admin/pages?tab=main-blocks&edit-block=${block.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Редактировать блок в админке (откроется в новой вкладке)"
+            className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Редактировать
+          </a>
+        </div>
+      )}
       <div className="container mx-auto px-4 md:px-6">
         {block.show_title && (
           <div className={`mb-6 ${getTitleAlignment()}`}>
@@ -981,6 +1016,66 @@ export default function HomepageBlockComponent({
 }
 
 /**
+ * Пикер цвета фона блока товаров для админа прямо с витрины. Меняет
+ * `background_color` через частичный PUT (items остаются нетронутыми).
+ * Popover с color-picker'ом + hex-полем + кнопкой «Сброс».
+ */
+function AdminBgColorPicker({
+  value,
+  onChange,
+}: {
+  value: string | null
+  onChange: (v: string | null) => void
+}) {
+  const currentHex = value && /^#/.test(value) ? value : "#f3f4f6"
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Цвет фона блока (только для админа)"
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all"
+        >
+          <Palette className="h-3.5 w-3.5" />
+          Цвет фона
+          <span
+            className="ml-1 inline-block w-3 h-3 rounded-full border border-gray-300"
+            style={{ backgroundColor: value || "#f3f4f6" }}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 space-y-2 p-3" align="end">
+        <div className="text-[11px] font-medium text-gray-700">Цвет фона блока</div>
+        <div className="flex items-center gap-2 min-w-0">
+          <input
+            type="color"
+            value={currentHex}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-9 h-9 rounded border border-gray-300 cursor-pointer bg-white p-0 shrink-0 overflow-hidden appearance-none [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-[3px] [&::-moz-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-[3px]"
+          />
+          <input
+            type="text"
+            value={value ?? ""}
+            onChange={(e) => onChange(e.target.value || null)}
+            placeholder="#RRGGBB"
+            className="flex-1 min-w-0 h-9 px-2 rounded border border-gray-300 bg-white text-sm font-mono focus:outline-none focus:border-brand-yellow"
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[11px] text-gray-600 hover:text-black hover:underline"
+          >
+            Сбросить на дефолт
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
  * Мини-панель управления «показывать/скрыть полосу категорий» для блока
  * товаров. Видна только admin/system. Тумблер переключает
  * `show_products_categories_filter` через PUT и мгновенно перерисовывает
@@ -996,23 +1091,21 @@ function AdminFilterToggle({
   onToggle: () => void
 }) {
   return (
-    <div className="mb-3 flex justify-end">
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={busy}
-        title={show ? "Скрыть отображение категорий этого блока для всех" : "Показать отображение категорий этого блока для всех"}
-        className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all disabled:opacity-60"
-      >
-        {busy ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : show ? (
-          <EyeOff className="h-3.5 w-3.5" />
-        ) : (
-          <Eye className="h-3.5 w-3.5" />
-        )}
-        {show ? "Скрыть категории" : "Показать категории"}
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={busy}
+      title={show ? "Скрыть отображение категорий этого блока для всех" : "Показать отображение категорий этого блока для всех"}
+      className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all disabled:opacity-60"
+    >
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : show ? (
+        <EyeOff className="h-3.5 w-3.5" />
+      ) : (
+        <Eye className="h-3.5 w-3.5" />
+      )}
+      {show ? "Скрыть категории" : "Показать категории"}
+    </button>
   )
 } 
