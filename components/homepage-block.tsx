@@ -280,6 +280,28 @@ export default function HomepageBlockComponent({
       )
     }
 
+    // Для карточек разделов («сферы применения») — сетка + кнопка
+    // «Все сферы» → /sections (полный публичный листинг всех активных
+    // карточек). Как и для брендов: ранняя ветка перед carusel, чтобы
+    // кнопка была всегда снизу под сеткой.
+    if (block.type === 'section_card' || block.type === 'section_cards') {
+      return (
+        <div>
+          {renderGrid()}
+          <div className="flex justify-center mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-sm px-6 py-2 bg-white hover:bg-gray-50 shadow-md"
+              asChild
+            >
+              <Link href="/sections">Все решения</Link>
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
     if (block.carusel) {
       return renderCarousel()
     }

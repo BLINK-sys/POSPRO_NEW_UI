@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 
-import { getSectionData, type ProductData, type SectionCardData, type CategoryData } from "@/app/actions/public"
+import { getSectionData, getCatalogCategories, type ProductData, type SectionCardData, type CategoryData } from "@/app/actions/public"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,11 +13,25 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Search } from "lucide-react"
 import { ProductCard } from "@/components/product-card"
-import { CategoryCard } from "@/components/category-card"
 import { getImageUrl } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 
 const ITEMS_PER_PAGE = 20
+
+// pdf.js тянется только на клиенте (ссылки на window, worker и т.п.).
+// Динамический импорт с ssr:false — обязателен, иначе билд падает.
+// Это НЕ server action, так что dynamic импорт здесь безопасен.
+const PdfPresentation = dynamic(
+  () => import("@/components/pdf-presentation").then((m) => m.PdfPresentation),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        Загрузка модуля презентации…
+      </div>
+    ),
+  },
+)
 
 // Убираем фокус-обводку для контролов фильтра — визуально шумно, юзер
 // просил чистый вид.
@@ -65,7 +80,51 @@ export default function SectionPage() {
   const [brand, setBrand] = useState<string>("all")
   const [sort, setSort] = useState<string>("name")
   const [page, setPage] = useState(1)
-  const [categoryId, setCategoryId] = useState<number | null>(null)
+  // Тумблер «Презентация / Товары». Виден только когда у раздела
+  // есть PDF-презентация. По умолчанию — 'presentation' если есть,
+  // иначе 'products'. Устанавливается ниже, когда `data` подгружен.
+  const [viewMode, setViewMode] = useState<"presentation" | "products">("products")
+  const viewModeInitRef = useRef(false)
+
+  // Двухуровневый чиповый фильтр по категориям раздела.
+  //   rootCategoryId — выбор из полосы привязанных к разделу категорий
+  //   subCategoryId  — уточнение до её прямой подкатегории (появляется
+  //                    вторая полоса только когда выбран root)
+  // Активным фильтром для запроса считаем sub, если он выбран, иначе root.
+  const [rootCategoryId, setRootCategoryId] = useState<number | null>(null)
+  const [subCategoryId, setSubCategoryId] = useState<number | null>(null)
+  const activeCategoryId = subCategoryId ?? rootCategoryId
+
+  // Полное дерево категорий каталога (для второй полосы — детей выбранной
+  // root-категории). Грузим один раз, кешируется на бэке actions.
+  const [catalogTree, setCatalogTree] = useState<CategoryData[]>([])
+  useEffect(() => {
+    let cancelled = false
+    getCatalogCategories()
+      .then((tree) => { if (!cancelled) setCatalogTree(tree || []) })
+      .catch(() => { /* тихо — второй ряд просто не покажется */ })
+    return () => { cancelled = true }
+  }, [])
+
+  // Прямые дети выбранной root-категории — плоско, только первый уровень.
+  // Отсекаем пустые (product_count == 0) — незачем показывать «дырки»,
+  // клик по которым откроет нулевой лист товаров.
+  const subCategories = useMemo<CategoryData[]>(() => {
+    if (rootCategoryId == null) return []
+    const findNode = (nodes: CategoryData[]): CategoryData | null => {
+      for (const n of nodes) {
+        if (n.id === rootCategoryId) return n
+        if (n.children?.length) {
+          const found = findNode(n.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const root = findNode(catalogTree)
+    const children = root?.children ?? []
+    return children.filter((c) => (c.product_count ?? 0) > 0)
+  }, [catalogTree, rootCategoryId])
 
   const productsRef = useRef<HTMLDivElement | null>(null)
   const filtersRef = useRef<HTMLDivElement | null>(null)
@@ -75,7 +134,20 @@ export default function SectionPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" })
+    // Смена раздела → сбросить флаг инициализации viewMode, чтобы
+    // выбрать дефолт заново из нового data.section_card.
+    viewModeInitRef.current = false
   }, [slug])
+
+  // Первичный выбор viewMode: если у нового раздела есть PDF-презентация,
+  // по умолчанию открываем её; иначе — товары. Делаем ровно один раз
+  // на слаг (флаг), чтобы не переопределять клики пользователя.
+  useEffect(() => {
+    if (viewModeInitRef.current) return
+    if (!data) return
+    viewModeInitRef.current = true
+    setViewMode(data.section_card.presentation_pdf_url ? "presentation" : "products")
+  }, [data])
 
   // Скролл к сетке товаров ПОСЛЕ окончания подгрузки — чтобы юзер сначала
   // увидел, что новые товары уже на месте, потом их плавно показали.
@@ -104,7 +176,7 @@ export default function SectionPage() {
           search: search || undefined,
           brand,
           sort,
-          categoryId,
+          categoryId: activeCategoryId,
         })
         if (!cancelled) setData(res)
       } catch (e: any) {
@@ -115,7 +187,7 @@ export default function SectionPage() {
     }
     load()
     return () => { cancelled = true }
-  }, [slug, page, search, brand, sort, categoryId])
+  }, [slug, page, search, brand, sort, activeCategoryId])
 
   const totalPages = data?.pagination?.total_pages ?? 1
   const pageList = useMemo(() => buildPageList(page, totalPages, 2), [page, totalPages])
@@ -147,6 +219,7 @@ export default function SectionPage() {
   }
 
   const card = data.section_card
+  const presentationUrl = card.presentation_pdf_url || ""
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -185,44 +258,130 @@ export default function SectionPage() {
         </div>
       </Card>
 
-      {/* Привязанные категории — работают как тумблеры фильтра:
-          клик по одной сужает выборку товаров, клик по ней же — сброс. */}
+      {/* Тумблер «Презентация | Товары» — показываем только если у
+          раздела есть загруженный PDF. По умолчанию 'presentation'
+          если PDF есть, иначе 'products' (см. useEffect ниже). */}
+      {presentationUrl && (
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setViewMode("presentation")}
+              className={cn(
+                "px-6 py-2 rounded-full text-sm font-medium transition-all",
+                viewMode === "presentation"
+                  ? "bg-white text-black shadow-md"
+                  : "text-gray-600 hover:text-black",
+              )}
+            >
+              Презентация
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("products")}
+              className={cn(
+                "px-6 py-2 rounded-full text-sm font-medium transition-all",
+                viewMode === "products"
+                  ? "bg-white text-black shadow-md"
+                  : "text-gray-600 hover:text-black",
+              )}
+            >
+              Товары
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Режим 'presentation' — PDF-презентация вертикальным потоком.
+          Скрывает всё остальное (категории, фильтры, товары). */}
+      {presentationUrl && viewMode === "presentation" && (
+        <div className="mb-6">
+          <PdfPresentation url={getImageUrl(presentationUrl)} />
+        </div>
+      )}
+
+      {/* Режим 'products' — оригинальная логика раздела (категории,
+          sidebar подкатегорий, фильтры, сетка товаров, пагинация). */}
+      {viewMode === "products" && (
+      <>
+      {/* Привязанные категории — компактные полосы пилюль.
+          Первая полоса — корневые категории раздела; клик по одной
+          сужает товары и раскрывает вторую полосу с её прямыми
+          подкатегориями. Клик по той же root'е — сброс обеих полос.  */}
       {data.children && data.children.length > 0 && (
-        <section className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Категории раздела</h2>
-            {categoryId !== null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setCategoryId(null); setPage(1) }}
-                className="text-xs"
+        <section className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-gray-700 shrink-0">Категории раздела</h2>
+            {(rootCategoryId !== null || subCategoryId !== null) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRootCategoryId(null)
+                  setSubCategoryId(null)
+                  setPage(1)
+                }}
+                className="text-[11px] text-gray-500 hover:text-black hover:underline shrink-0"
               >
-                Показать все
-              </Button>
+                Сбросить
+              </button>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="flex flex-wrap gap-1">
             {data.children.map((c) => {
-              const isSel = categoryId === c.id
+              const isSel = rootCategoryId === c.id
               return (
-                <div key={c.id} className="aspect-square">
-                  <CategoryCard
-                    category={c}
-                    asButton
-                    selected={isSel}
-                    onClick={() => {
-                      setCategoryId(isSel ? null : c.id)
-                      setPage(1)
-                    }}
-                  />
-                </div>
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    // Toggle root; при смене root — сбрасываем sub.
+                    setRootCategoryId(isSel ? null : c.id)
+                    setSubCategoryId(null)
+                    setPage(1)
+                  }}
+                  className={cn(
+                    "whitespace-nowrap px-2 py-0.5 text-xs rounded-full border transition-colors cursor-pointer",
+                    isSel
+                      ? "bg-brand-yellow text-black border-brand-yellow font-medium"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-yellow-50 hover:border-yellow-200 hover:text-black",
+                  )}
+                >
+                  {c.name}
+                </button>
               )
             })}
           </div>
+
+          {/* Вторая полоса подкатегорий вынесена в левый sidebar рядом
+              с товарами (см. ниже) — при 50+ подкатегориях inline-полоса
+              занимала пол-экрана. Sidebar появляется только когда root
+              выбран и у него есть дети. */}
         </section>
       )}
 
+      {/* Основная область: sidebar подкатегорий (если применимо) + контент. */}
+      <div className={cn(
+        "gap-6",
+        rootCategoryId !== null && subCategories.length > 0
+          ? "md:grid md:grid-cols-[240px_1fr]"
+          : "",
+      )}>
+        {/* Sidebar — только при выбранной root-категории с детьми */}
+        {rootCategoryId !== null && subCategories.length > 0 && (
+          <aside className="mb-4 md:mb-0">
+            <div className="md:sticky md:top-20">
+              <SubcategorySidebar
+                rootName={data.children.find(c => c.id === rootCategoryId)?.name || ""}
+                subcategories={subCategories}
+                value={subCategoryId}
+                onChange={(id) => { setSubCategoryId(id); setPage(1) }}
+              />
+            </div>
+          </aside>
+        )}
+
+        {/* Правая часть — фильтры, товары, пагинация */}
+        <div>
       {/* Фильтры */}
       <div ref={filtersRef} className="mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center scroll-mt-20">
         <div className="relative flex-1">
@@ -320,6 +479,96 @@ export default function SectionPage() {
           </Button>
         </nav>
       )}
+        </div>
+      </div>
+      </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Sidebar подкатегорий — колонка слева от товаров. Появляется только
+ * когда root выбран и у него есть прямые дети (иначе просто не рендерим).
+ * Есть поле поиска (клиентская фильтрация по name) и вертикальный
+ * скроллящийся список. Клик по строке — выбор / снятие; активная строка
+ * подсвечена жёлтым.
+ */
+function SubcategorySidebar({
+  rootName,
+  subcategories,
+  value,
+  onChange,
+}: {
+  rootName: string
+  subcategories: CategoryData[]
+  value: number | null
+  onChange: (id: number | null) => void
+}) {
+  const [q, setQ] = useState("")
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (!s) return subcategories
+    return subcategories.filter((sc) => sc.name.toLowerCase().includes(s))
+  }, [q, subcategories])
+
+  return (
+    <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+      <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">
+          Подкатегории
+        </div>
+        <div className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight mt-0.5">
+          {rootName}
+        </div>
+      </div>
+      <div className="p-2 border-b border-gray-100">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Поиск…"
+            className="w-full pl-7 pr-2 h-8 text-xs rounded-md border border-gray-200 bg-white focus:outline-none focus:border-brand-yellow"
+          />
+        </div>
+      </div>
+      <div className="max-h-[70vh] overflow-y-auto py-1">
+        {value !== null && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="w-full text-left px-3 py-1.5 text-[11px] text-gray-500 hover:text-black hover:bg-gray-50"
+          >
+            × Сбросить подкатегорию
+          </button>
+        )}
+        {filtered.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-gray-400 text-center">
+            Ничего не найдено
+          </div>
+        ) : (
+          filtered.map((sc) => {
+            const isSel = value === sc.id
+            return (
+              <button
+                key={sc.id}
+                type="button"
+                onClick={() => onChange(isSel ? null : sc.id)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-sm transition-colors leading-tight",
+                  isSel
+                    ? "bg-brand-yellow text-black font-medium"
+                    : "text-gray-700 hover:bg-yellow-50 hover:text-black",
+                )}
+              >
+                {sc.name}
+              </button>
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }

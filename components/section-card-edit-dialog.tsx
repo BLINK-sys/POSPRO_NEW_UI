@@ -31,6 +31,7 @@ export interface SectionCard {
   description: string
   image_url: string
   banner_image_url: string
+  presentation_pdf_url?: string
   target: "link" | "categories"
   link_url: string
   link_new_tab: boolean
@@ -53,6 +54,7 @@ const EMPTY_FORM: SectionCard = {
   description: "",
   image_url: "",
   banner_image_url: "",
+  presentation_pdf_url: "",
   target: "link",
   link_url: "",
   link_new_tab: false,
@@ -191,6 +193,53 @@ export default function SectionCardEditDialog({ card, open, onOpenChange, onSave
       toast({ title: "Удалено" })
     } catch (e: any) {
       toast({ title: "Ошибка удаления", description: e?.message ?? String(e), variant: "destructive" })
+    }
+  }
+
+  const [pdfUploading, setPdfUploading] = useState(false)
+  const pdfInputRef = useRef<HTMLInputElement | null>(null)
+
+  const uploadPresentation = async (file: File) => {
+    if (!isEditing) {
+      toast({
+        title: "Сохраните карточку",
+        description: "Загрузка презентации доступна после создания карточки",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!/\.pdf$/i.test(file.name)) {
+      toast({ title: "Только PDF", description: "Разрешён только .pdf файл", variant: "destructive" })
+      return
+    }
+    setPdfUploading(true)
+    const fd = new FormData()
+    fd.append("file", file)
+    try {
+      const res = await apiClient.uploadFile<{ url: string }>(
+        `/api/admin/section-cards/${form.id}/presentation`,
+        fd,
+      )
+      setForm((prev) => ({ ...prev, presentation_pdf_url: res.url }))
+      toast({ title: "Готово", description: "Презентация загружена" })
+    } catch (e: any) {
+      toast({ title: "Ошибка загрузки", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setPdfUploading(false)
+    }
+  }
+
+  const deletePresentation = async () => {
+    if (!isEditing) {
+      setForm((prev) => ({ ...prev, presentation_pdf_url: "" }))
+      return
+    }
+    try {
+      await apiClient.delete(`/api/admin/section-cards/${form.id}/presentation`)
+      setForm((prev) => ({ ...prev, presentation_pdf_url: "" }))
+      toast({ title: "Удалено", description: "Презентация удалена" })
+    } catch (e: any) {
+      toast({ title: "Ошибка", description: e?.message ?? String(e), variant: "destructive" })
     }
   }
 
@@ -431,9 +480,77 @@ export default function SectionCardEditDialog({ card, open, onOpenChange, onSave
             </div>
           </div>
 
+          {/* ── Презентация (PDF) ────────────────────────────────────
+              Загружается опционально. На витрине /section/<slug> появится
+              тумблер «Презентация / Товары» и вертикальный рендер PDF-страниц
+              (react-pdf → pdf.js). Только .pdf, до 50 МБ. */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium text-sm">Презентация (PDF)</div>
+                <div className="text-xs text-muted-foreground">
+                  Опционально. На странице раздела появится тумблер и рендер PDF вертикальным потоком страниц.
+                </div>
+              </div>
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) uploadPresentation(f)
+                  e.target.value = ""
+                }}
+              />
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={!isEditing || pdfUploading}
+                >
+                  {pdfUploading ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Загрузка…</>
+                  ) : form.presentation_pdf_url ? (
+                    <><Upload className="h-3.5 w-3.5 mr-1.5" /> Заменить</>
+                  ) : (
+                    <><Upload className="h-3.5 w-3.5 mr-1.5" /> Загрузить PDF</>
+                  )}
+                </Button>
+                {form.presentation_pdf_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={deletePresentation}
+                    disabled={pdfUploading}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Удалить
+                  </Button>
+                )}
+              </div>
+            </div>
+            {form.presentation_pdf_url && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground rounded bg-gray-50 px-3 py-2">
+                <LinkIcon className="h-3 w-3 shrink-0" />
+                <a
+                  href={getImageUrl(form.presentation_pdf_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate hover:underline"
+                >
+                  {form.presentation_pdf_url}
+                </a>
+              </div>
+            )}
+          </div>
+
           {!isEditing && (
             <p className="text-xs text-muted-foreground">
-              💡 Изображения (баннер и карточка) можно загрузить после первого сохранения карточки.
+              💡 Изображения (баннер и карточка) и PDF-презентация загружаются после первого сохранения карточки.
             </p>
           )}
         </div>

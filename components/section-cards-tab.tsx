@@ -144,7 +144,7 @@ export default function SectionCardsTab() {
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={cards.map((c) => c.id)} strategy={rectSortingStrategy}>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
               {cards.map((c) => (
                 <SortableSectionCard
                   key={c.id}
@@ -246,25 +246,22 @@ function SortableSectionCard({
             </Button>
           </div>
         </div>
-        <CardContent className="p-4 space-y-2">
+        <CardContent className="p-2.5 space-y-1.5">
           <div>
-            <h5 className="font-semibold text-base leading-tight line-clamp-2">{card.name}</h5>
-            <p className="text-xs text-muted-foreground mt-1">
+            <h5 className="font-semibold text-sm leading-tight line-clamp-2">{card.name}</h5>
+            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
               /section/{card.slug}
             </p>
           </div>
-          {card.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{card.description}</p>
-          )}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-1.5 pt-0.5">
             {card.target === "categories" ? (
-              <Badge variant="outline" className="gap-1">
-                <Layers className="h-3 w-3" />
-                {card.category_ids?.length ?? 0} категорий
+              <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 h-5">
+                <Layers className="h-2.5 w-2.5" />
+                {card.category_ids?.length ?? 0} кат.
               </Badge>
             ) : (
-              <Badge variant="outline" className="gap-1 max-w-full truncate">
-                <ExternalLink className="h-3 w-3" />
+              <Badge variant="outline" className="gap-1 max-w-full truncate text-[10px] px-1.5 py-0 h-5">
+                <ExternalLink className="h-2.5 w-2.5" />
                 <span className="truncate">{card.link_url || "нет URL"}</span>
               </Badge>
             )}

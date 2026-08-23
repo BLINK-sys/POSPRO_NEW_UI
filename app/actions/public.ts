@@ -155,6 +155,7 @@ export interface SectionCardData {
   description: string
   image_url: string
   banner_image_url: string
+  presentation_pdf_url?: string
   target: "link" | "categories"
   link_url: string
   link_new_tab: boolean
@@ -991,6 +992,45 @@ export async function getAllBrands(): Promise<AllBrandsData[]> {
     return await fetchAllBrandsCached()
   } catch (error) {
     console.error("Error fetching all brands:", error)
+    return []
+  }
+}
+
+async function fetchAllSectionCardsRaw(): Promise<SectionCardData[]> {
+  const response = await fetch(getApiUrl("/api/public/section-cards"), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  const cards = await response.json()
+  return cards.map((c: any) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    description: c.description || "",
+    image_url: c.image_url || "",
+    banner_image_url: c.banner_image_url || "",
+    target: c.target === "categories" ? "categories" : "link",
+    link_url: c.link_url || "",
+    link_new_tab: !!c.link_new_tab,
+  }))
+}
+
+const fetchAllSectionCardsCached = unstable_cache(
+  () => fetchAllSectionCardsRaw(),
+  ["all-section-cards"],
+  { tags: ["section-cards"], revalidate: 3600 }
+)
+
+// Публичный список всех активных «сфер применения» (SectionCard) —
+// используется страницей /sections. Кеш публичный: не зависит от юзера.
+export async function getAllSectionCards(): Promise<SectionCardData[]> {
+  try {
+    return await fetchAllSectionCardsCached()
+  } catch (error) {
+    console.error("Error fetching all section cards:", error)
     return []
   }
 }
