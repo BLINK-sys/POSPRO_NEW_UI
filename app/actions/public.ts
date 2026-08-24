@@ -61,6 +61,9 @@ export interface HomepageBlock {
   /** Показывать ли полосу фильтров категорий над списком товаров
       (актуально для type='products'). true по умолчанию. */
   show_products_categories_filter?: boolean
+  /** Кол-во карточек в строке для блока брендов (type='brands').
+      NULL/undefined = дефолтная адаптивная сетка. */
+  brands_cards_per_row?: number | null
   items: any[]
 }
 

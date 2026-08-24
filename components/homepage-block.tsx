@@ -6,10 +6,18 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, ShoppingCart, Eye, EyeOff, Loader2, Palette, Pencil } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingCart, Eye, EyeOff, Loader2, Palette, Pencil, Rows3 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
+
+// Базовые константы для блока брендов при заданном brands_cards_per_row.
+// CARD = ширина одной карточки (px), GAP = зазор между ними в grid/flex.
+// Значения синхронизированы: рендерер использует их же, чтобы карточки
+// не «прыгали» между эталонной шириной и пикером.
+const BRANDS_CARD_PX = 176
+const BRANDS_GAP_PX = 12
 import { HomepageBlock, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData, SectionCardData } from "@/app/actions/public"
 import { API_BASE_URL } from "@/lib/api-address"
 import { getImageUrl } from "@/lib/image-utils"
@@ -17,7 +25,7 @@ import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpe
 import { getIcon } from "@/lib/icon-mapping"
 import { useAuth } from "@/context/auth-context"
 import { useAdminTools } from "@/context/admin-tools-context"
-import { formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { cn, formatProductPrice, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
@@ -62,7 +70,15 @@ export default function HomepageBlockComponent({
   // не трогает items когда 'items' ключа нет в data (иначе теряли товары).
   const [localShowFilter, setLocalShowFilter] = useState<boolean | null>(null)
   const [localBg, setLocalBg] = useState<string | null | undefined>(undefined)
+  const [localBrandsPerRow, setLocalBrandsPerRow] = useState<number | null | undefined>(undefined)
   const [toggleBusy, setToggleBusy] = useState(false)
+  // Пикер brands-per-row может менять высоту блока → админ-панель справа
+  // (центрируется top-1/2 -translate-y-1/2) прыгает под курсором. Пока
+  // popover открыт — ЗАМОРАЖИВАЕМ её вертикальную позицию (snapshot px
+  // относительно секции), при закрытии — снова центрируем.
+  const adminPanelRef = useRef<HTMLDivElement | null>(null)
+  const [brandsPickerOpen, setBrandsPickerOpen] = useState(false)
+  const [panelLockedTopPx, setPanelLockedTopPx] = useState<number | null>(null)
 
   const toggleCategoriesFilter = async () => {
     if (toggleBusy) return
@@ -85,6 +101,26 @@ export default function HomepageBlockComponent({
       })
     } finally {
       setToggleBusy(false)
+    }
+  }
+
+  // Кол-во карточек в ряд для блока брендов. null → сброс на адаптив.
+  const changeBrandsCardsPerRow = async (value: number | null) => {
+    const before = localBrandsPerRow !== undefined
+      ? localBrandsPerRow
+      : (block.brands_cards_per_row ?? null)
+    setLocalBrandsPerRow(value)
+    try {
+      await apiClient.put(`/api/admin/homepage-blocks/${block.id}`, {
+        brands_cards_per_row: value === null ? "" : value,
+      })
+    } catch (e: any) {
+      setLocalBrandsPerRow(before)
+      toast({
+        title: "Ошибка",
+        description: e?.message ?? "Не удалось сохранить настройку",
+        variant: "destructive",
+      })
     }
   }
 
@@ -180,6 +216,11 @@ export default function HomepageBlockComponent({
   const showCategoriesFilter = localShowFilter !== null
     ? localShowFilter
     : block.show_products_categories_filter !== false
+
+  const isBrandsBlock = block.type === 'brand' || block.type === 'brands'
+  const brandsCardsPerRow = localBrandsPerRow !== undefined
+    ? localBrandsPerRow
+    : (block.brands_cards_per_row ?? null)
 
   // Рендер элементов в зависимости от типа блока
   const renderItems = () => {
@@ -698,6 +739,29 @@ export default function HomepageBlockComponent({
     if (block.type === 'brand' || block.type === 'brands') {
       const itemsCount = itemsToRender.length
 
+      // Если админ задал фикс кол-во в ряд — карточки одного размера
+      // (BRANDS_CARD_PX = 176px, ~как средний размер в старой адаптивной
+      // сетке), контейнер центрируется через max-width. Slider в пикере
+      // ограничивает N реально возможным.
+      if (brandsCardsPerRow && brandsCardsPerRow >= 1) {
+        const maxW = brandsCardsPerRow * BRANDS_CARD_PX + (brandsCardsPerRow - 1) * BRANDS_GAP_PX
+        return (
+          <div
+            className="flex flex-wrap justify-center gap-3 mx-auto"
+            style={{ maxWidth: `${maxW}px` }}
+          >
+            {itemsToRender.map((item, index) => (
+              <div
+                key={item.id || index}
+                style={{ width: `${BRANDS_CARD_PX}px` }}
+              >
+                {renderItem(item)}
+              </div>
+            ))}
+          </div>
+        )
+      }
+
       // Если карточек мало — центрируем; ширина ячейки в 2 раза меньше
       // чем раньше (128px lg вместо 176), под размеры карточек категорий.
       if (itemsCount < 6) {
@@ -986,7 +1050,14 @@ export default function HomepageBlockComponent({
   return (
     <section ref={blockRef} className={`${topPad} pb-4 relative`}>
       {isSystemUser && (
-        <div className="absolute top-1/2 right-4 md:right-6 z-20 -translate-y-1/2 flex flex-col items-end gap-2">
+        <div
+          ref={adminPanelRef}
+          className={cn(
+            "absolute right-4 md:right-6 z-20 flex flex-col items-end gap-2",
+            panelLockedTopPx == null && "top-1/2 -translate-y-1/2",
+          )}
+          style={panelLockedTopPx != null ? { top: `${panelLockedTopPx}px` } : undefined}
+        >
           {isProductsBlock && (
             <>
               <AdminBgColorPicker value={customBg ?? null} onChange={changeBackgroundColor} />
@@ -998,6 +1069,32 @@ export default function HomepageBlockComponent({
                 />
               )}
             </>
+          )}
+          {isBrandsBlock && (
+            <AdminBrandsPerRowPicker
+              value={brandsCardsPerRow}
+              onChange={changeBrandsCardsPerRow}
+              containerRef={blockRef}
+              open={brandsPickerOpen}
+              onOpenChange={(v) => {
+                if (v) {
+                  // Замораживаем текущую вертикальную позицию панели
+                  // (в px относительно секции) до того как изменения
+                  // высоты блока начнут «сдвигать» центрированный элемент.
+                  const panel = adminPanelRef.current
+                  const section = blockRef.current
+                  if (panel && section) {
+                    const pRect = panel.getBoundingClientRect()
+                    const sRect = section.getBoundingClientRect()
+                    setPanelLockedTopPx(pRect.top - sRect.top)
+                  }
+                  setBrandsPickerOpen(true)
+                } else {
+                  setBrandsPickerOpen(false)
+                  setPanelLockedTopPx(null)
+                }
+              }}
+            />
           )}
           <a
             href={`/admin/pages?tab=main-blocks&edit-block=${block.id}`}
@@ -1103,6 +1200,88 @@ function AdminBgColorPicker({
  * `show_products_categories_filter` через PUT и мгновенно перерисовывает
  * блок за счёт локального override состояния.
  */
+/**
+ * Пикер числа карточек в строке для блока брендов. Ползунок:
+ *   min = 1
+ *   max = сколько реально влезает в текущую ширину секции блока
+ *         (пересчитывается через ResizeObserver, +1 карточка = +140 px:
+ *         w-32=128px + gap-3=12px). Пересчитывается при каждом resize окна.
+ *   step = 1
+ * Без индикатора-числа на кнопке-пилюле и без счётчика над слайдером
+ * (только сам ползунок, как просил юзер).
+ */
+function AdminBrandsPerRowPicker({
+  value,
+  onChange,
+  containerRef,
+  open,
+  onOpenChange,
+}: {
+  value: number | null
+  onChange: (v: number | null) => void
+  containerRef: React.RefObject<HTMLElement | null>
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [maxN, setMaxN] = useState<number>(8)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const compute = () => {
+      // Внутри секции есть .container mx-auto px-4 md:px-6 — эффективная
+      // рабочая ширина сетки чуть меньше секции. Берём min(section, viewport)
+      // и вычитаем ~48 px паддингов.
+      const w = Math.min(el.clientWidth, window.innerWidth) - 48
+      const n = Math.max(1, Math.floor((w + BRANDS_GAP_PX) / (BRANDS_CARD_PX + BRANDS_GAP_PX)))
+      setMaxN(n)
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    window.addEventListener("resize", compute)
+    return () => { ro.disconnect(); window.removeEventListener("resize", compute) }
+  }, [containerRef])
+
+  const current = value != null ? Math.max(1, Math.min(value, maxN)) : maxN
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Кол-во карточек брендов в строке (только для админа)"
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-white border border-brand-yellow text-black hover:bg-brand-yellow/10 shadow-sm hover:shadow-md transition-all"
+        >
+          <Rows3 className="h-3.5 w-3.5" />
+          Карточек в ряд
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 space-y-3 p-3" align="end">
+        <div className="text-[11px] font-medium text-gray-700">
+          Карточек в ряд
+        </div>
+        <Slider
+          min={1}
+          max={maxN}
+          step={1}
+          value={[current]}
+          onValueChange={(v) => onChange(Math.max(1, Math.min(maxN, v[0])))}
+        />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[11px] text-gray-600 hover:text-black hover:underline"
+          >
+            Сбросить на дефолт (адаптив)
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function AdminFilterToggle({
   show,
   busy,
