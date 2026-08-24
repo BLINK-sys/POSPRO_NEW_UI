@@ -5,6 +5,7 @@ import { useAuth } from '@/context/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { SelectKpSupplierDialog, type KpSupplierChoice, type KpSupplierProduct } from '@/components/select-kp-supplier-dialog'
 import { AddToKPInput } from '@/hooks/use-add-to-kp'
+import { getProductBySlug } from '@/app/actions/products'
 
 // --- Item types ---
 export interface WarehousePriceOption {
@@ -622,13 +623,45 @@ export function KPProvider({ children }: { children: ReactNode }) {
   // тоже прикладываем — чтобы в самом КП по-прежнему был select для
   // смены поставщика, если понадобится.
   const handleSupplierConfirm = useCallback(
-    (choice: KpSupplierChoice, allWarehousePrices: KpSupplierChoice[]) => {
+    async (choice: KpSupplierChoice, allWarehousePrices: KpSupplierChoice[]) => {
       const product = supplierDialogProduct
       if (!product) return
       const chosenPrice =
         typeof choice.calculated_price === "number" && choice.calculated_price > 0
           ? choice.calculated_price
           : product.price
+
+      // AddToKPButton на витринных карточках вызывается с lightweight
+      // ProductData (без characteristics/description/article — их у общего
+      // списка товаров нет). Дотягиваем полный товар по slug, если чего-то
+      // не хватает — иначе в КП блок «Характеристики» будет пуст.
+      let enrichedCharacteristics = product.characteristics
+      let enrichedDescription = product.description
+      let enrichedArticle = product.article
+      const needsEnrichment =
+        !enrichedCharacteristics?.length || !enrichedDescription || !enrichedArticle
+      if (needsEnrichment) {
+        try {
+          const full = await getProductBySlug(product.slug)
+          if (full) {
+            if (!enrichedCharacteristics?.length && full.characteristics?.length) {
+              enrichedCharacteristics = full.characteristics.map((c: any) => ({
+                key: c.key,
+                value: c.value,
+              }))
+            }
+            if (!enrichedDescription && full.description) {
+              enrichedDescription = full.description
+            }
+            if (!enrichedArticle && full.article) {
+              enrichedArticle = full.article
+            }
+          }
+        } catch (err) {
+          console.error("KP enrichment failed for", product.slug, err)
+        }
+      }
+
       addItem({
         id: product.id,
         name: product.name,
@@ -636,11 +669,11 @@ export function KPProvider({ children }: { children: ReactNode }) {
         price: chosenPrice,
         wholesale_price: product.wholesale_price,
         image_url: product.image_url,
-        description: product.description,
-        article: product.article,
+        description: enrichedDescription,
+        article: enrichedArticle,
         brand_name: product.brand_name,
         supplier_name: choice.supplier_name ?? null,
-        characteristics: product.characteristics,
+        characteristics: enrichedCharacteristics,
         warehousePrices: allWarehousePrices
           .filter((wp) => wp.warehouse_id != null)
           .map((wp) => ({
