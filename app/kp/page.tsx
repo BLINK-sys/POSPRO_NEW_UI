@@ -85,7 +85,12 @@ function estimateRowHeight(item: KPItem, cols: KPColumnSettings, widths: Record<
     const colW = widths.description || 140
     const fs = getColFontSize('description', widths, customSizes)
     const cpl = Math.max(4, Math.floor(colW / (fs * 0.55)))
-    const lines = Math.ceil(item.description.length / cpl)
+    // Учитываем ручные переносы строк из textarea (\n). Каждый пустой
+    // параграф добавляет строку, длинный параграф разбивается на визуальные
+    // строки по cpl. Раньше считали всю длину / cpl — переносы игнорились
+    // и предпросмотр «врезался» в следующий товар.
+    const rawLines = item.description.split(/\r?\n/)
+    const lines = rawLines.reduce((sum, ln) => sum + Math.max(1, Math.ceil(ln.length / cpl)), 0)
     h = Math.max(h, lines * (fs + 3) + fs + 10) // +fs for empty line padding
   }
   if (cols.characteristics && item.characteristics?.length) {
@@ -1164,7 +1169,10 @@ export default function KPPage() {
       case 'description':
         return (
           <td key={colKey} style={{ ...cellStyle, fontSize, color: '#6b7280' }}>
-            <div style={{ lineHeight: 1.2 }}>{item.description || '—'}</div>
+            {/* pre-wrap — сохраняем переносы строк, которые админ поставил
+                в textarea редактора описания. Без этого \n рендерится как
+                обычный пробел и превью склеивает параграфы в сплошной текст. */}
+            <div style={{ lineHeight: 1.2, whiteSpace: 'pre-wrap' }}>{item.description || '—'}</div>
             <div style={{ height: fontSize }} />
           </td>
         )
