@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { KpDescriptionEditor } from '@/components/kp-description-editor'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -85,13 +86,22 @@ function estimateRowHeight(item: KPItem, cols: KPColumnSettings, widths: Record<
     const colW = widths.description || 140
     const fs = getColFontSize('description', widths, customSizes)
     const cpl = Math.max(4, Math.floor(colW / (fs * 0.55)))
-    // Учитываем ручные переносы строк из textarea (\n). Каждый пустой
-    // параграф добавляет строку, длинный параграф разбивается на визуальные
-    // строки по cpl. Раньше считали всю длину / cpl — переносы игнорились
-    // и предпросмотр «врезался» в следующий товар.
-    const rawLines = item.description.split(/\r?\n/)
+    // Описание — rich HTML (KpDescriptionEditor). Считаем строки по plain
+    // тексту с учётом «блочных» переносов: </p>, </li>, <br>, а также
+    // старых \n из предыдущих текстовых версий. Каждый блок → строка,
+    // длинный — разбит на визуальные строки по cpl.
+    const html = item.description
+    const rawLines = html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|h[1-6])\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .split(/\r?\n/)
     const lines = rawLines.reduce((sum, ln) => sum + Math.max(1, Math.ceil(ln.length / cpl)), 0)
-    h = Math.max(h, lines * (fs + 3) + fs + 10) // +fs for empty line padding
+    h = Math.max(h, lines * (fs + 3) + fs + 10)
   }
   if (cols.characteristics && item.characteristics?.length) {
     const chars = item.characteristics.filter(ch => ch.key.toLowerCase() !== 'code')
@@ -420,11 +430,10 @@ function KPProductCard({
               </button>
               {descExpanded && (
                 <div className="p-1.5 bg-white">
-                  <AutoTextarea
+                  <KpDescriptionEditor
                     value={item.description || ''}
                     onChange={(val) => updateItem(item.kpId, { description: val })}
                     placeholder="Описание товара…"
-                    className="text-[11px] text-gray-700 w-full bg-gray-50 border border-gray-200 focus:border-blue-400 rounded p-1.5 resize-none leading-tight outline-none"
                   />
                 </div>
               )}
@@ -1169,10 +1178,20 @@ export default function KPPage() {
       case 'description':
         return (
           <td key={colKey} style={{ ...cellStyle, fontSize, color: '#6b7280' }}>
-            {/* pre-wrap — сохраняем переносы строк, которые админ поставил
-                в textarea редактора описания. Без этого \n рендерится как
-                обычный пробел и превью склеивает параграфы в сплошной текст. */}
-            <div style={{ lineHeight: 1.2, whiteSpace: 'pre-wrap' }}>{item.description || '—'}</div>
+            {item.description ? (
+              // Описание теперь rich-HTML (KpDescriptionEditor хранит его
+              // как есть). Прогоняем через dangerouslySetInnerHTML — контент
+              // редактируется только админом, XSS-риск нулевой. Классы
+              // сбрасывают дефолтные внешние margin'ы у <p>, чтобы не
+              // раздувать высоту ячейки.
+              <div
+                style={{ lineHeight: 1.2, whiteSpace: 'pre-wrap' }}
+                className="[&_p]:m-0 [&_p+p]:mt-1 [&_p:empty]:min-h-[1em] [&_ul]:m-0 [&_ul]:pl-4 [&_ol]:m-0 [&_ol]:pl-4"
+                dangerouslySetInnerHTML={{ __html: item.description }}
+              />
+            ) : (
+              <div style={{ lineHeight: 1.2 }}>—</div>
+            )}
             <div style={{ height: fontSize }} />
           </td>
         )
