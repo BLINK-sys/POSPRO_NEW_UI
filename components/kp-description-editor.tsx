@@ -39,6 +39,32 @@ interface Props {
   className?: string
 }
 
+/**
+ * Старые описания (до появления rich-editor) хранятся в localStorage /
+ * бэке как plain-text с `\n` переносами. Tiptap при инициализации таким
+ * значением схлопывает всё в один параграф (игнорируя whitespace) →
+ * форматирование «пустых строк» пропадает в редакторе, хотя в превью
+ * через white-space:pre-wrap визуально сохранялось.
+ *
+ * Детектим plain-text по отсутствию тегов (не начинается с `<`) и
+ * конвертируем в HTML: каждая строка → `<p>`, пустая строка → `<p></p>`.
+ * Заодно экранируем спецсимволы, чтобы `<`, `>`, `&` в тексте не
+ * порождали случайных тегов.
+ */
+function normalizeToHtml(value: string): string {
+  if (!value) return ""
+  const trimmed = value.trimStart()
+  if (trimmed.startsWith("<")) return value
+  const escape = (s: string) => s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+  return value
+    .split(/\r?\n/)
+    .map((line) => `<p>${escape(line)}</p>`)
+    .join("")
+}
+
 export function KpDescriptionEditor({ value, onChange, placeholder = "Описание товара…", className }: Props) {
   const editor = useEditor({
     extensions: [
@@ -52,7 +78,7 @@ export function KpDescriptionEditor({ value, onChange, placeholder = "Описа
       Color,
       Placeholder.configure({ placeholder }),
     ],
-    content: value || "",
+    content: normalizeToHtml(value),
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -79,9 +105,11 @@ export function KpDescriptionEditor({ value, onChange, placeholder = "Описа
   })
 
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    if (!editor) return
+    const normalized = normalizeToHtml(value)
+    if (normalized !== editor.getHTML()) {
       // Не эмитим update — иначе бесконечная петля через onChange.
-      editor.commands.setContent(value || "", { emitUpdate: false })
+      editor.commands.setContent(normalized, { emitUpdate: false })
     }
   }, [value, editor])
 
