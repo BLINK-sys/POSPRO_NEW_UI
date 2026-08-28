@@ -1,5 +1,5 @@
 import { getCategories } from "@/app/actions/categories"
-import { CategoryList } from "@/components/category-list"
+import { CategoryExplorer } from "@/components/category-explorer"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default async function CategoriesPage() {
@@ -10,11 +10,12 @@ export default async function CategoriesPage() {
       <CardHeader>
         <CardTitle>Категории</CardTitle>
         <CardDescription>
-          Управление категориями товаров. Используйте кнопки вверх/вниз для изменения порядка.
+          Управление категориями товаров. Переключатель «Строкой / Сеткой»; клик по стрелке — открывает
+          подкатегории в отдельной колонке справа.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <CategoryList initialCategories={initialCategories} />
+        <CategoryExplorer initialCategories={initialCategories} />
       </CardContent>
     </Card>
   )

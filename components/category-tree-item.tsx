@@ -405,7 +405,7 @@ export function CategoryTreeItem({
     >
       <div
         className={cn(
-          "flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border transition-all duration-150",
+          "flex items-center gap-2 bg-white dark:bg-gray-800 px-2 py-1 rounded-xl border transition-all duration-150",
           isHighlighted
             ? "bg-brand-yellow/15 border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.30)]"
             : "border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_14px_rgba(0,0,0,0.10)] hover:-translate-y-[1px] hover:border-gray-300",
@@ -439,8 +439,8 @@ export function CategoryTreeItem({
         <Image
           src={getImageUrl(category.image_url) || "/placeholder.svg"}
           alt={category.name}
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           className="rounded-md object-cover"
           unoptimized
           key={`${category.id}-${imageKey}`} // Принудительное обновление при изменении ключа
@@ -451,9 +451,6 @@ export function CategoryTreeItem({
               {category.name}
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {category.slug}
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
