@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useLayoutEffect, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { KpDescriptionEditor } from '@/components/kp-description-editor'
+import { KpAddProductDialog } from '@/components/kp-add-product-dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -532,6 +533,7 @@ export default function KPPage() {
   const [measuredHeights, setMeasuredHeights] = useState<number[]>([])
   const [exporting, setExporting] = useState(false)
   const [loadingHistoryId, setLoadingHistoryId] = useState<number | null>(null)
+  const [addProductOpen, setAddProductOpen] = useState(false)
   const [newTextPage, setNewTextPage] = useState(0)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [savingKP, setSavingKP] = useState(false)
@@ -1844,6 +1846,17 @@ export default function KPPage() {
                   </span>
                 )}
               </div>
+              {/* Быстрое добавление товара — открывает модалку 90×90%
+                  с поиском и фильтрами (см. KpAddProductDialog). */}
+              <Button
+                type="button"
+                onClick={() => setAddProductOpen(true)}
+                variant="outline"
+                size="sm"
+                className="w-full text-sm border-dashed border-brand-yellow text-black hover:bg-brand-yellow/10"
+              >
+                + Добавить товар
+              </Button>
               <DndContext
                 sensors={kpDndSensors}
                 collisionDetection={closestCenter}
@@ -3178,6 +3191,11 @@ export default function KPPage() {
           </div>
         </div>
       )}
+
+      {/* Модалка «Добавить товар в КП» — поиск + фильтры, кнопка +В КП
+          на карточке. Не закрывается после добавления — менеджер может
+          добавлять пачкой. */}
+      <KpAddProductDialog open={addProductOpen} onOpenChange={setAddProductOpen} />
     </div>
   )
 }
