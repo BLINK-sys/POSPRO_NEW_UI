@@ -15,7 +15,7 @@ import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductAvailabilityBadge } from "@/components/product-availability-badge"
-import type { HomepageBlock, Banner, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData } from "@/app/actions/public"
+import type { HomepageBlock, Banner, ProductData, CategoryData, BrandData, BenefitData, SmallBannerData, SectionCardData } from "@/app/actions/public"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
 
 interface MobileHomePageProps {
@@ -218,6 +218,9 @@ function MobileBlockContent({ block, wholesaleUser }: { block: HomepageBlock; wh
     case "small_banners":
     case "info_cards":
       return <MobileSmallBannersBlock items={block.items as SmallBannerData[]} />
+    case "section_card":
+    case "section_cards":
+      return <MobileSectionCardsBlock items={block.items as SectionCardData[]} />
     default:
       return null
   }
@@ -261,82 +264,78 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
   const isSystemUser = user?.role === "admin" || user?.role === "system"
 
   return (
-    <div className="shrink-0 w-[160px]">
-      <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
-        <CardContent className="p-2 flex flex-col flex-1">
+    <div className="shrink-0 w-[130px]">
+      <Card className="overflow-hidden border border-gray-200 shadow-[2px_2px_6px_rgba(0,0,0,0.08)] h-full flex flex-col">
+        <CardContent className="p-1.5 flex flex-col flex-1">
           <Link href={`/product/${product.slug}`}>
-            <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-2">
+            <div className="relative aspect-square bg-white rounded-md overflow-hidden mb-1.5">
               {product.image_url ? (
                 <Image
                   src={getImageUrl(product.image_url)}
                   alt={product.name}
                   fill
-                  className="object-contain p-1"
+                  className="object-contain p-0.5"
                 />
               ) : (
-                <div className="flex items-center justify-center h-full text-2xl">📦</div>
+                <div className="flex items-center justify-center h-full text-xl">📦</div>
               )}
               {product.status && (
                 <Badge
-                  className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5"
+                  className="absolute top-0.5 left-0.5 text-[9px] px-1 py-0"
                   style={{ backgroundColor: product.status.background_color, color: product.status.text_color }}
                 >
                   {product.status.name}
                 </Badge>
               )}
-              <div className="absolute top-1 right-1 z-10">
+              <div className="absolute top-0.5 right-0.5 z-10">
                 <FavoriteButton
                   productId={product.id}
                   productName={product.name}
-                  className="w-7 h-7 bg-white/90 rounded-full shadow-sm"
+                  className="w-6 h-6 bg-white/90 rounded-full shadow-sm"
                   size="sm"
                 />
               </div>
             </div>
           </Link>
 
-          {/* Информация о товаре — как на десктопе */}
+          {/* Информация о товаре — компактная */}
           <div className="space-y-0.5 flex-1">
-            <p className="text-[11px] text-gray-700 font-medium line-clamp-2 leading-tight overflow-hidden">
+            <p className="text-[10px] text-gray-700 font-medium line-clamp-2 leading-tight overflow-hidden">
               {product.name}
             </p>
             <p className={`text-[11px] font-bold ${getRetailPriceClass(wholesaleUser)}`}>
-              <span className="font-medium">Цена:</span> {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
+              {formatProductPrice(product.price)}{getWinningWarehouseSuffix(product as any, isSystemUser)}
             </p>
             {wholesaleUser && (
-              <p className={`text-[11px] font-bold ${getWholesalePriceClass()}`}>
-                <span className="font-medium">Оптовая цена:</span> {formatProductPrice(product.wholesale_price)}
+              <p className={`text-[10px] font-bold ${getWholesalePriceClass()}`}>
+                Опт: {formatProductPrice(product.wholesale_price)}
               </p>
             )}
-            <div className="text-[11px] text-gray-600">
-              <span className="font-medium">Наличие:</span>{" "}
-              {product.availability_status ? (
-                <span
-                  className="inline-block px-1.5 py-0.5 rounded text-[10px]"
-                  style={{
-                    backgroundColor: product.availability_status.background_color,
-                    color: product.availability_status.text_color,
-                  }}
-                >
-                  {formatAvailabilityStatusLabel(product.availability_status)}
-                </span>
-              ) : product.quantity !== undefined ? (
-                <span>{product.quantity} шт.</span>
-              ) : null}
-            </div>
+            {product.availability_status ? (
+              <span
+                className="inline-block px-1 py-0 rounded text-[9px]"
+                style={{
+                  backgroundColor: product.availability_status.background_color,
+                  color: product.availability_status.text_color,
+                }}
+              >
+                {formatAvailabilityStatusLabel(product.availability_status)}
+              </span>
+            ) : product.quantity !== undefined ? (
+              <span className="text-[9px] text-gray-500">{product.quantity} шт.</span>
+            ) : null}
           </div>
 
-          {/* Поставщики (только для админов) */}
           {isSystemUser && (() => {
             const txt = getSuppliersText(product as any)
             return txt ? (
-              <p className="text-[10px] text-gray-500 truncate">
-                <span className="font-medium">Поставщик:</span> {txt}
+              <p className="text-[9px] text-gray-500 truncate">
+                Поставщик: {txt}
               </p>
             ) : null
           })()}
 
-          <div className="mt-1.5">
+          <div className="mt-1">
             <AddToCartButton
               productId={product.id}
               productName={product.name}
@@ -344,7 +343,7 @@ function ProductScrollCard({ product, wholesaleUser }: { product: ProductData; w
               productPrice={product.price}
               productImageUrl={product.image_url}
               productArticle={product.article || ''}
-              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-1 rounded-lg text-[10px] h-7"
+              className="w-full bg-brand-yellow hover:bg-yellow-500 text-black font-medium py-0 rounded-md text-[10px] h-6"
               size="sm"
             />
           </div>
@@ -388,23 +387,23 @@ function MobileCategoriesBlock({ items }: { items: CategoryData[] }) {
 
 function CategoryCard({ category }: { category: CategoryData }) {
   return (
-    <Link href={`/category/${category.slug}`} className="shrink-0 w-[130px]">
-      <Card className="overflow-hidden border border-gray-200 shadow-[3px_3px_8px_rgba(0,0,0,0.1)] h-full flex flex-col">
+    <Link href={`/category/${category.slug}`} className="shrink-0 w-[100px]">
+      <Card className="overflow-hidden border border-gray-200 shadow-[2px_2px_6px_rgba(0,0,0,0.08)] h-full flex flex-col">
         <CardContent className="p-0 flex flex-col flex-1">
-          <div className="relative h-24 bg-white flex items-center justify-center overflow-hidden">
+          <div className="relative h-16 bg-white flex items-center justify-center overflow-hidden">
             {category.image_url ? (
               <Image
                 src={getImageUrl(category.image_url)}
                 alt={category.name}
                 fill
-                className="object-contain p-2"
+                className="object-contain p-1.5"
               />
             ) : (
-              <span className="text-2xl">📁</span>
+              <span className="text-xl">📁</span>
             )}
           </div>
-          <div className="bg-brand-yellow px-2 py-2 mt-auto">
-            <p className="text-xs font-bold text-gray-900 line-clamp-2 leading-tight text-center">
+          <div className="bg-brand-yellow px-1.5 py-1 mt-auto">
+            <p className="text-[10px] font-bold text-gray-900 line-clamp-2 leading-tight text-center">
               {category.name}
             </p>
           </div>
@@ -524,6 +523,53 @@ function MobileSmallBannersBlock({ items }: { items: SmallBannerData[] }) {
           </CardContent>
         </Card>
       ))}
+    </div>
+  )
+}
+
+/* ---- Готовые решения (SectionCard) — сетка 3 в ряд + «Все решения» ---- */
+function MobileSectionCardsBlock({ items }: { items: SectionCardData[] }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        {items.map((card) => {
+          const href = card.target === "categories"
+            ? `/section/${card.slug}`
+            : (card.link_url || `/section/${card.slug}`)
+          const openNewTab = card.target === "link" && card.link_new_tab
+          const linkProps = openNewTab ? { target: "_blank", rel: "noopener noreferrer" } : {}
+          return (
+            <Link key={card.id} href={href} {...linkProps}>
+              <Card className="overflow-hidden border border-gray-200 shadow-[2px_2px_6px_rgba(0,0,0,0.08)] h-full flex flex-col">
+                <CardContent className="p-0 flex flex-col flex-1">
+                  <div className="relative aspect-[4/3] bg-white overflow-hidden">
+                    {card.image_url ? (
+                      <Image
+                        src={getImageUrl(card.image_url)}
+                        alt={card.name}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-2xl">📦</div>
+                    )}
+                  </div>
+                  <div className="p-1.5 mt-auto">
+                    <p className="text-[10px] font-bold text-gray-900 line-clamp-2 leading-tight text-center">
+                      {card.name}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
+      </div>
+      <div className="flex justify-center">
+        <Button variant="outline" size="sm" className="text-xs px-4 h-8 bg-white hover:bg-gray-50 shadow-sm" asChild>
+          <Link href="/sections">Все решения</Link>
+        </Button>
+      </div>
     </div>
   )
 }

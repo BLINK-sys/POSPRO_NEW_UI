@@ -140,7 +140,7 @@ export default function SectionsPage() {
       ) : canReorder ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={filtered.map((c) => c.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filtered.map((card) => (
                 <SortableTile key={card.id} card={card} />
               ))}
@@ -148,7 +148,7 @@ export default function SectionsPage() {
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {filtered.map((card) => (
             <SectionCardTile key={card.id} card={card} />
           ))}
