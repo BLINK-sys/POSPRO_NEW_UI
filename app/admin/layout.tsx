@@ -16,8 +16,6 @@ import {
   type AdminMode,
 } from "@/lib/admin-nav-config"
 
-const LS_MODE_KEY = "admin-mode"
-
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -39,11 +37,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     if (authChecked && !user) router.replace("/")
   }, [authChecked, user, router])
 
-  // Режим (crm | shop) — приоритеты: CRM-путь → localStorage → shop.
+  // Режим (crm | shop). При заходе в админку — всегда PosPro Shop,
+  // Главная. Исключение: если URL уже указывает на CRM-раздел (deep-link),
+  // выбираем CRM. localStorage-«запомнил-последний-режим» намеренно НЕ
+  // используем — юзер после перерыва хочет видеть привычный Дашборд, а не
+  // застрявшую с прошлого раза CRM.
   const [mode, setMode] = useState<AdminMode>(() => {
     if (typeof window === "undefined") return "shop"
     if (isCrmPath(window.location.pathname)) return "crm"
-    return window.localStorage.getItem(LS_MODE_KEY) === "crm" ? "crm" : "shop"
+    return "shop"
   })
 
   // Async-гейты доступа (перенесены сюда из сайдбара, чтобы шапка и сайдбар
@@ -136,11 +138,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const handleModeChange = (newMode: AdminMode) => {
     if (newMode === mode) return
     setMode(newMode)
-    try {
-      window.localStorage.setItem(LS_MODE_KEY, newMode)
-    } catch {
-      /* SSR / private mode — игнорируем */
-    }
     // Если текущий URL не в новом наборе секций — уводим на первый пункт
     // первого раздела нового режима.
     const nextSections = buildAdminSections(newMode, access)

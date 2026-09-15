@@ -44,20 +44,9 @@ export default function AdminHeaderNav({
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </Button>
 
-      {/* Segmented режим */}
+      {/* Segmented режим. PosPro Shop — первым, т.к. это дефолтный режим
+          при заходе в админку; CRM — вторым. */}
       <div className="shrink-0 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
-        <button
-          type="button"
-          onClick={() => onModeChange("crm")}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap",
-            mode === "crm"
-              ? "bg-brand-yellow text-black shadow-[0_2px_6px_rgba(250,204,21,0.35)]"
-              : "text-gray-500 hover:text-gray-900",
-          )}
-        >
-          CRM
-        </button>
         <button
           type="button"
           onClick={() => onModeChange("shop")}
@@ -69,6 +58,18 @@ export default function AdminHeaderNav({
           )}
         >
           PosPro Shop
+        </button>
+        <button
+          type="button"
+          onClick={() => onModeChange("crm")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap",
+            mode === "crm"
+              ? "bg-brand-yellow text-black shadow-[0_2px_6px_rgba(250,204,21,0.35)]"
+              : "text-gray-500 hover:text-gray-900",
+          )}
+        >
+          CRM
         </button>
       </div>
 
