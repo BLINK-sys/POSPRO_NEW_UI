@@ -1,20 +1,23 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { FileText } from "lucide-react"
 import PagesManagementTabs from "@/components/pages-management-tabs"
 
 export default function PagesPage() {
   return (
-    <div className="container mx-auto py-6">
-      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
-        <CardHeader>
-          <CardTitle>Управление страницами</CardTitle>
-          <CardDescription>Настройка контента сайта: баннеры, блоки, карточки и информация в подвале</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PagesManagementTabs />
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-brand-yellow/30">
+          <FileText className="h-5 w-5 text-black" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">Управление страницами</h1>
+          <p className="text-sm text-gray-500">
+            Настройка контента сайта: баннеры, блоки, карточки и информация в подвале
+          </p>
+        </div>
+      </div>
+      <PagesManagementTabs />
     </div>
   )
 }

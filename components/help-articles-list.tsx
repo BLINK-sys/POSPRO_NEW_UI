@@ -22,7 +22,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -54,39 +54,42 @@ function SortableCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className="group rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow"
+      className="group rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow flex flex-col"
     >
-      <CardContent className="p-4 flex gap-4">
-        {isAdmin && (
-          <button
-            className="cursor-grab active:cursor-grabbing touch-none p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center"
-            {...attributes}
-            {...listeners}
-            aria-label="Перетащить"
-            title="Перетащить для изменения порядка"
-          >
-            <GripVertical className="h-5 w-5" />
-          </button>
-        )}
-
-        <div
-          className="flex-1 min-w-0 cursor-pointer"
-          onClick={() => router.push(`/admin/help/${article.id}`)}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <BookOpen className="h-4 w-4 text-brand-yellow shrink-0" />
-            <h3 className="font-semibold truncate">{article.title}</h3>
-            {article.media?.length > 0 && (
-              <span className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
-                <Film className="h-3 w-3" />
-                {article.media.length}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-gray-600 line-clamp-2">{preview || "—"}</p>
+      <CardContent className="p-4 flex-1 flex flex-col gap-3">
+        {/* Верхняя строка: drag-handle слева, иконка книги, счётчик видео справа */}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              className="cursor-grab active:cursor-grabbing touch-none p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              {...attributes}
+              {...listeners}
+              aria-label="Перетащить"
+              title="Перетащить для изменения порядка"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+          <BookOpen className="h-4 w-4 text-brand-yellow shrink-0" />
+          {article.media?.length > 0 && (
+            <span className="ml-auto flex items-center gap-1 text-xs text-gray-500">
+              <Film className="h-3 w-3" />
+              {article.media.length}
+            </span>
+          )}
         </div>
 
-        <div className="flex items-start gap-1">
+        {/* Тело: заголовок + превью — вся область кликабельна */}
+        <div
+          className="flex-1 min-h-0 cursor-pointer"
+          onClick={() => router.push(`/admin/help/${article.id}`)}
+        >
+          <h3 className="font-semibold line-clamp-2 mb-1.5">{article.title}</h3>
+          <p className="text-sm text-gray-600 line-clamp-3">{preview || "—"}</p>
+        </div>
+
+        {/* Действия внизу */}
+        <div className="flex items-center justify-end gap-1 pt-2 border-t border-gray-100">
           <Button
             size="icon"
             variant="ghost"
@@ -200,8 +203,8 @@ export function HelpArticlesList({ initialArticles }: { initialArticles: HelpArt
         </Card>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={articles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
+          <SortableContext items={articles.map((a) => a.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
               {articles.map((a) => (
                 <SortableCard key={a.id} article={a} isAdmin={isAdmin} onDelete={setPendingDeleteId} />
               ))}

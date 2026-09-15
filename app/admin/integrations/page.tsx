@@ -8,7 +8,7 @@ export default async function IntegrationsPage() {
   const initial = await listIntegrations()
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <RefreshCw className="h-6 w-6 text-yellow-600" />
         <h1 className="text-2xl font-semibold">Автоматическая выгрузка</h1>

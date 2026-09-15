@@ -101,7 +101,7 @@ export default function KpManagementPage() {
   const visibleUsers = systemUsers.filter((u) => !u.is_owner)
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-100">
           <Share2 className="h-5 w-5 text-blue-700" />

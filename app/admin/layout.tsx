@@ -1,108 +1,179 @@
 "use client"
 
 import React from "react"
-
 import type { ReactNode } from "react"
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import Image from "next/image"
-import Link from "next/link"
 import AdminSidebar from "@/components/admin-sidebar"
-import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
+import AdminHeaderNav from "@/components/admin-header-nav"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import {
+  buildAdminSections,
+  findSectionForPath,
+  isCrmPath,
+  type AccessCtx,
+  type AdminMode,
+} from "@/lib/admin-nav-config"
 
-export default function AdminLayout({
-  children,
-}: {
-  children: ReactNode
-}) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
+const LS_MODE_KEY = "admin-mode"
+
+export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, refreshUser } = useAuth()
 
-  // Проверяем авторизацию при каждом переходе в админке
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Проверка авторизации при каждом переходе.
   useEffect(() => {
-    const checkAuth = async () => {
+    const check = async () => {
       await refreshUser()
       setAuthChecked(true)
     }
-    checkAuth()
+    check()
   }, [pathname, refreshUser])
 
-  // Редирект на главную если не авторизован
   useEffect(() => {
-    if (authChecked && !user) {
-      router.replace("/")
-    }
+    if (authChecked && !user) router.replace("/")
   }, [authChecked, user, router])
 
-  if (!authChecked || !user) {
-    return null
+  // Режим (crm | shop) — приоритеты: CRM-путь → localStorage → shop.
+  const [mode, setMode] = useState<AdminMode>(() => {
+    if (typeof window === "undefined") return "shop"
+    if (isCrmPath(window.location.pathname)) return "crm"
+    return window.localStorage.getItem(LS_MODE_KEY) === "crm" ? "crm" : "shop"
+  })
+
+  // Async-гейты доступа (перенесены сюда из сайдбара, чтобы шапка и сайдбар
+  // считали разделы из одного источника — иначе pill'ы разделов могли бы
+  // разъехаться с содержимым сайдбара).
+  const [aiSettingsAccess, setAiSettingsAccess] = useState(false)
+  const [kpManagementAccess, setKpManagementAccess] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/ai-consultant/settings-admin-access", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setAiSettingsAccess(Boolean(d?.has_access))
+      })
+      .catch(() => {
+        if (!cancelled) setAiSettingsAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.email])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/admin/kp-super-admin-access/check", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setKpManagementAccess(Boolean(d?.is_owner))
+      })
+      .catch(() => {
+        if (!cancelled) setKpManagementAccess(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.email])
+
+  const access: AccessCtx = useMemo(
+    () => ({
+      hasKey: (k: string) => {
+        if (!user) return false
+        if (!user.access) return true
+        return user.access[k] === true
+      },
+      aiSettingsAccess,
+      kpManagementAccess,
+    }),
+    [user, aiSettingsAccess, kpManagementAccess],
+  )
+
+  const sections = useMemo(() => buildAdminSections(mode, access), [mode, access])
+
+  // Активный раздел — по URL. Если нашли — показываем его пункты. Если нет
+  // (напр. асинхронные гейты ещё не догрузились и раздел временно скрыт) —
+  // fallback на первый раздел, чтобы сайдбар не был пустым.
+  const activeSection = useMemo(
+    () => findSectionForPath(sections, pathname) ?? sections[0] ?? null,
+    [sections, pathname],
+  )
+
+  // Sync mode ← path. Если открыт CRM-URL, а режим не CRM — переключаем.
+  // Обратно (crm → shop) НЕ переключаем автоматом: shop-режим только по клику.
+  //
+  // Зависимость ТОЛЬКО от `pathname`. Если положить сюда `mode`, эффект
+  // откатывает переключение при кликe «PosPro Shop» с CRM-страницы: в этот
+  // момент `mode` уже стал "shop", а `pathname` ещё не обновился на "/admin"
+  // (router.push асинхронный) — эффект видит CRM-путь + mode!=crm и
+  // возвращает "crm". Приходилось кликать второй раз. Функциональный setMode
+  // читает актуальное значение через prev, без замыкания на mode.
+  useEffect(() => {
+    if (isCrmPath(pathname)) {
+      setMode((prev) => (prev !== "crm" ? "crm" : prev))
+    }
+  }, [pathname])
+
+  // Авто-сворачивание сайдбара. Триггер — смена id активного раздела:
+  //   items.length ≤ 1  → collapse (выбирать нечего)
+  //   items.length > 1  → expand
+  // ref-guard не даёт эффекту переопределять ручной toggle chevron'а
+  // на одном и том же разделе.
+  const prevSectionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!activeSection) return
+    if (prevSectionIdRef.current === activeSection.id) return
+    prevSectionIdRef.current = activeSection.id
+    setIsSidebarCollapsed(activeSection.items.length <= 1)
+  }, [activeSection?.id, activeSection?.items.length])
+
+  const handleModeChange = (newMode: AdminMode) => {
+    if (newMode === mode) return
+    setMode(newMode)
+    try {
+      window.localStorage.setItem(LS_MODE_KEY, newMode)
+    } catch {
+      /* SSR / private mode — игнорируем */
+    }
+    // Если текущий URL не в новом наборе секций — уводим на первый пункт
+    // первого раздела нового режима.
+    const nextSections = buildAdminSections(newMode, access)
+    const existing = findSectionForPath(nextSections, pathname)
+    if (!existing && nextSections[0]?.items[0]) {
+      router.push(nextSections[0].items[0].href)
+    }
   }
+
+  const handleSectionSelect = (sectionId: string) => {
+    const target = sections.find((s) => s.id === sectionId)
+    if (!target?.items[0]) return
+    // Всегда навигируем на первый пункт раздела — это описанное поведение
+    // «при выборе раздела выбирается первый пункт». Сайдбар свернётся/
+    // развернётся автоматически через useEffect выше.
+    router.push(target.items[0].href)
+  }
+
+  if (!authChecked || !user) return null
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar isCollapsed={isSidebarCollapsed} />
+      <AdminSidebar isCollapsed={isSidebarCollapsed} section={activeSection} />
       <div className="relative flex-1">
-        {/*
-          Шапка админки. Минимализм: чистый белый фон, мягкая нижняя тень
-          по всей длине, логотип по центру без карточки, справа кнопка
-          «На сайт». Слева — округлая иконка collapse, ничего лишнего.
-        */}
-        <div className="sticky top-0 z-40 h-16 flex items-center px-4 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full hover:bg-gray-100"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            title={isSidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
-          >
-            {isSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
-
-          {/* Логотип ровно посередине шапки — просто, без обводок */}
-          <Link
-            href="/"
-            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2"
-            title="На сайт"
-          >
-            <Image
-              src="/ui/big_logo.png"
-              alt="PosPro"
-              width={120}
-              height={40}
-              className="h-9 w-auto"
-              priority
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.style.display = "none"
-                const parent = target.parentElement
-                if (parent) {
-                  parent.innerHTML = '<span class="text-xl font-bold text-brand-yellow">PosPro</span>'
-                }
-              }}
-            />
-          </Link>
-
-          {/* Правый край: ссылка «Перейти на сайт» в стиле клиентских кнопок */}
-          <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/"
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium",
-                "bg-brand-yellow text-black hover:bg-yellow-500 transition-colors shadow-sm hover:shadow-md",
-              )}
-            >
-              <ExternalLink className="h-4 w-4" />
-              На сайт
-            </Link>
-          </div>
-        </div>
-
+        <AdminHeaderNav
+          isCollapsed={isSidebarCollapsed}
+          onCollapseToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          mode={mode}
+          onModeChange={handleModeChange}
+          sections={sections}
+          activeSectionId={activeSection?.id ?? null}
+          onSectionSelect={handleSectionSelect}
+        />
         <main className={cn("p-4 md:p-6 transition-all duration-300", isSidebarCollapsed ? "ml-0" : "ml-64")}>
           {React.cloneElement(children as React.ReactElement, { isSidebarCollapsed })}
         </main>

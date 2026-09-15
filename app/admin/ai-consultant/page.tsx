@@ -210,7 +210,7 @@ export default function AdminAIConsultantPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-brand-yellow/30">
           <Sparkles className="h-5 w-5 text-black" />
@@ -223,42 +223,47 @@ export default function AdminAIConsultantPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="consultant">
-        {/* Pill-стиль табов в духе остальных разделов админки. Обтекаемые
-            названия с иконками, активный таб — brand-yellow с тенью. */}
-        <TabsList className="h-auto flex-wrap gap-1 rounded-lg bg-gray-100 p-1">
-          <TabsTrigger
-            value="consultant"
-            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
-          >
-            <MessageSquare className="h-4 w-4 flex-shrink-0" />
-            AI Консультант — на клиентской части для подбора товара
-          </TabsTrigger>
-          <TabsTrigger
-            value="import"
-            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
-          >
-            <Wand2 className="h-4 w-4 flex-shrink-0" />
-            PosPro AI — помощник импорта товаров
-          </TabsTrigger>
-          <TabsTrigger
-            value="access"
-            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
-          >
-            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-            Доступ к настройкам (этот раздел)
-          </TabsTrigger>
-          <TabsTrigger
-            value="logs"
-            className="gap-2 whitespace-normal text-left rounded-md px-3 py-2 data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
-          >
-            <FileText className="h-4 w-4 flex-shrink-0" />
-            Логи (импорт + чат-консультант)
-          </TabsTrigger>
-        </TabsList>
+      {/* Вертикальный layout: слева меню табов (каждый — своя строка),
+          справа контент активного таба. Заголовки табов длинные, поэтому
+          left-aligned + whitespace-normal, чтобы переносились красиво. */}
+      <Tabs defaultValue="consultant" orientation="vertical">
+        {/* items-start: боковая панель не тянется на всю высоту правой
+            колонки, а прижата сверху и берёт высоту по своему контенту. */}
+        <div className="flex gap-6 items-start">
+          <TabsList className="flex-col h-auto items-stretch gap-1 rounded-lg bg-gray-100 p-1 w-72 shrink-0">
+            <TabsTrigger
+              value="consultant"
+              className="justify-start gap-2 whitespace-normal text-left rounded-md px-3 py-2 h-auto data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              <MessageSquare className="h-4 w-4 flex-shrink-0" />
+              <span>AI Консультант — на клиентской части для подбора товара</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="import"
+              className="justify-start gap-2 whitespace-normal text-left rounded-md px-3 py-2 h-auto data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              <Wand2 className="h-4 w-4 flex-shrink-0" />
+              <span>PosPro AI — помощник импорта товаров</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="access"
+              className="justify-start gap-2 whitespace-normal text-left rounded-md px-3 py-2 h-auto data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              <span>Доступ к настройкам (этот раздел)</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="logs"
+              className="justify-start gap-2 whitespace-normal text-left rounded-md px-3 py-2 h-auto data-[state=active]:bg-brand-yellow data-[state=active]:text-black data-[state=active]:shadow-[0_2px_6px_rgba(250,204,21,0.30)] transition-all"
+            >
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span>Логи (импорт + чат-консультант)</span>
+            </TabsTrigger>
+          </TabsList>
 
+          <div className="flex-1 min-w-0">
         {/* ─────────────  AI Консультант  ───────────── */}
-        <TabsContent value="consultant" className="space-y-6 mt-4">
+        <TabsContent value="consultant" className="space-y-6 mt-0">
           <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>Группы пользователей</CardTitle>
@@ -320,7 +325,7 @@ export default function AdminAIConsultantPage() {
         </TabsContent>
 
         {/* ─────────────  Импорт товаров  ───────────── */}
-        <TabsContent value="import" className="space-y-6 mt-4">
+        <TabsContent value="import" className="space-y-6 mt-0">
           <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>PosPro AI — импорт товаров с сайтов-доноров</CardTitle>
@@ -342,7 +347,7 @@ export default function AdminAIConsultantPage() {
         </TabsContent>
 
         {/* ─────────────  Доступ к настройкам  ───────────── */}
-        <TabsContent value="access" className="space-y-6 mt-4">
+        <TabsContent value="access" className="space-y-6 mt-0">
           <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
             <CardHeader>
               <CardTitle>Доступ к разделу «AI настройки»</CardTitle>
@@ -362,9 +367,11 @@ export default function AdminAIConsultantPage() {
         </TabsContent>
 
         {/* ─────────────  Логи  ───────────── */}
-        <TabsContent value="logs" className="space-y-6 mt-4">
+        <TabsContent value="logs" className="space-y-6 mt-0">
           <AILogsTab />
         </TabsContent>
+          </div>
+        </div>
       </Tabs>
 
       {/* Audit info + auto-save status — no manual Save button. Each

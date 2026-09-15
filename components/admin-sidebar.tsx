@@ -1,43 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Users,
-  Settings,
-  Tags,
-  FileText,
-  LogOut,
-  Truck,
-  BookOpen,
-  HardDrive,
-  Sparkles,
-  Share2,
-  Activity,
-  MonitorSmartphone,
-  RefreshCw,
-  MapPin,
-  Search,
-  type LucideIcon,
-} from "lucide-react"
+import { LogOut, Package } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import type { AdminNavItem, AdminNavSection } from "@/lib/admin-nav-config"
 
 interface AdminSidebarProps {
   isCollapsed: boolean
+  /** Активный раздел (из шапки). Если null — сайдбар не рисует список. */
+  section: AdminNavSection | null
 }
 
-// Стиль пункта меню — мини-карточка с объёмом. На каждом пункте
-// тень и рамка, hover слегка приподнимает карточку (translate-y-[-1px])
-// и усиливает тень. Активный — насыщенно жёлтый, тень сильнее.
-// Плотность py-1.5 подобрана так, чтобы 16 пунктов + бренд + карточка
-// юзера умещались без скролла на ноут-экранах ≥800px.
 function navItemClass(active: boolean) {
   return cn(
     "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm bg-white",
@@ -48,268 +24,99 @@ function navItemClass(active: boolean) {
   )
 }
 
-function NavItem({
-  href,
-  icon: Icon,
-  label,
-  active,
-}: {
-  href: string
-  icon: LucideIcon
-  label: string
-  active: boolean
-}) {
-  return (
-    <Link href={href} className={navItemClass(active)}>
-      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-black" : "text-gray-400 group-hover:text-gray-700")} />
-      <span>{label}</span>
-    </Link>
+function subItemClass(active: boolean) {
+  return cn(
+    "block rounded-md px-2.5 py-1.5 text-sm bg-white transition-all duration-150 ease-out",
+    active
+      ? "text-black font-semibold bg-brand-yellow/25 border border-brand-yellow shadow-[0_3px_10px_rgba(250,204,21,0.30)]"
+      : "text-gray-500 border border-gray-200 shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-[1px] hover:text-gray-800 hover:border-gray-300",
   )
 }
 
-function SubItem({ href, label, active }: { href: string; label: string; active: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "block rounded-md px-2.5 py-1.5 text-sm bg-white",
-        "transition-all duration-150 ease-out",
-        active
-          ? "text-black font-semibold bg-brand-yellow/25 border border-brand-yellow shadow-[0_3px_10px_rgba(250,204,21,0.30)]"
-          : "text-gray-500 border border-gray-200 shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-[1px] hover:text-gray-800 hover:border-gray-300",
-      )}
-    >
-      {label}
-    </Link>
-  )
-}
-
-export default function AdminSidebar({ isCollapsed }: AdminSidebarProps) {
+export default function AdminSidebar({ isCollapsed, section }: AdminSidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
-  // Проверка доступа по полю access
-  // Если access не задан (нет ограничений) — показываем всё
-  const hasAccess = (key: string) => {
-    if (!user) return false
-    if (!user.access) return true
-    return user.access[key] === true
-  }
-
-  // AI Консультант (раздел настроек) — гейт через API. Backend решает
-  // на основе owner-email + opted-in списка системных пользователей.
-  const [aiSettingsAccess, setAiSettingsAccess] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/ai-consultant/settings-admin-access", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setAiSettingsAccess(Boolean(d?.has_access))
-      })
-      .catch(() => {
-        if (!cancelled) setAiSettingsAccess(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [user?.id, user?.email])
-
-  // «Управление КП» — гейт только для is_owner (только владелец системы
-  // может править список super-admin'ов). Granted super-admin'ы тоже видят
-  // КП всех юзеров, но раздел управления — нет, для упрощения.
-  const [kpManagementAccess, setKpManagementAccess] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/admin/kp-super-admin-access/check", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setKpManagementAccess(Boolean(d?.is_owner))
-      })
-      .catch(() => {
-        if (!cancelled) setKpManagementAccess(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [user?.id, user?.email])
-
-  // Нормализуем pathname: убираем trailing slash чтобы сравнения были устойчивы.
-  // Для дашборда href="/admin" — должен быть активен только на ровно /admin
-  // (а не на /admin/orders и т.п.). Для остальных — на точном совпадении или
-  // подстраницах через "/" (так "/admin/orderXYZ" не зацепит "/admin/order").
   const normPath = pathname.replace(/\/$/, "") || "/"
   const isActive = (href: string) => {
-    if (href === "/") return false  // ссылка на сайт — никогда не активна в админке
+    if (href === "/") return false
     if (normPath === href) return true
     if (href !== "/admin" && normPath.startsWith(href + "/")) return true
     return false
   }
+  const isChildActive = (item: AdminNavItem) => (item.children ?? []).some((c) => isActive(c.href))
 
-  const catalogActive = isActive("/admin/catalog/categories") || isActive("/admin/catalog/products")
   const userName = user?.full_name || user?.ip_name || user?.too_name || "Администратор"
 
   return (
     <aside
       className={cn(
-        // Минималистичный край — лёгкая граница и мягкая тень.
         "fixed inset-y-0 left-0 z-30 flex flex-col bg-white transition-all duration-300",
         "border-r border-gray-200 shadow-[2px_0_8px_rgba(0,0,0,0.04)]",
         isCollapsed ? "w-0 -translate-x-full" : "w-64 translate-x-0",
       )}
     >
       <div className="flex h-full max-h-screen flex-col overflow-y-auto">
-        {/* Бренд-блок: на одном уровне с шапкой админки (h-14), с тонкой нижней границей */}
-        <div className="flex h-14 shrink-0 items-center border-b border-gray-200 px-4">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-brand-yellow flex items-center justify-center">
+        {/* Бренд-блок — «Админка» + название текущего раздела как sub-label. */}
+        <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 shrink-0 rounded-lg bg-brand-yellow flex items-center justify-center">
               <Package className="h-4 w-4 text-black" />
             </div>
-            <div className="flex flex-col leading-tight">
+            <div className="flex flex-col leading-tight min-w-0">
               <span className="font-semibold text-sm text-black">Админка</span>
-              <span className="text-[10px] uppercase tracking-wider text-gray-400">PosPro</span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-400 truncate">
+                {section?.label ?? "PosPro"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Меню. space-y-1 держит «воздух» минимальным, но карточки не сливаются
-            благодаря индивидуальным теням. */}
+        {/* Пункты активного раздела. Для пунктов с children (Каталог)
+            родитель — это тоже link (ведёт на первый child); дети рендерятся
+            inline с левым отступом, без accordion — сайдбар и так контекстный,
+            прятать нечего. */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          {hasAccess("dashboard") && (
-            <NavItem href="/admin" icon={LayoutDashboard} label="Дашборд" active={isActive("/admin")} />
-          )}
-
-          {hasAccess("dashboard") && (
-            <NavItem
-              href="/admin/customer-activity"
-              icon={Search}
-              label="Поисковые запросы"
-              active={isActive("/admin/customer-activity")}
-            />
-          )}
-
-          {hasAccess("orders") && (
-            <NavItem href="/admin/orders" icon={ShoppingCart} label="Заказы" active={isActive("/admin/orders")} />
-          )}
-
-          {hasAccess("catalog") && (
-            <Accordion type="single" collapsible className="w-full" defaultValue={catalogActive ? "catalog" : undefined}>
-              <AccordionItem value="catalog" className="border-b-0">
-                <AccordionTrigger
+          {section?.items.map((item) => {
+            const active = isActive(item.href) || isChildActive(item)
+            const Icon = item.icon
+            if (item.children && item.children.length > 0) {
+              return (
+                <div key={item.href + item.label} className="space-y-1">
+                  <Link href={item.href} className={navItemClass(active)}>
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        active ? "text-black" : "text-gray-400 group-hover:text-gray-700",
+                      )}
+                    />
+                    <span>{item.label}</span>
+                  </Link>
+                  <div className="pl-4 space-y-1">
+                    {item.children.map((child) => (
+                      <Link key={child.href} href={child.href} className={subItemClass(isActive(child.href))}>
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+            return (
+              <Link key={item.href} href={item.href} className={navItemClass(active)}>
+                <Icon
                   className={cn(
-                    navItemClass(catalogActive),
-                    // Убираем дефолтное подчёркивание hover у AccordionTrigger
-                    // и переворот стрелки — оставляем только нашу стилизацию.
-                    "hover:no-underline [&[data-state=open]>svg]:rotate-180",
+                    "h-4 w-4 shrink-0",
+                    active ? "text-black" : "text-gray-400 group-hover:text-gray-700",
                   )}
-                >
-                  <Package
-                    className={cn(
-                      "h-4 w-4 shrink-0",
-                      catalogActive ? "text-black" : "text-gray-400 group-hover:text-gray-700",
-                    )}
-                  />
-                  <span>Каталог</span>
-                </AccordionTrigger>
-                <AccordionContent className="pt-1 pb-0 pl-4 space-y-1">
-                  <SubItem
-                    href="/admin/catalog/categories"
-                    label="Категории"
-                    active={isActive("/admin/catalog/categories")}
-                  />
-                  <SubItem
-                    href="/admin/catalog/products"
-                    label="Товары"
-                    active={isActive("/admin/catalog/products")}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-
-          {hasAccess("users") && (
-            <NavItem href="/admin/users" icon={Users} label="Пользователи" active={isActive("/admin/users")} />
-          )}
-
-          {(hasAccess("brands") || hasAccess("statuses")) && (
-            <NavItem
-              href="/admin/brands-and-statuses"
-              icon={Tags}
-              label="Бренды и Статусы"
-              active={isActive("/admin/brands-and-statuses")}
-            />
-          )}
-
-          {hasAccess("catalog") && (
-            <NavItem href="/admin/drivers" icon={HardDrive} label="Драйверы" active={isActive("/admin/drivers")} />
-          )}
-
-          {hasAccess("catalog") && (
-            <NavItem href="/admin/suppliers" icon={Truck} label="Поставщики" active={isActive("/admin/suppliers")} />
-          )}
-
-          {hasAccess("pages") && (
-            <NavItem href="/admin/pages" icon={FileText} label="Страницы" active={isActive("/admin/pages")} />
-          )}
-
-          {hasAccess("settings") && (
-            <NavItem href="/admin/settings" icon={Settings} label="Настройки" active={isActive("/admin/settings")} />
-          )}
-
-          <NavItem
-            href="/admin/remote"
-            icon={MonitorSmartphone}
-            label="Удалённое управление"
-            active={isActive("/admin/remote")}
-          />
-
-          {aiSettingsAccess && (
-            <NavItem
-              href="/admin/ai-consultant"
-              icon={Sparkles}
-              label="AI настройки"
-              active={isActive("/admin/ai-consultant")}
-            />
-          )}
-
-          {kpManagementAccess && (
-            <NavItem
-              href="/admin/kp-management"
-              icon={Share2}
-              label="Управление КП"
-              active={isActive("/admin/kp-management")}
-            />
-          )}
-
-          {kpManagementAccess && (
-            <NavItem
-              href="/admin/user-activity"
-              icon={Activity}
-              label="Активность"
-              active={isActive("/admin/user-activity")}
-            />
-          )}
-
-          {hasAccess("catalog") && (
-            <NavItem
-              href="/admin/integrations"
-              icon={RefreshCw}
-              label="Автоматическая выгрузка"
-              active={isActive("/admin/integrations")}
-            />
-          )}
-
-          <NavItem
-            href="/admin/collector"
-            icon={MapPin}
-            label="2GIS сбор данных"
-            active={isActive("/admin/collector")}
-          />
-
-          <NavItem href="/admin/help" icon={BookOpen} label="Справка" active={isActive("/admin/help")} />
+                />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
         </nav>
 
-        {/* Карточка пользователя снизу. Чёткая рамка + объёмная тень,
-            без аватара — только имя/email слева и иконка выйти справа. */}
+        {/* Карточка пользователя */}
         <div className="shrink-0 p-2">
           <div className="flex items-center gap-2 rounded-lg bg-white p-2 border border-gray-300 shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.14)] transition-shadow">
             {user && (

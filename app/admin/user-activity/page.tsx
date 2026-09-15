@@ -128,7 +128,7 @@ export default function UserActivityPage() {
   const onlineCount = users.filter((u) => u.is_online).length
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100">
           <Activity className="h-5 w-5 text-emerald-700" />

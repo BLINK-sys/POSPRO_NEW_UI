@@ -111,47 +111,64 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          asChild
-          className="rounded-full hover:bg-gray-100"
-        >
-          <Link href="/admin/help">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            К списку
-          </Link>
-        </Button>
-        {isAdmin && (
-          <Button
-            onClick={() => setEditMode(true)}
-            className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
-          >
-            <Pencil className="h-4 w-4 mr-2" />
-            Редактировать
-          </Button>
-        )}
-      </div>
+    // Высота страницы = viewport − sticky admin-header (64px) − main padding
+    // (24px сверху + 24px снизу = 48px). Итого 112px чрома. Дальше flex-col
+    // распределяет: шапка — по контенту, видео-карточка забирает остаток
+    // (flex-1 + min-h-0), что гарантирует что нижний край не уходит за
+    // границу окна и остаётся видимый отступ.
+    <div className="w-full flex flex-col gap-4 h-[calc(100vh-112px)]">
+      {/* Шапка — заголовок центру, «К списку» слева, «Редактировать» справа.
+          grid-cols-[auto_1fr_auto] держит title ровно по центру независимо
+          от того, отображается ли правая кнопка «Редактировать» (для клиента
+          её нет — рендерим пустой <div>, чтобы центральная колонка не съехала). */}
+      <Card className="shrink-0 rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
+        <CardContent className="py-3 px-4">
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+            <Button
+              variant="ghost"
+              asChild
+              className="rounded-full hover:bg-gray-100"
+            >
+              <Link href="/admin/help">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                К списку
+              </Link>
+            </Button>
 
-      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
-        <CardContent className="p-6 space-y-4">
-          <h1 className="text-2xl font-bold">{article.title}</h1>
+            <div className="text-center space-y-1 min-w-0">
+              <h1 className="text-xl font-bold leading-tight">{article.title}</h1>
 
-          {article.content ? (
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: article.content }}
-            />
-          ) : (
-            <p className="text-gray-400">Описание не заполнено</p>
-          )}
+              {article.content ? (
+                <div
+                  className="prose prose-sm max-w-none mx-auto"
+                  dangerouslySetInnerHTML={{ __html: article.content }}
+                />
+              ) : (
+                <p className="text-gray-400 text-sm">Описание не заполнено</p>
+              )}
+            </div>
+
+            {isAdmin ? (
+              <Button
+                onClick={() => setEditMode(true)}
+                className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500 shadow-[0_2px_6px_rgba(250,204,21,0.30)] hover:shadow-[0_6px_16px_rgba(250,204,21,0.40)] transition-shadow"
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Редактировать
+              </Button>
+            ) : (
+              <div />
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
+      {/* Видео-карточка забирает остаток вертикального пространства.
+          flex-1 + min-h-0 + flex flex-col — стандартный «пропеллер» для
+          вложенного flex-контейнера, в котором работает overflow/height. */}
+      <Card className="flex-1 min-h-0 rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden">
+        <CardContent className="p-4 flex-1 min-h-0 flex flex-col gap-3">
+          <div className="shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Film className="h-5 w-5 text-brand-yellow" />
               <h2 className="text-lg font-semibold">Видео ({article.media.length})</h2>
@@ -187,7 +204,12 @@ export function HelpArticleView({ article: initialArticle, initialEdit }: { arti
           {article.media.length === 0 ? (
             <p className="text-gray-400 text-sm">Видео не добавлены</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            // flex-1 min-h-0 — область фиксированного размера (остаток
+            // Card после шапки). VideoCard'ы центрируются по горизонтали
+            // и получают max-h-full. При нескольких роликах — скроллим
+            // вертикально; для одного видео (типичный кейс) плеер точно
+            // вписывается в доступную область.
+            <div className="flex-1 min-h-0 flex flex-col items-center gap-4 overflow-y-auto">
               {article.media.map((m) => (
                 <VideoCard
                   key={m.id}
@@ -234,12 +256,19 @@ function VideoCard({
   onDelete: () => void
 }) {
   return (
-    <div className="relative rounded-xl overflow-hidden bg-black group border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow">
+    // Обёртка не имеет явной ширины — хугает видео с обеих сторон, поэтому
+    // рамка/тень идут ровно по краю плеера, без чёрных полос. max-w-full и
+    // max-h-full ограничивают её родителем (flex-контейнер в CardContent).
+    <div className="relative rounded-xl overflow-hidden bg-black group border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow max-w-full max-h-full">
       <video
         controls
         preload="metadata"
         src={absUrl(media.url)}
-        className="w-full aspect-video"
+        // <video> — replaced element, сохраняет интринсик-соотношение
+        // при клампе max-w/max-h. Родительский flex-1 контейнер задаёт
+        // доступную область; здесь просто её и берём (block чтобы убрать
+        // baseline-щель).
+        className="max-w-full max-h-full block"
       />
       {canDelete && (
         <Button
