@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { Search, X, Loader2, SlidersHorizontal, RotateCcw, ChevronUp, Tag, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -68,6 +69,15 @@ export default function MobileSearchPage() {
   const [priceFrom, setPriceFrom] = useState("")
   const [priceTo, setPriceTo] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Подсказка «открыть бренд» — та же логика что на десктопе.
+  const [brandMatches, setBrandMatches] = useState<Array<{
+    id: number
+    name: string
+    country?: string | null
+    image_url?: string | null
+    product_count: number
+  }>>([])
 
   // Toggle category selection
   const toggleCategory = (id: number) => {
@@ -256,14 +266,15 @@ export default function MobileSearchPage() {
     }
   }, [trackActivity])
 
-  // Live-search debounce 300ms. Реагирует на смену query И фильтров —
-  // фильтры теперь идут на бэк. Пропускаем когда активен применённый
-  // category/brand с панели (там отдельный поток).
+  // Live-search debounce 300ms. Реагирует на смену query И фильтров.
+  // appliedCategory — пропускаем (свой поток). appliedBrand — НЕ
+  // пропускаем: фильтры категорий/цены должны сужать бренд, а не
+  // игнорироваться. brandIds форсируем в [appliedBrand.id].
   useEffect(() => {
-    if (appliedCategory || appliedBrand) return
+    if (appliedCategory) return
     const trimmed = query.trim()
     const hasAnyFilter = selectedCategories.size > 0 || selectedBrands.size > 0 || priceFrom || priceTo
-    if (!hasAnyFilter && (!trimmed || trimmed.length < 2)) {
+    if (!hasAnyFilter && !appliedBrand && (!trimmed || trimmed.length < 2)) {
       searchAbortRef.current?.abort()
       setAllResults([])
       setTotalCount(null)
@@ -276,7 +287,9 @@ export default function MobileSearchPage() {
       doSearch({
         query: trimmed,
         categoryIds: Array.from(selectedCategories),
-        brandIds: Array.from(selectedBrands),
+        brandIds: appliedBrand
+          ? [appliedBrand.id]
+          : Array.from(selectedBrands),
         pmin: priceFrom,
         pmax: priceTo,
         page: 1,
@@ -284,6 +297,36 @@ export default function MobileSearchPage() {
     }, 300)
     return () => clearTimeout(t)
   }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
+
+  // Параллельно с основным поиском — подсказка «открыть бренд» когда
+  // query совпадает с именем бренда. См. desktop-search-page: тот же
+  // паттерн, тот же endpoint.
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (appliedCategory || appliedBrand || trimmed.length < 2) {
+      setBrandMatches([])
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(() => {
+      fetch(
+        `/api/public/products/brand-match?q=${encodeURIComponent(trimmed)}&limit=3`,
+        { cache: "no-store" },
+      )
+        .then((r) => (r.ok ? r.json() : { brands: [] }))
+        .then((data) => {
+          if (cancelled) return
+          setBrandMatches(Array.isArray(data?.brands) ? data.brands : [])
+        })
+        .catch(() => {
+          if (!cancelled) setBrandMatches([])
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [query, appliedCategory, appliedBrand])
 
   // Загрузка курируемой панели один раз — прямой fetch на API route
   useEffect(() => {
@@ -518,8 +561,9 @@ export default function MobileSearchPage() {
               </div>
             )}
 
-            {/* Brands — multi-select */}
-            {availableBrands.length > 0 && (
+            {/* Brands — multi-select. Скрываем когда applied brand
+                активен (аналогично desktop). */}
+            {!appliedBrand && availableBrands.length > 0 && (
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
                   Бренд
@@ -588,7 +632,52 @@ export default function MobileSearchPage() {
           </div>
         )}
 
-        {!loading && query.trim().length >= 2 && filteredResults.length === 0 && (
+        {/* Brand-подсказки. Клик применяет фильтр по бренду прямо в
+            текущем поиске (см. desktop-search-page), а не уводит на
+            отдельный лендинг /brand/<name>. */}
+        {brandMatches.length > 0 && (
+          <div className="px-3 py-2 space-y-2">
+            {brandMatches.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => searchByBrand({ id: b.id, name: b.name } as SearchPageBrandItem)}
+                className="w-full text-left flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50/70 active:bg-yellow-100 px-3 py-2.5 transition-colors focus:outline-none"
+              >
+                <div className="h-10 w-10 shrink-0 rounded-lg bg-white border border-yellow-200 overflow-hidden flex items-center justify-center">
+                  {b.image_url ? (
+                    <Image
+                      src={getImageUrl(b.image_url) || ""}
+                      alt={b.name}
+                      width={40}
+                      height={40}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[10px] text-yellow-700 font-medium">
+                      бренд
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">
+                    Бренд «{b.name}»
+                  </div>
+                  <div className="text-[11px] text-gray-600">
+                    {b.product_count > 0
+                      ? `Товаров: ${b.product_count.toLocaleString("ru-RU")}`
+                      : "Товаров пока нет"}
+                  </div>
+                </div>
+                <div className="text-xs text-yellow-800 font-medium whitespace-nowrap">
+                  Показать →
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!loading && query.trim().length >= 2 && filteredResults.length === 0 && brandMatches.length === 0 && (
           <div className="text-center py-8 text-gray-500 text-sm">
             Ничего не найдено
           </div>

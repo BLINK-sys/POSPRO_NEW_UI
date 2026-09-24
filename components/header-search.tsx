@@ -14,6 +14,14 @@ const DEBOUNCE_MS = 250
 const PREVIEW_LIMIT = 10
 const PLACEHOLDER = "Холодильная витрина, Моноблок, Кофе машина..."
 
+interface BrandMatch {
+  id: number
+  name: string
+  country?: string | null
+  image_url?: string | null
+  product_count: number
+}
+
 /**
  * Инпут поиска в шапке с автокомплитом первых 10 товаров.
  * Enter или клик по иконке — переход на `/search?q=<текст>`.
@@ -24,6 +32,7 @@ export default function HeaderSearch() {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<ProductData[]>([])
+  const [brandMatches, setBrandMatches] = useState<BrandMatch[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -60,6 +69,7 @@ export default function HeaderSearch() {
 
     if (trimmed.length < MIN_QUERY) {
       setResults([])
+      setBrandMatches([])
       setLoading(false)
       return
     }
@@ -67,12 +77,27 @@ export default function HeaderSearch() {
     debounceRef.current = setTimeout(async () => {
       const rid = ++requestIdRef.current
       setLoading(true)
+      // Параллельно: поиск товаров + матч по бренду. Бренд-запрос не
+      // влияет на loading-flag (это подсказка, а не основные данные),
+      // поэтому не блокирует спиннер при ошибке.
       try {
-        const data = await searchProducts(trimmed)
+        const [products, brandsRes] = await Promise.all([
+          searchProducts(trimmed),
+          fetch(
+            `/api/public/products/brand-match?q=${encodeURIComponent(trimmed)}&limit=3`,
+            { cache: "no-store" },
+          )
+            .then((r) => (r.ok ? r.json() : { brands: [] }))
+            .catch(() => ({ brands: [] })),
+        ])
         if (rid !== requestIdRef.current) return
-        setResults(data.slice(0, PREVIEW_LIMIT))
+        setResults(products.slice(0, PREVIEW_LIMIT))
+        setBrandMatches(Array.isArray(brandsRes?.brands) ? brandsRes.brands : [])
       } catch {
-        if (rid === requestIdRef.current) setResults([])
+        if (rid === requestIdRef.current) {
+          setResults([])
+          setBrandMatches([])
+        }
       } finally {
         if (rid === requestIdRef.current) setLoading(false)
       }
@@ -181,12 +206,57 @@ export default function HeaderSearch() {
             <div className="flex items-center justify-center py-6 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin mr-2" /> Ищу…
             </div>
-          ) : results.length === 0 ? (
+          ) : results.length === 0 && brandMatches.length === 0 ? (
             <div className="py-6 text-center text-sm text-gray-500">
               Ничего не нашлось по запросу «{query.trim()}»
             </div>
           ) : (
             <>
+              {brandMatches.length > 0 && (
+                <div className="border-b border-gray-100 bg-yellow-50/60">
+                  {brandMatches.map((b) => (
+                    <Link
+                      key={b.id}
+                      // На страницу поиска с готовым brand-фильтром,
+                      // не на отдельный лендинг: даём юзеру фасеты
+                      // категорий/цены и возможность сузить дальше.
+                      href={`/search?brand=${b.id}`}
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-yellow-100/70 transition-colors"
+                    >
+                      <div className="h-10 w-10 shrink-0 rounded bg-white border border-yellow-200 overflow-hidden flex items-center justify-center">
+                        {b.image_url ? (
+                          <Image
+                            src={getImageUrl(b.image_url) || ""}
+                            alt={b.name}
+                            width={40}
+                            height={40}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-[10px] text-yellow-700 font-medium">
+                            бренд
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          Бренд «{b.name}»
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {b.product_count > 0
+                            ? `Товаров: ${b.product_count.toLocaleString("ru-RU")}`
+                            : "Товаров пока нет"}
+                        </div>
+                      </div>
+                      <div className="text-xs text-yellow-700 font-medium whitespace-nowrap">
+                        Показать →
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {results.length > 0 && (
               <ul className="max-h-[420px] overflow-y-auto">
                 {results.map((p, i) => (
                   <li key={p.id}>
@@ -225,6 +295,8 @@ export default function HeaderSearch() {
                   </li>
                 ))}
               </ul>
+              )}
+              {results.length > 0 && (
               <button
                 type="button"
                 onClick={submitSearch}
@@ -232,6 +304,7 @@ export default function HeaderSearch() {
               >
                 Показать все результаты по «{query.trim()}» →
               </button>
+              )}
             </>
           )}
         </div>

@@ -125,6 +125,19 @@ export default function DesktopSearchPage() {
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [showAllBrands, setShowAllBrands] = useState(false)
 
+  // Подсказка «открыть бренд» когда query совпадает с именем бренда
+  // (exact или prefix). Живёт параллельно основному поиску: базовый
+  // /products/search ищет по товару, а тут — по бренду. Без этого
+  // блока запрос `MHW-3BOMBER` бы выводил один товар с тем же именем
+  // и прятал 172 остальных товара бренда.
+  const [brandMatches, setBrandMatches] = useState<Array<{
+    id: number
+    name: string
+    country?: string | null
+    image_url?: string | null
+    product_count: number
+  }>>([])
+
   const toggleCategory = (id: number) => {
     setSelectedCategories((prev) => {
       const next = new Set(prev)
@@ -396,14 +409,17 @@ export default function DesktopSearchPage() {
   // Live-search: debounce 300ms на изменение query. Также реагирует на смену
   // фильтров (selectedCategories/Brands/priceFrom/priceTo) — все они идут
   // на бэк, поэтому любая смена должна перезапросить page=1 с новыми условиями.
-  // appliedCategory/appliedBrand → пропускаем, чтобы при возврате с карточки
-  // товара не дёрнуть лишний раз.
+  // appliedCategory — пропускаем (отдельный поток через searchByCategory).
+  // appliedBrand — НЕ пропускаем: юзер должен мочь сузить бренд категорией
+  // или ценой, поэтому brandIds в этом случае форсируем в [appliedBrand.id]
+  // и фильтры категорий/цены идут поверх.
   useEffect(() => {
-    if (appliedCategory || appliedBrand) return
+    if (appliedCategory) return
     const trimmed = query.trim()
     const hasAnyFilter = selectedCategories.size > 0 || selectedBrands.size > 0 || priceFrom || priceTo
-    // Меньше 2 символов И нет фильтров — мгновенно чистим без debounce.
-    if (!hasAnyFilter && trimmed.length < 2) {
+    // Меньше 2 символов, нет фильтров и не в контексте бренда — мгновенно
+    // чистим без debounce.
+    if (!hasAnyFilter && !appliedBrand && trimmed.length < 2) {
       searchAbortRef.current?.abort()
       setAllResults([])
       setTotalCount(null)
@@ -417,7 +433,9 @@ export default function DesktopSearchPage() {
       doSearch({
         query: trimmed,
         categoryIds: Array.from(selectedCategories),
-        brandIds: Array.from(selectedBrands),
+        brandIds: appliedBrand
+          ? [appliedBrand.id]
+          : Array.from(selectedBrands),
         pmin: priceFrom,
         pmax: priceTo,
         page: 1,
@@ -425,6 +443,37 @@ export default function DesktopSearchPage() {
     }, 300)
     return () => clearTimeout(t)
   }, [query, selectedCategories, selectedBrands, priceFrom, priceTo, appliedCategory, appliedBrand, doSearch])
+
+  // Параллельно с основным поиском тянем brand-match по query — это
+  // подсказка «открыть страницу бренда», а не основные результаты, так
+  // что не блокируется loading-flag'ом и не участвует в abort'е. При
+  // очистке query или applied-source блок гасим.
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (appliedCategory || appliedBrand || trimmed.length < 2) {
+      setBrandMatches([])
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(() => {
+      fetch(
+        `/api/public/products/brand-match?q=${encodeURIComponent(trimmed)}&limit=3`,
+        { cache: "no-store" },
+      )
+        .then((r) => (r.ok ? r.json() : { brands: [] }))
+        .then((data) => {
+          if (cancelled) return
+          setBrandMatches(Array.isArray(data?.brands) ? data.brands : [])
+        })
+        .catch(() => {
+          if (!cancelled) setBrandMatches([])
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [query, appliedCategory, appliedBrand])
 
   // Загружаем настройки и данные курируемой панели один раз при маунте.
   // Через прямой fetch к Next.js API route, не через server action —
@@ -659,8 +708,13 @@ export default function DesktopSearchPage() {
         )
       })()}
 
-      {/* Brands */}
-      {availableBrands.length > 0 && (() => {
+      {/* Brands. Если юзер пришёл сюда через клик по бренд-подсказке
+          (или таб «Бренды» на курируемой панели) — `appliedBrand` уже
+          зафиксирован, показан жёлтым бейджем сверху. Дополнительный
+          список брендов в фильтрах в этом сценарии только сбивает:
+          сужаться внутри бренда логичнее по категориям, а сменить
+          бренд — через крестик на бейдже. Скрываем блок целиком. */}
+      {!appliedBrand && availableBrands.length > 0 && (() => {
         const LIMIT = 8
         const lowerSearch = brandSearch.toLowerCase()
         const filtered = brandSearch
@@ -1041,8 +1095,55 @@ export default function DesktopSearchPage() {
         </div>
       )}
 
-      {/* No results — показываем только когда запрос закончен и результат пуст. */}
-      {!loading && hasSearched && allResults.length === 0 && (
+      {/* Brand-подсказки. Клик применяет фильтр по бренду прямо
+          на текущей странице поиска (через searchByBrand) — так юзер
+          получает и товары бренда, и активную панель категорий
+          слева, без ухода на отдельный лендинг /brand/<name>. */}
+      {brandMatches.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {brandMatches.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => searchByBrand({ id: b.id, name: b.name } as SearchPageBrandItem)}
+              className="group w-full text-left flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50/70 hover:bg-yellow-100/80 px-4 py-3 transition-colors focus:outline-none"
+            >
+              <div className="h-12 w-12 shrink-0 rounded-lg bg-white border border-yellow-200 overflow-hidden flex items-center justify-center">
+                {b.image_url ? (
+                  <Image
+                    src={getImageUrl(b.image_url) || ""}
+                    alt={b.name}
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-[10px] text-yellow-700 font-medium">бренд</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-900 truncate">
+                  Бренд «{b.name}»
+                </div>
+                <div className="text-xs text-gray-600">
+                  {b.product_count > 0
+                    ? `Товаров у бренда: ${b.product_count.toLocaleString("ru-RU")}`
+                    : "Товаров пока нет"}
+                  {b.country ? ` · ${b.country}` : ""}
+                </div>
+              </div>
+              <div className="text-sm text-yellow-800 font-medium whitespace-nowrap group-hover:translate-x-0.5 transition-transform">
+                Показать товары бренда →
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* No results — показываем только когда запрос закончен и результат
+          пуст, И нет подсказок по бренду (иначе визуально противоречит
+          жёлтой карточке выше). */}
+      {!loading && hasSearched && allResults.length === 0 && brandMatches.length === 0 && (
         <div className="text-center py-16 text-gray-500">Ничего не найдено</div>
       )}
 
