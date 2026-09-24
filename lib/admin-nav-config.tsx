@@ -19,6 +19,7 @@ import {
   Tags,
   Truck,
   Users,
+  Webhook,
 } from "lucide-react"
 
 export type AdminMode = "crm" | "shop"
@@ -50,7 +51,12 @@ export interface AccessCtx {
 }
 
 /** Пути CRM-режима — используются для авто-переключения режима по URL. */
-const CRM_PATH_PREFIXES = ["/admin/deals", "/admin/tasks", "/admin/chat"] as const
+const CRM_PATH_PREFIXES = [
+  "/admin/deals",
+  "/admin/tasks",
+  "/admin/chat",
+  "/admin/webhooks",
+] as const
 
 export function isCrmPath(pathname: string): boolean {
   const norm = pathname.replace(/\/$/, "") || "/"
@@ -142,14 +148,24 @@ function buildShopSections(a: AccessCtx): AdminNavSection[] {
   return sections
 }
 
-function buildCrmSections(_a: AccessCtx): AdminNavSection[] {
+function buildCrmSections(a: AccessCtx): AdminNavSection[] {
   // Каждый CRM-раздел — один пункт. Соответственно, сайдбар для любого CRM-
   // раздела схлопывается (см. поведение в AdminLayout).
-  return [
+  const sections: AdminNavSection[] = [
     { id: "deals", label: "Сделки", items: [{ href: "/admin/deals", label: "Сделки", icon: Briefcase }] },
     { id: "tasks", label: "Задачи", items: [{ href: "/admin/tasks", label: "Задачи", icon: ListTodo }] },
     { id: "chat", label: "Чат", items: [{ href: "/admin/chat", label: "Чат", icon: MessageSquare }] },
   ]
+  // «Веб хуки» — конструктор ingest-источников. Только для owner системы
+  // (gate тот же что и у «Раздел админа»/«Управление КП» — kpManagementAccess).
+  if (a.kpManagementAccess) {
+    sections.push({
+      id: "webhooks",
+      label: "Веб хуки",
+      items: [{ href: "/admin/webhooks", label: "Веб хуки", icon: Webhook }],
+    })
+  }
+  return sections
 }
 
 export function buildAdminSections(mode: AdminMode, access: AccessCtx): AdminNavSection[] {

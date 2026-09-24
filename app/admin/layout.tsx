@@ -159,9 +159,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!authChecked || !user) return null
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    // overflow-x-hidden на самом внешнем flex — гарантирует что даже если
+    // страница внутри main захочет отрисовать что-то шире viewport'а
+    // (например Kanban с большим числом стадий), горизонтальный скролл
+    // всей страницы не появится. Само содержимое пусть скроллит свою
+    // внутреннюю область через `overflow-x-auto`.
+    <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
       <AdminSidebar isCollapsed={isSidebarCollapsed} section={activeSection} />
-      <div className="relative flex-1">
+      {/* min-w-0 нужен flex-child'у иначе он растягивается под свой
+          content и `overflow-x-hidden` выше становится бесполезен. */}
+      <div className="relative flex-1 min-w-0">
         <AdminHeaderNav
           isCollapsed={isSidebarCollapsed}
           onCollapseToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -171,7 +178,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           activeSectionId={activeSection?.id ?? null}
           onSectionSelect={handleSectionSelect}
         />
-        <main className={cn("p-4 md:p-6 transition-all duration-300", isSidebarCollapsed ? "ml-0" : "ml-64")}>
+        <main
+          className={cn(
+            "p-4 md:p-6 transition-all duration-300 min-w-0",
+            isSidebarCollapsed ? "ml-0" : "ml-64",
+          )}
+        >
           {React.cloneElement(children as React.ReactElement, { isSidebarCollapsed })}
         </main>
       </div>
