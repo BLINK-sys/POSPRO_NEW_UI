@@ -37,7 +37,7 @@ import {
   type KpClientContact,
 } from "@/app/actions/kp-clients"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
-import { cn } from "@/lib/utils"
+import { cn, formatPhone } from "@/lib/utils"
 
 const SOFT =
   "shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.10)] transition-shadow " +
@@ -71,7 +71,7 @@ function clientToForm(c: KpClient): FormState {
     id: c.id,
     full_name: c.full_name || "",
     object: c.object || "",
-    contacts: Array.isArray(c.contacts) ? c.contacts.map(x => ({ phone: x.phone || "", note: x.note || "" })) : [],
+    contacts: Array.isArray(c.contacts) ? c.contacts.map(x => ({ phone: x.phone ? formatPhone(x.phone) : "", note: x.note || "" })) : [],
   }
 }
 
@@ -382,9 +382,15 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                           <div className="flex-1 grid grid-cols-[1fr_1fr] gap-2">
                             <Input
                               value={ct.phone}
-                              onChange={(e) => updateContact(idx, { phone: e.target.value })}
+                              onFocus={() => {
+                                if (!ct.phone) updateContact(idx, { phone: "+7 (" })
+                              }}
+                              onChange={(e) =>
+                                updateContact(idx, { phone: formatPhone(e.target.value) })
+                              }
                               className={cn("h-9 text-sm", SOFT)}
                               placeholder="+7 (___) ___-__-__"
+                              inputMode="tel"
                             />
                             <Input
                               value={ct.note}

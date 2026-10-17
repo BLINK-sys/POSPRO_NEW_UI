@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { LogOut, Package } from "lucide-react"
+import { LogOut, Package, Crown } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import { useChatUnread } from "@/context/chat-unread-context"
 import type { AdminNavItem, AdminNavSection } from "@/lib/admin-nav-config"
 
 interface AdminSidebarProps {
@@ -24,6 +25,58 @@ function navItemClass(active: boolean) {
   )
 }
 
+/**
+ * Мини-бейдж «только владелец»: жёлтая корона в облачке. Ставится
+ * рядом с label пунктов меню, которые видит только суперадмин
+ * (kpManagementAccess). Помогает отличать owner-only пункты от общих.
+ */
+function OwnerBadge() {
+  return (
+    <span
+      title="Виден только владельцу"
+      className="ml-auto inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand-yellow/25 border border-brand-yellow/50 shrink-0"
+    >
+      <Crown className="h-3 w-3 text-amber-700" />
+    </span>
+  )
+}
+
+/**
+ * Красный badge с числом непрочитанных. Ставится в конец строки пункта
+ * меню; авто-скрывается при count = 0. Числа > 9 показываем как «9+»,
+ * чтобы badge не расползался.
+ */
+function UnreadBadge({ count, withOwner }: { count: number; withOwner?: boolean }) {
+  if (count <= 0) return null
+  const label = count > 9 ? "9+" : String(count)
+  return (
+    <span
+      title={`Непрочитанных: ${count}`}
+      className={cn(
+        withOwner ? "ml-1" : "ml-auto",
+        "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1",
+        "rounded-full bg-red-500 text-white text-[10px] font-semibold shrink-0",
+      )}
+    >
+      {label}
+    </span>
+  )
+}
+
+/**
+ * Возвращает количество непрочитанных для пункта нав-меню по его href.
+ * Для «Чат» — суммарно chatUnread; для «Сделки»/«Задачи» — число сущностей,
+ * а не сообщений (badge визуально нагляднее в единицах сущностей).
+ */
+function unreadForHref(href: string, ctx: ReturnType<typeof useChatUnread>): number {
+  // Для «Чат» notifCounts.chat не добавляем — chat_new_message notifications
+  // уже отражены через chatUnread (unread у ChatRoom), было бы двойным счётом.
+  if (href === "/admin/chat") return ctx.chatUnread
+  if (href === "/admin/deals") return ctx.dealUnreadIds.size + (ctx.notifCounts?.deals || 0)
+  if (href === "/admin/tasks") return ctx.taskUnreadIds.size + (ctx.notifCounts?.tasks || 0)
+  return 0
+}
+
 function subItemClass(active: boolean) {
   return cn(
     "block rounded-md px-2.5 py-1.5 text-sm bg-white transition-all duration-150 ease-out",
@@ -36,6 +89,7 @@ function subItemClass(active: boolean) {
 export default function AdminSidebar({ isCollapsed, section }: AdminSidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const unread = useChatUnread()
 
   const normPath = pathname.replace(/\/$/, "") || "/"
   const isActive = (href: string) => {
@@ -80,6 +134,7 @@ export default function AdminSidebar({ isCollapsed, section }: AdminSidebarProps
           {section?.items.map((item) => {
             const active = isActive(item.href) || isChildActive(item)
             const Icon = item.icon
+            const unreadCount = unreadForHref(item.href, unread)
             if (item.children && item.children.length > 0) {
               return (
                 <div key={item.href + item.label} className="space-y-1">
@@ -91,6 +146,8 @@ export default function AdminSidebar({ isCollapsed, section }: AdminSidebarProps
                       )}
                     />
                     <span>{item.label}</span>
+                    {item.ownerOnly && <OwnerBadge />}
+                    <UnreadBadge count={unreadCount} withOwner={item.ownerOnly} />
                   </Link>
                   <div className="pl-4 space-y-1">
                     {item.children.map((child) => (
@@ -111,6 +168,8 @@ export default function AdminSidebar({ isCollapsed, section }: AdminSidebarProps
                   )}
                 />
                 <span>{item.label}</span>
+                {item.ownerOnly && <OwnerBadge />}
+                <UnreadBadge count={unreadCount} withOwner={item.ownerOnly} />
               </Link>
             )
           })}

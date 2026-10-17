@@ -31,6 +31,7 @@ export interface CrmIngestSource {
   fixed_user_id: number | null
   client_resolution: CrmIngestClientResolution
   dedupe_by_ref: boolean
+  default_deal_source_id?: number | null
   active: boolean
   last_used_at: string | null
   request_count: number

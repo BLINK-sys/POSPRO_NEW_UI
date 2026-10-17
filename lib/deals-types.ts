@@ -33,6 +33,17 @@ export interface Deal {
   id: number
   name: string
   client_id: number | null
+  /** Опциональная привязка к компании (`kp_company.id`). */
+  company_id?: number | null
+  /** Основная + доп. контакты сделки. Приходит с бэка в развёрнутом
+   *  виде на GET /admin/deals/<id>; на list — только client_id. */
+  contacts?: Array<{
+    client_id: number
+    name: string
+    is_primary: boolean
+    company_id?: number | null
+  }>
+  company?: { id: number; name: string; bin?: string | null } | null
   responsible_user_id: number | null
   creator_id: number | null
   pipeline_id: number
@@ -42,6 +53,8 @@ export interface Deal {
   expected_close_at: string | null
   priority: DealPriority
   source: string | null
+  source_id: number | null
+  deal_source?: { id: number; name: string; color: string | null } | null
   status: DealStatus
   tags: string[]
   notes: string | null

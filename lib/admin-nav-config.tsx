@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Search,
   Share2,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Tags,
@@ -35,12 +36,20 @@ export interface AdminNavItem {
   icon: LucideIcon
   /** Плоские подпункты, отрисовываются inline под родителем (кейс «Каталог»). */
   children?: AdminNavSubItem[]
+  /**
+   * true = пункт видит только владелец системы (за флагом
+   * `kpManagementAccess`). Render добавляет индикатор-корону, чтобы
+   * админ понимал что этот пункт скрыт от рядовых менеджеров.
+   */
+  ownerOnly?: boolean
 }
 
 export interface AdminNavSection {
   id: string
   label: string
   items: AdminNavItem[]
+  /** Секция целиком owner-only (все её items невидимы для менеджеров). */
+  ownerOnly?: boolean
 }
 
 /** Контекст доступов для сборки навигации. */
@@ -53,9 +62,15 @@ export interface AccessCtx {
 /** Пути CRM-режима — используются для авто-переключения режима по URL. */
 const CRM_PATH_PREFIXES = [
   "/admin/deals",
+  "/admin/deals/sources",
   "/admin/tasks",
+  "/admin/projects",
   "/admin/chat",
+  "/admin/clients",
   "/admin/webhooks",
+  "/admin/permissions",
+  "/admin/kp-management",
+  "/admin/user-activity",
 ] as const
 
 export function isCrmPath(pathname: string): boolean {
@@ -127,16 +142,7 @@ function buildShopSections(a: AccessCtx): AdminNavSection[] {
       ],
     })
 
-  // — Раздел админа —
-  if (a.kpManagementAccess)
-    sections.push({
-      id: "adminOnly",
-      label: "Раздел админа",
-      items: [
-        { href: "/admin/kp-management", label: "Управление КП", icon: Share2 },
-        { href: "/admin/user-activity", label: "Активность", icon: Activity },
-      ],
-    })
+  // «Раздел админа» переехал в CRM-режим (buildCrmSections).
 
   // — Справка —
   sections.push({
@@ -149,20 +155,30 @@ function buildShopSections(a: AccessCtx): AdminNavSection[] {
 }
 
 function buildCrmSections(a: AccessCtx): AdminNavSection[] {
-  // Каждый CRM-раздел — один пункт. Соответственно, сайдбар для любого CRM-
-  // раздела схлопывается (см. поведение в AdminLayout).
+  // Обычные CRM-разделы — каждый один пункт (сайдбар схлопывается).
   const sections: AdminNavSection[] = [
     { id: "deals", label: "Сделки", items: [{ href: "/admin/deals", label: "Сделки", icon: Briefcase }] },
     { id: "tasks", label: "Задачи", items: [{ href: "/admin/tasks", label: "Задачи", icon: ListTodo }] },
     { id: "chat", label: "Чат", items: [{ href: "/admin/chat", label: "Чат", icon: MessageSquare }] },
+    { id: "clients", label: "Клиенты", items: [{ href: "/admin/clients", label: "Клиенты", icon: Users }] },
   ]
-  // «Веб хуки» — конструктор ingest-источников. Только для owner системы
-  // (gate тот же что и у «Раздел админа»/«Управление КП» — kpManagementAccess).
+  // «Проекты» — справочник для колонки «Проект» в задачах. В шапку не
+  // выносим (дублируется с кнопкой на /admin/tasks), но /admin/projects
+  // всё ещё в CRM_PATH_PREFIXES выше, чтобы страница считалась CRM'ной.
+  //
+  // «Раздел админа» — owner-only, собирает все owner-only настройки в один
+  // раздел с боковой панелью (Управление КП, Активность, Веб хуки, Спец права).
   if (a.kpManagementAccess) {
     sections.push({
-      id: "webhooks",
-      label: "Веб хуки",
-      items: [{ href: "/admin/webhooks", label: "Веб хуки", icon: Webhook }],
+      id: "adminOnly",
+      label: "Раздел админа",
+      ownerOnly: true,
+      items: [
+        { href: "/admin/permissions", label: "Спец права", icon: ShieldCheck, ownerOnly: true },
+        { href: "/admin/user-activity", label: "Активность", icon: Activity, ownerOnly: true },
+        { href: "/admin/kp-management", label: "Управление КП", icon: Share2, ownerOnly: true },
+        { href: "/admin/webhooks", label: "Веб хуки", icon: Webhook, ownerOnly: true },
+      ],
     })
   }
   return sections

@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { Search, X, Check } from "lucide-react"
+import { Search, X, Check, Plus } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,8 @@ export interface PickerItem {
    * — использует нейтральный серый. Пример: "bg-emerald-100 text-emerald-700".
    */
   badgeClassName?: string
+  /** Hex-цвет для кружка-маркера слева от названия (источник сделки и т.п.). */
+  colorDot?: string | null
 }
 
 interface Props {
@@ -49,6 +51,13 @@ interface Props {
    * `items` — их формирует родитель после соответствующего запроса.
    */
   toolbar?: React.ReactNode
+  /**
+   * Если задано — показывает жёлтую кнопку «Создать» справа от строки
+   * поиска. Клик закрывает модалку и вызывает callback — родитель
+   * открывает свой quick-create диалог.
+   */
+  onCreateNew?: () => void
+  createNewLabel?: string
 }
 
 // Убираем ВСЕ focus-подсветки (и focus:, и focus-visible:, и outline).
@@ -67,6 +76,8 @@ export default function EntityPickerDialog({
   allowClear = true,
   clearText = "Убрать выбор",
   toolbar,
+  onCreateNew,
+  createNewLabel = "Создать",
 }: Props) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -129,28 +140,47 @@ export default function EntityPickerDialog({
             </DialogPrimitive.Close>
           </div>
 
-          {/* Поиск */}
+          {/* Поиск + «Создать» справа (если передан onCreateNew). */}
           <div className="px-4 py-3 border-b border-gray-100 shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              <Input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
-                className={cn("pl-9 pr-9", NO_RING)}
-              />
-              {query && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <Input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className={cn("pl-9 pr-9", NO_RING)}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded",
+                      NO_RING,
+                    )}
+                    aria-label="Очистить"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {onCreateNew && (
                 <button
                   type="button"
-                  onClick={() => setQuery("")}
+                  onClick={() => {
+                    onOpenChange(false)
+                    onCreateNew()
+                  }}
                   className={cn(
-                    "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded",
+                    "inline-flex items-center gap-1 h-10 px-3 rounded-md text-sm font-medium shrink-0",
+                    "bg-brand-yellow text-black hover:bg-yellow-500",
                     NO_RING,
                   )}
-                  aria-label="Очистить"
                 >
-                  <X className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
+                  {createNewLabel}
                 </button>
               )}
             </div>
@@ -184,6 +214,12 @@ export default function EntityPickerDialog({
                           NO_RING,
                         )}
                       >
+                        {it.colorDot && (
+                          <span
+                            className="h-3 w-3 rounded-full border border-gray-200 shrink-0"
+                            style={{ backgroundColor: it.colorDot }}
+                          />
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">
                             {it.primary}

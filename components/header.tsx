@@ -24,6 +24,8 @@ import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { useAdminTools } from "@/context/admin-tools-context"
+import { useChatUnread } from "@/context/chat-unread-context"
+import WebPushBell from "@/components/web-push-bell"
 import { useCart } from "@/context/cart-context"
 import { useKP } from "@/context/kp-context"
 import { useCompare } from "@/context/compare-context"
@@ -60,6 +62,9 @@ export default function Header() {
   const { cartCount } = useCart()
   const { kpCount } = useKP()
   const { count: compareCount } = useCompare()
+  // Тотал по всем чатам/сделкам/задачам — источник тот же
+  // ChatUnreadAutoProvider из root layout, SSE + fallback poll 5 мин.
+  const { totalUnread: adminChatUnread } = useChatUnread()
   const { closeCatalogPanel } = useCatalogPanel()
   const router = useRouter()
   const pathname = usePathname()
@@ -1110,11 +1115,15 @@ export default function Header() {
                       badge={kpCount > 0 ? (kpCount > 999 ? "999+" : String(kpCount)) : undefined}
                     />
                     {user.role === "admin" && (
-                      <HeaderIconLink
-                        href="/admin"
-                        icon={<Settings className="h-4 w-4" />}
-                        label="Админ"
-                      />
+                      <>
+                        <HeaderIconLink
+                          href="/admin"
+                          icon={<Settings className="h-4 w-4" />}
+                          label="Админ"
+                          badge={adminChatUnread > 0 ? (adminChatUnread > 99 ? "99+" : String(adminChatUnread)) : undefined}
+                        />
+                        <WebPushBell variant="shop" />
+                      </>
                     )}
                     <button
                       type="button"

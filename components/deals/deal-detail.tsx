@@ -26,7 +26,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Trash2, Circle } from "lucide-react"
+import {
+  ArrowLeft, Loader2, Trash2, Circle, Save,
+  PanelRightClose, PanelLeftOpen,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -121,11 +124,39 @@ export default function DealDetail({ dealId }: Props) {
   const [pipelines, setPipelines] = useState<DealPipeline[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<Sys[]>([])
+  const [sources, setSources] = useState<
+    Array<{ id: number; name: string; color: string | null; is_active: boolean }>
+  >([])
+  const [companies, setCompanies] = useState<Array<{ id: number; name: string; bin?: string | null }>>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Свернут ли чат (3-я колонка). Храним в localStorage по сделке —
+  // юзер привыкает к своему layout'у. По умолчанию чат открыт.
+  const [chatCollapsed, setChatCollapsed] = useState(false)
+  // Путь для перехода после подтверждения выхода без сохранения. null = закрыто.
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("deal-chat-collapsed")
+      if (v === "1") setChatCollapsed(true)
+    } catch {}
+  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem("deal-chat-collapsed", chatCollapsed ? "1" : "0")
+    } catch {}
+  }, [chatCollapsed])
+  // Инкрементим когда файл прилетел из чата — DocumentsCard видит это
+  // через refreshKey и перечитывает список без reload страницы.
+  const [docRefreshKey, setDocRefreshKey] = useState(0)
 
   const [draft, setDraft] = useState<Partial<FullDeal>>({})
+  // Доп. контакты сделки — только не-primary. При save шлём как
+  // contact_ids = [primary (draft.client_id), ...extra]. При смене primary
+  // (через ClientPicker) draft.client_id меняется, а extraContactIds — не
+  // автоматически. Если новый primary был в extra — убираем его оттуда.
+  const [extraContactIds, setExtraContactIds] = useState<number[]>([])
 
   const reloadDeal = useCallback(async () => {
     const res = await crmGet<{ deal: FullDeal }>(`/api/admin/deals/${dealId}`)
@@ -144,8 +175,14 @@ export default function DealDetail({ dealId }: Props) {
       crmGet<PipelinesListResponse>("/api/admin/deal-pipelines?with_stages=1"),
       crmGet<{ clients: Client[] } | Client[]>("/api/kp-clients").catch(() => ({ clients: [] })),
       crmGet<{ users: Sys[] } | Sys[]>("/api/system-users").catch(() => ({ users: [] })),
+      crmGet<{ sources: Array<{ id: number; name: string; color: string | null; is_active: boolean }> }>(
+        "/api/admin/deal-sources",
+      ).catch(() => ({ sources: [] })),
+      crmGet<{ companies: Array<{ id: number; name: string; bin?: string | null }> }>(
+        "/api/admin/kp-companies",
+      ).catch(() => ({ companies: [] })),
     ])
-      .then(([d, p, c, u]) => {
+      .then(([d, p, c, u, src, co]) => {
         if (ignore) return
         setDeal(d.deal)
         setDraft(makeDraft(d.deal))
@@ -154,6 +191,17 @@ export default function DealDetail({ dealId }: Props) {
         const us = Array.isArray(u) ? u : (u.users || [])
         setClients(cs)
         setUsers(us)
+        setSources(src.sources || [])
+        setCompanies(co.companies || [])
+
+        // Доп. контакты = все из deal.contacts минус primary.
+        const dealContacts = (d.deal as any).contacts || []
+        const primaryId = d.deal.client_id
+        setExtraContactIds(
+          dealContacts
+            .map((x: any) => x.client_id)
+            .filter((id: number) => id !== primaryId),
+        )
       })
       .catch((e) => {
         console.error(e)
@@ -191,13 +239,24 @@ export default function DealDetail({ dealId }: Props) {
     [pipelines, deal],
   )
 
+  // Текущее серверное значение доп. контактов — для dirty-сравнения.
+  const serverExtraContactIds = useMemo(() => {
+    if (!deal) return [] as number[]
+    const list = ((deal as any).contacts || []) as Array<{ client_id: number }>
+    return list.map((x) => x.client_id).filter((id) => id !== deal.client_id)
+  }, [deal])
+
   const isDirty = useMemo(() => {
     if (!deal) return false
     for (const k of Object.keys(draft) as (keyof FullDeal)[]) {
       if ((draft as any)[k] !== (deal as any)[k]) return true
     }
+    // Сравниваем доп. контакты как set — порядок не важен.
+    const a = [...extraContactIds].sort((x, y) => x - y).join(",")
+    const b = [...serverExtraContactIds].sort((x, y) => x - y).join(",")
+    if (a !== b) return true
     return false
-  }, [draft, deal])
+  }, [draft, deal, extraContactIds, serverExtraContactIds])
 
   const handleSave = async () => {
     if (!deal) return
@@ -209,12 +268,32 @@ export default function DealDetail({ dealId }: Props) {
           payload[k as string] = (draft as any)[k]
         }
       }
+      // Доп. контакты шлём только если изменились — иначе лишний UPDATE
+      // DealContact-таблицы.
+      const extraA = [...extraContactIds].sort((x, y) => x - y).join(",")
+      const extraB = [...serverExtraContactIds].sort((x, y) => x - y).join(",")
+      const extraChanged = extraA !== extraB
+      const primaryChanged = payload.client_id !== undefined
+      if (extraChanged || primaryChanged) {
+        const primary = (draft.client_id ?? deal.client_id) as number | null
+        const list = primary != null ? [primary, ...extraContactIds] : [...extraContactIds]
+        payload.contact_ids = list
+        if (primary != null) payload.primary_contact_id = primary
+      }
       const res = await crmPut<{ deal: FullDeal }>(
         `/api/admin/deals/${deal.id}`,
         payload,
       )
       setDeal(res.deal)
       setDraft(makeDraft(res.deal))
+      // Пересинхронизируем extraContactIds с ответом сервера.
+      const dealContacts = (res.deal as any).contacts || []
+      const newPrimary = res.deal.client_id
+      setExtraContactIds(
+        dealContacts
+          .map((x: any) => x.client_id)
+          .filter((id: number) => id !== newPrimary),
+      )
       toast({ title: "Сохранено" })
     } catch (e: any) {
       toast({
@@ -259,6 +338,18 @@ export default function DealDetail({ dealId }: Props) {
     }
   }
 
+  // Предупреждение при закрытии/перезагрузке таба если dirty. Навигация
+  // внутри приложения — через кнопку «К доске», она сама открывает диалог.
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -273,31 +364,38 @@ export default function DealDetail({ dealId }: Props) {
   }
 
   return (
-    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-7rem)] space-y-3">
-      {/* Шапка */}
+    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-7rem)] space-y-2">
+      {/* Шапка — одна строка, компактная. Слева: back + title + inline-meta.
+          Справа: селект стадии, Сохранить, свернуть/раскрыть чат, удалить. */}
       <Card className="rounded-xl border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] shrink-0">
-        <div className="p-4 flex items-center gap-3">
-          <Button variant="ghost" asChild size="sm" className="rounded-full">
-            <Link href="/admin/deals">
-              <ArrowLeft className="h-4 w-4 mr-1.5" />
-              К доске
-            </Link>
+        <div className="px-3 py-1.5 flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full h-8 px-2.5 shrink-0"
+            onClick={() => {
+              if (isDirty) setPendingNavigation("/admin/deals")
+              else router.push("/admin/deals")
+            }}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            К доске
           </Button>
 
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold truncate">{deal.name}</h1>
-            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <h1 className="text-base font-semibold truncate leading-tight">{deal.name}</h1>
+            <div className="hidden md:flex items-center gap-2 text-[11px] text-gray-500 shrink-0">
               <span>ID: {deal.id}</span>
-              {pipeline && <><span>·</span><span>{pipeline.name}</span></>}
+              {pipeline && <><span>·</span><span className="truncate max-w-[140px]">{pipeline.name}</span></>}
               {stage && (
                 <>
                   <span>·</span>
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1">
                     <Circle
                       className="h-2 w-2"
                       style={{ fill: stage.color, color: stage.color }}
                     />
-                    {stage.name}
+                    <span className="truncate max-w-[120px]">{stage.name}</span>
                   </span>
                 </>
               )}
@@ -307,12 +405,12 @@ export default function DealDetail({ dealId }: Props) {
           </div>
 
           {pipeline && (
-            <div className="w-56">
+            <div className="w-44 shrink-0">
               <Select
                 value={String(deal.stage_id)}
                 onValueChange={(v) => handleMoveStage(Number(v))}
               >
-                <SelectTrigger className="rounded-lg">
+                <SelectTrigger className="rounded-lg h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,10 +431,38 @@ export default function DealDetail({ dealId }: Props) {
           )}
 
           <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+            className="rounded-lg h-8 bg-brand-yellow text-black hover:bg-yellow-500 shrink-0"
+          >
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5 mr-1" />
+            )}
+            Сохранить
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setChatCollapsed((v) => !v)}
+            className="h-8 w-8 rounded-lg shrink-0"
+            title={chatCollapsed ? "Развернуть чат" : "Свернуть чат"}
+          >
+            {chatCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelRightClose className="h-4 w-4" />
+            )}
+          </Button>
+
+          <Button
             variant="ghost"
             size="icon"
             onClick={() => setDeleteOpen(true)}
-            className="text-red-500 hover:bg-red-50"
+            className="text-red-500 hover:bg-red-50 h-8 w-8 shrink-0"
             title="Удалить сделку"
           >
             <Trash2 className="h-4 w-4" />
@@ -354,20 +480,47 @@ export default function DealDetail({ dealId }: Props) {
           админ-навбара сверху), grid — flex-1 min-h-0, каждая из первых
           двух колонок скроллится независимо (`overflow-y-auto`), правая
           отдаёт всю высоту Chat'у, который сам режет message-list. */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(440px,1.4fr)] gap-3 xl:flex-1 xl:min-h-0">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-3 xl:flex-1 xl:min-h-0",
+          chatCollapsed
+            ? "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)]"
+            : "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(440px,1.4fr)]",
+        )}
+      >
         <div className="min-w-0 xl:overflow-y-auto xl:pr-1">
           <DealInfoCard
             deal={deal}
             draft={draft}
             onDraft={(patch) => setDraft((p) => ({ ...p, ...patch }))}
-            onSave={handleSave}
             saving={saving}
             isDirty={isDirty}
             clients={clients}
             users={users}
+            sources={sources}
+            companies={companies}
+            onSourceCreated={(s) =>
+              setSources((prev) =>
+                prev.some((x) => x.id === s.id) ? prev : [...prev, s],
+              )
+            }
+            onCompanyCreated={(c) =>
+              setCompanies((prev) =>
+                prev.some((x) => x.id === c.id) ? prev : [...prev, c],
+              )
+            }
+            onClientCreated={(cl) =>
+              setClients((prev) =>
+                prev.some((x) => x.id === cl.id)
+                  ? prev
+                  : [{ id: cl.id, display_name: cl.display_name } as any, ...prev],
+              )
+            }
             clientsById={clientsById}
             usersById={usersById}
             creatorId={deal.creator_id ?? null}
+            extraContactIds={extraContactIds}
+            onExtraContactsChange={setExtraContactIds}
           />
         </div>
 
@@ -384,6 +537,7 @@ export default function DealDetail({ dealId }: Props) {
           <DealDocumentsCard
             dealId={deal.id}
             usersById={usersById}
+            refreshKey={docRefreshKey}
           />
 
           <TabKp
@@ -400,14 +554,59 @@ export default function DealDetail({ dealId }: Props) {
           />
         </div>
 
-        <div className="min-w-0 xl:h-full">
-          <DealChatPanel
-            dealId={deal.id}
-            currentUserId={currentUserId}
-            usersById={usersById}
-          />
-        </div>
+        {!chatCollapsed && (
+          <div className="min-w-0 xl:h-full">
+            <DealChatPanel
+              dealId={deal.id}
+              currentUserId={currentUserId}
+              usersById={usersById}
+              onAttachmentUploaded={() => setDocRefreshKey((k) => k + 1)}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Выход с несохранёнными правками */}
+      <AlertDialog
+        open={Boolean(pendingNavigation)}
+        onOpenChange={(v) => !v && setPendingNavigation(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Есть несохранённые изменения</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы изменили поля сделки и не нажали «Сохранить». Выйти без сохранения?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>Остаться</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const dest = pendingNavigation!
+                setPendingNavigation(null)
+                router.push(dest)
+              }}
+              className="rounded-lg text-red-600 border-red-200 hover:bg-red-50"
+            >
+              Не сохранять
+            </Button>
+            <Button
+              onClick={async () => {
+                const dest = pendingNavigation!
+                setPendingNavigation(null)
+                await handleSave()
+                router.push(dest)
+              }}
+              disabled={saving}
+              className="rounded-lg bg-brand-yellow text-black hover:bg-yellow-500"
+            >
+              {saving && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Сохранить и выйти
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
@@ -444,8 +643,10 @@ function makeDraft(d: Deal): Partial<Deal> {
     notes: d.notes,
     responsible_user_id: d.responsible_user_id,
     client_id: d.client_id,
+    company_id: (d as any).company_id ?? null,
+    source_id: d.source_id,
     expected_close_at: d.expected_close_at,
-  }
+  } as Partial<Deal>
 }
 
 function StatusBadge({ status }: { status: Deal["status"] }) {

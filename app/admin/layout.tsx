@@ -159,8 +159,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!authChecked || !user) return null
 
   return (
-    // overflow-x-hidden на самом внешнем flex — гарантирует что даже если
-    // страница внутри main захочет отрисовать что-то шире viewport'а
+    // ChatUnreadProvider теперь в root layout (app/layout.tsx) — работает
+    // и на публичной части сайта, поэтому кнопка «Админ» в шапке тоже
+    // видит бейдж.
+    // overflow-x-hidden на самом внешнем flex — гарантирует что даже
+    // если страница внутри main захочет отрисовать что-то шире viewport'а
     // (например Kanban с большим числом стадий), горизонтальный скролл
     // всей страницы не появится. Само содержимое пусть скроллит свою
     // внутреннюю область через `overflow-x-auto`.

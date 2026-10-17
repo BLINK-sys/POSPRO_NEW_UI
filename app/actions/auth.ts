@@ -26,6 +26,11 @@ export interface User {
   role: string
   access?: Record<string, boolean>
   is_wholesale?: boolean
+  is_owner?: boolean
+  can_see_all_deals?: boolean
+  can_see_all_tasks?: boolean
+  can_manage_pipelines?: boolean
+  can_manage_projects?: boolean
 }
 
 // Функция для обработки ответов API
@@ -72,6 +77,11 @@ function mapApiProfileToUser(data: any): User | null {
     role: data.role || 'client',
     is_wholesale: data.is_wholesale ?? data.isWholesale,
     access: data.access,
+    is_owner: Boolean(data.is_owner),
+    can_see_all_deals: Boolean(data.can_see_all_deals),
+    can_see_all_tasks: Boolean(data.can_see_all_tasks),
+    can_manage_pipelines: Boolean(data.can_manage_pipelines),
+    can_manage_projects: Boolean(data.can_manage_projects),
   }
 }
 

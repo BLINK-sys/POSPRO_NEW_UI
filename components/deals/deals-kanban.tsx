@@ -37,9 +37,17 @@ import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { crmGet, crmPost } from "@/lib/crm-fetch"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/auth-context"
 import type {
   Deal,
   DealPipeline,
@@ -66,15 +74,33 @@ interface SystemUserLite {
 
 export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
   const { toast } = useToast()
+  const { user } = useAuth()
+  // Настройка воронок доступна только владельцу и юзерам с флагом
+  // can_manage_pipelines. Остальным кнопку скрываем.
+  const canManagePipelines = Boolean(
+    user && (user.is_owner || user.can_manage_pipelines),
+  )
 
   const [pipelines, setPipelines] = useState<DealPipeline[]>([])
   const [activePipelineId, setActivePipelineId] = useState<number | null>(null)
-  const [deals, setDeals] = useState<Deal[]>([])
+  // Пагинация per-stage: по 10 карточек в колонке, остальные подгружаем
+  // по кнопке «Загрузить ещё». Храним Map stageId → {deals, total}.
+  // Так же обеспечиваем независимый счётчик total у каждой колонки,
+  // чтобы в заголовке колонки было видно сколько сделок всего, а в теле
+  // — сколько уже отрисовано.
+  const [stageData, setStageData] = useState<
+    Map<number, { deals: Deal[]; total: number }>
+  >(new Map())
+  // Какая колонка сейчас грузит очередную порцию — для спиннера на кнопке
+  // «Загрузить ещё». null = ни одна не грузит.
+  const [loadingMoreStageId, setLoadingMoreStageId] = useState<number | null>(null)
   const [clientsById, setClientsById] = useState<Map<number, string>>(new Map())
   const [usersById, setUsersById] = useState<Map<number, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [movingId, setMovingId] = useState<number | null>(null)
   const [activeDrag, setActiveDrag] = useState<Deal | null>(null)
+
+  const DEALS_PAGE_SIZE = 10
 
   // 1) Первичная загрузка воронок + справочников клиентов/юзеров.
   //    Каждый запрос независимо в .catch — один упавший не блокирует другой.
@@ -122,26 +148,83 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     }
   }, [toast])
 
-  // 2) Загрузка сделок при смене активной воронки.
+  // 2) Загрузка сделок при смене активной воронки — параллельно по
+  //    всем стадиям, по DEALS_PAGE_SIZE на каждую. Если в стадии больше —
+  //    юзер жмёт «Загрузить ещё 10» внутри колонки.
+  //
+  //    Делаем именно N запросов (а не один общий с limit=200) — иначе
+  //    в большой базе 29k сделок первые 200 могут все оказаться в одной
+  //    стадии, и остальные колонки будут пусты.
   useEffect(() => {
     if (activePipelineId == null) return
+    const pipeline = pipelines.find((p) => p.id === activePipelineId)
+    if (!pipeline || !pipeline.stages) return
+
     let ignore = false
-    crmGet<DealsListResponse>(`/api/admin/deals?pipeline_id=${activePipelineId}&limit=200`)
-      .then((res) => {
-        if (!ignore) setDeals(res.deals || [])
-      })
-      .catch((e) => {
-        console.error("load deals:", e)
-        toast({
-          variant: "destructive",
-          title: "Не удалось загрузить сделки",
-          description: e?.message,
-        })
-      })
+    const results = pipeline.stages.map((s) =>
+      crmGet<DealsListResponse>(
+        `/api/admin/deals?pipeline_id=${activePipelineId}&stage_id=${s.id}&limit=${DEALS_PAGE_SIZE}&offset=0`,
+      )
+        .then((res) => ({ stageId: s.id, deals: res.deals || [], total: res.total || 0 }))
+        .catch((e) => {
+          console.error(`load deals (stage ${s.id}):`, e)
+          return { stageId: s.id, deals: [] as Deal[], total: 0 }
+        }),
+    )
+
+    Promise.all(results).then((rows) => {
+      if (ignore) return
+      const next = new Map<number, { deals: Deal[]; total: number }>()
+      for (const r of rows) {
+        next.set(r.stageId, { deals: r.deals, total: r.total })
+      }
+      setStageData(next)
+    })
+
     return () => {
       ignore = true
     }
-  }, [activePipelineId, toast])
+  }, [activePipelineId, pipelines])
+
+  /** Догружает следующую порцию сделок конкретной стадии. */
+  const loadMoreForStage = useCallback(
+    async (stageId: number) => {
+      if (activePipelineId == null) return
+      const row = stageData.get(stageId)
+      if (!row) return
+      if (row.deals.length >= row.total) return
+
+      setLoadingMoreStageId(stageId)
+      try {
+        const res = await crmGet<DealsListResponse>(
+          `/api/admin/deals?pipeline_id=${activePipelineId}&stage_id=${stageId}&limit=${DEALS_PAGE_SIZE}&offset=${row.deals.length}`,
+        )
+        setStageData((prev) => {
+          const next = new Map(prev)
+          const existing = next.get(stageId)
+          if (!existing) return prev
+          // Dedup по id — если drag&drop успел перенести карточку в
+          // эту же колонку с другого места, не хотим её удвоить.
+          const seen = new Set(existing.deals.map((d) => d.id))
+          const added = (res.deals || []).filter((d) => !seen.has(d.id))
+          next.set(stageId, {
+            deals: [...existing.deals, ...added],
+            total: res.total || existing.total,
+          })
+          return next
+        })
+      } catch (e: any) {
+        toast({
+          variant: "destructive",
+          title: "Не удалось загрузить ещё",
+          description: e?.message,
+        })
+      } finally {
+        setLoadingMoreStageId(null)
+      }
+    },
+    [activePipelineId, stageData, toast],
+  )
 
   const activePipeline = useMemo(
     () => pipelines.find((p) => p.id === activePipelineId) ?? null,
@@ -152,20 +235,36 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     [activePipeline],
   )
 
-  // Группируем сделки по stage_id для быстрого рендера колонок.
+  // Сортируем сделки каждой стадии по updated_at DESC. Данные уже
+  // приходят с бэка в этом порядке (ORDER BY updated_at DESC), но после
+  // drag&drop между колонками мы вставляем сделку локально — пересортировка
+  // гарантирует стабильный порядок независимо от истории операций.
   const dealsByStage = useMemo(() => {
     const map = new Map<number, Deal[]>()
-    for (const s of stages) map.set(s.id, [])
-    for (const d of deals) {
-      const arr = map.get(d.stage_id)
-      if (arr) arr.push(d)
-    }
-    // Сортируем внутри колонки — по updated_at DESC.
-    for (const arr of map.values()) {
-      arr.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+    for (const s of stages) {
+      const row = stageData.get(s.id)
+      const list = row ? [...row.deals] : []
+      list.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+      map.set(s.id, list)
     }
     return map
-  }, [deals, stages])
+  }, [stageData, stages])
+
+  // Всего сделок в воронке — сумма total'ов по стадиям (не длина
+  // загруженного — тот показывает только видимое).
+  const totalInPipeline = useMemo(() => {
+    let sum = 0
+    for (const s of stages) sum += stageData.get(s.id)?.total ?? 0
+    return sum
+  }, [stageData, stages])
+
+  // Все сделки (для drag&drop lookups + DragOverlay). dnd-kit работает по id,
+  // ему достаточно уже загруженных карточек.
+  const allLoadedDeals = useMemo(() => {
+    const flat: Deal[] = []
+    for (const row of stageData.values()) flat.push(...row.deals)
+    return flat
+  }, [stageData])
 
   const sensors = useSensors(
     // Игнорируем правую кнопку — правым кликом мы делаем pan Kanban'а
@@ -209,16 +308,50 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
 
   const findStageIdForDraggable = useCallback(
     (dealId: number): number | undefined => {
-      const d = deals.find((x) => x.id === dealId)
+      const d = allLoadedDeals.find((x) => x.id === dealId)
       return d?.stage_id
     },
-    [deals],
+    [allLoadedDeals],
   )
 
   const handleDragStart = (event: DragStartEvent) => {
     const id = Number(event.active.id)
-    setActiveDrag(deals.find((d) => d.id === id) ?? null)
+    setActiveDrag(allLoadedDeals.find((d) => d.id === id) ?? null)
   }
+
+  /**
+   * Переносит сделку между Map-колонками. Обновляет total:
+   *   у `from` — минус 1, у `to` — плюс 1 (вне зависимости от того,
+   *   что `toTotal` может быть `undefined` — тогда 1).
+   */
+  const moveDealLocally = useCallback(
+    (dealId: number, from: number, to: number, replacement?: Deal) => {
+      setStageData((prev) => {
+        const next = new Map(prev)
+        const fromRow = next.get(from)
+        const toRow = next.get(to)
+        if (!fromRow) return prev
+
+        const idx = fromRow.deals.findIndex((d) => d.id === dealId)
+        if (idx < 0) return prev
+        const movedBase = fromRow.deals[idx]
+        const moved: Deal = replacement
+          ? replacement
+          : { ...movedBase, stage_id: to }
+
+        next.set(from, {
+          deals: fromRow.deals.filter((d) => d.id !== dealId),
+          total: Math.max(0, fromRow.total - 1),
+        })
+        next.set(to, {
+          deals: toRow ? [moved, ...toRow.deals] : [moved],
+          total: (toRow?.total ?? 0) + 1,
+        })
+        return next
+      })
+    },
+    [],
+  )
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDrag(null)
@@ -236,13 +369,13 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     if (overId.startsWith("stage-")) {
       toStageId = Number(overId.replace("stage-", ""))
     } else {
-      const targetDeal = deals.find((d) => d.id === Number(overId))
+      const targetDeal = allLoadedDeals.find((d) => d.id === Number(overId))
       if (targetDeal) toStageId = targetDeal.stage_id
     }
     if (toStageId == null || toStageId === from) return
 
-    // Оптимистично обновляем UI.
-    setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage_id: toStageId! } : d)))
+    // Оптимистично переносим между колонками (меняет total в обеих).
+    moveDealLocally(dealId, from, toStageId)
     setMovingId(dealId)
 
     try {
@@ -251,10 +384,19 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
         { stage_id: toStageId },
       )
       // Заменяем на серверную версию (там мог измениться status на won/lost + updated_at).
-      setDeals((prev) => prev.map((d) => (d.id === dealId ? res.deal : d)))
+      setStageData((prev) => {
+        const next = new Map(prev)
+        const row = next.get(toStageId!)
+        if (!row) return prev
+        next.set(toStageId!, {
+          deals: row.deals.map((d) => (d.id === dealId ? res.deal : d)),
+          total: row.total,
+        })
+        return next
+      })
     } catch (e: any) {
-      // Откатываем.
-      setDeals((prev) => prev.map((d) => (d.id === dealId ? { ...d, stage_id: from } : d)))
+      // Откатываем — ставим обратно.
+      moveDealLocally(dealId, toStageId, from)
       toast({
         variant: "destructive",
         title: "Не удалось переместить",
@@ -282,12 +424,16 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
         <div>
           <h2 className="text-xl font-semibold">Воронок пока нет</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Настройте воронки и стадии в разделе управления сделками
+            {canManagePipelines
+              ? "Настройте воронки и стадии в разделе управления сделками"
+              : "Обратитесь к владельцу системы — только он может настроить воронки"}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/admin/deals/pipelines">Настройка воронок</Link>
-        </Button>
+        {canManagePipelines && (
+          <Button asChild variant="outline">
+            <Link href="/admin/deals/pipelines">Настройка воронок</Link>
+          </Button>
+        )}
       </div>
     )
   }
@@ -296,7 +442,9 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     // min-w-0 нужен чтобы flex-child (наш root) не растягивался под ширину
     // содержимого — иначе `overflow-x-auto` ниже не сработает и вся
     // страница уедет вправо когда стадий много.
-    <div className="space-y-4 w-full min-w-0">
+    // `-mr-4 md:-mr-6` «съедает» правый padding админ-layout (`p-4 md:p-6`),
+    // чтобы доска доходила до самого края экрана — по просьбе юзера.
+    <div className="space-y-4 w-full min-w-0 -mr-4 md:-mr-6">
       {/* Шапка страницы */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -305,13 +453,20 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
           </div>
           <div>
             <h1 className="text-2xl font-semibold leading-tight">Сделки</h1>
-            <p className="text-sm text-gray-500">Всего в воронке: {deals.length}</p>
+            <p className="text-sm text-gray-500">Всего в воронке: {totalInPipeline}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="rounded-lg">
-            <Link href="/admin/deals/pipelines">Настройка воронок</Link>
-          </Button>
+          {canManagePipelines && (
+            <>
+              <Button asChild variant="outline" size="sm" className="rounded-lg">
+                <Link href="/admin/deals/pipelines">Настройка воронок</Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="rounded-lg">
+                <Link href="/admin/deals/sources">Источники</Link>
+              </Button>
+            </>
+          )}
           <Button
             size="sm"
             onClick={onCreate}
@@ -323,35 +478,38 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
         </div>
       </div>
 
-      {/* Табы воронок. `overflow-x-auto` по спеке клипит и по y тоже,
-          из-за чего тень активной кнопки обрезается ровной линией.
-          `py-4 -my-4` — запас 16px под тень (offset 4 + blur 12),
-          полная отрицательная компенсация чтобы вертикальный ритм
-          вокруг остался как без правки. */}
-      {pipelines.length > 1 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto py-4 -my-4">
-          {pipelines.map((p) => {
-            const active = p.id === activePipelineId
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setActivePipelineId(p.id)}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap bg-white",
-                  "transition-all duration-150 ease-out",
-                  active
-                    ? "bg-brand-yellow/25 text-black font-semibold border border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.35)]"
-                    : "text-gray-600 border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.10)] hover:-translate-y-[1px] hover:text-gray-900",
-                )}
-              >
-                {p.name}
-                {!p.active && <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>}
-              </button>
-            )
-          })}
+      {/* Выпадающий список воронок. Было табами — упиралось в ширину экрана
+          когда у юзера много воронок. Dropdown компактнее и держит сколько
+          угодно. Если воронка одна — показываем просто её имя без селекта. */}
+      {pipelines.length > 1 ? (
+        <div className="w-64">
+          <Select
+            value={activePipelineId != null ? String(activePipelineId) : ""}
+            onValueChange={(v) => setActivePipelineId(Number(v))}
+          >
+            <SelectTrigger className="w-full bg-white border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] rounded-lg font-semibold">
+              <SelectValue placeholder="Выберите воронку" />
+            </SelectTrigger>
+            <SelectContent>
+              {pipelines.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name}
+                  {!p.active && (
+                    <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+      ) : pipelines.length === 1 ? (
+        <div className="text-sm font-semibold text-gray-700">
+          {pipelines[0].name}
+          {!pipelines[0].active && (
+            <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
+          )}
+        </div>
+      ) : null}
 
       {/* Kanban */}
       <DndContext
@@ -366,7 +524,7 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
             их наполнение (новые сделки). */}
         <TopScrollbar
           targetRef={boardScrollRef}
-          deps={[stages.length, deals.length, activePipelineId]}
+          deps={[stages.length, allLoadedDeals.length, activePipelineId]}
         />
 
         <div
@@ -374,14 +532,15 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
           onMouseDown={handleBoardMouseDown}
           onContextMenu={(e) => e.preventDefault()}
           className={cn(
-            // `overflow-x-auto` неявно клипит и по y, из-за чего тени
-            // колонок обрезаются ровной линией по краям. Тень
-            // (offset 6 + blur 18) требует ~24px запаса; `pt-3 pb-6`
-            // — как раз столько. Отрицательные margin'ы компенсируют
-            // весь этот запас: сверху `-mt-3` возвращает вертикальный
-            // ритм, снизу `-mb-6` — тоже полностью (это последний
-            // блок в потоке, ниже ничего нет).
-            "flex gap-3 pt-3 -mt-3 pb-6 -mb-6 min-h-[400px] w-full max-w-full overflow-x-auto",
+            // Фиксированная высота = окно минус шапка/контролы (~260px).
+            // Внутри каждая колонка `h-full` → у неё bounded height →
+            // внутренняя зона с карточками скроллится независимо.
+            // `overflow-x-auto` неявно клипит и по y — отрицательные
+            // margin'ы компенсируют запас под тень колонок.
+            "flex gap-3 pt-3 -mt-3 pb-6 -mb-6 w-full max-w-full overflow-x-auto",
+            // Высота = окно - шапка/контролы (~180px). Колонки доходят
+            // почти до нижнего края viewport'а, с небольшим воздухом.
+            "h-[calc(100dvh-180px)] min-h-[400px]",
             // Прячем нативный горизонтальный скроллбар — управление
             // прокруткой через верхний жёлтый bar + правую кнопку.
             "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
@@ -390,31 +549,41 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
           )}
           title="Держите правую кнопку мыши и тяните — прокрутка колонок"
         >
-          {stages.map((s) => (
-            <KanbanColumn
-              key={s.id}
-              stage={s}
-              deals={dealsByStage.get(s.id) ?? []}
-              onOpenDeal={onOpenDeal}
-              movingId={movingId}
-              clientsById={clientsById}
-              usersById={usersById}
-            />
-          ))}
+          {stages.map((s) => {
+            const row = stageData.get(s.id)
+            const deals = dealsByStage.get(s.id) ?? []
+            const total = row?.total ?? 0
+            return (
+              <KanbanColumn
+                key={s.id}
+                stage={s}
+                deals={deals}
+                total={total}
+                onLoadMore={() => loadMoreForStage(s.id)}
+                loadingMore={loadingMoreStageId === s.id}
+                onOpenDeal={onOpenDeal}
+                movingId={movingId}
+                clientsById={clientsById}
+                usersById={usersById}
+              />
+            )
+          })}
         </div>
 
         <DragOverlay dropAnimation={null}>
-          {activeDrag ? (
-            <DealCard
-              deal={activeDrag}
-              isOverlay
-              clientsById={clientsById}
-              usersById={usersById}
-              stageColor={
-                stages.find((s) => s.id === activeDrag.stage_id)?.color
-              }
-            />
-          ) : null}
+          {activeDrag ? (() => {
+            const st = stages.find((s) => s.id === activeDrag.stage_id)
+            return (
+              <DealCard
+                deal={activeDrag}
+                isOverlay
+                clientsById={clientsById}
+                usersById={usersById}
+                stageColor={st?.color}
+                stageType={st?.type}
+              />
+            )
+          })() : null}
         </DragOverlay>
       </DndContext>
     </div>
@@ -428,6 +597,9 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
 function KanbanColumn({
   stage,
   deals,
+  total,
+  onLoadMore,
+  loadingMore,
   onOpenDeal,
   movingId,
   clientsById,
@@ -435,19 +607,25 @@ function KanbanColumn({
 }: {
   stage: DealStage
   deals: Deal[]
+  total: number
+  onLoadMore: () => void
+  loadingMore: boolean
   onOpenDeal?: (id: number) => void
   movingId: number | null
   clientsById: Map<number, string>
   usersById: Map<number, string>
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage-${stage.id}` })
+  const canLoadMore = deals.length < total
 
   return (
     <div
       className={cn(
-        "shrink-0 w-72 rounded-xl flex flex-col",
+        // w-60 = 240px — уже чем раньше (288), ближе к Б24-style колонкам.
+        // `h-full` → наследует bounded height доски → внутренний overflow
+        // работает независимо для каждой колонки.
+        "shrink-0 w-60 h-full rounded-xl flex flex-col",
         // Рамка — тонкая (`border`), цветом стадии через inline style.
-        // Тень — выразительная, чтобы колонка ощутимо «поднималась» над фоном.
         "border bg-gray-50/60 transition-all",
         "shadow-[0_6px_18px_rgba(0,0,0,0.10),0_2px_4px_rgba(0,0,0,0.06)]",
         isOver && "bg-brand-yellow/10 shadow-[0_12px_28px_rgba(250,204,21,0.30),0_4px_8px_rgba(250,204,21,0.20)]",
@@ -455,7 +633,8 @@ function KanbanColumn({
       style={{ borderColor: isOver ? "#facc15" : stage.color }}
     >
       {/* Header колонки — тонкая заливка цвета стадии для акцента.
-          rounded учитывает тонкую рамку (`border` = 1px). */}
+          rounded учитывает тонкую рамку (`border` = 1px). Показываем
+          «загружено/всего» — иначе юзер не поймёт, что скрыто. */}
       <div
         className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 rounded-t-[calc(0.75rem-1px)]"
         style={{ backgroundColor: `${stage.color}14` }}
@@ -473,14 +652,21 @@ function KanbanColumn({
             {stage.type === "lost" && <Ban className="h-3.5 w-3.5 text-red-500 shrink-0" />}
           </div>
         </div>
-        <span className="text-xs text-gray-500 tabular-nums">{deals.length}</span>
+        <span
+          className="text-xs text-gray-500 tabular-nums"
+          title={canLoadMore ? `Показано ${deals.length} из ${total}` : `Всего ${total}`}
+        >
+          {canLoadMore ? `${deals.length}/${total}` : total}
+        </span>
       </div>
 
       {/* Скроллящаяся зона с карточками. Отдельный ref от droppable —
-          хочется чтобы drop-детект работал по всей колонке. */}
+          хочется чтобы drop-детект работал по всей колонке. Независимый
+          overflow-y: родительская доска имеет фикс.высоту → `flex-1` + и
+          overflow-y-auto = свой скролл в каждой колонке. */}
       <div
         ref={setNodeRef}
-        className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[200px]"
+        className="flex-1 min-h-0 p-2 space-y-2 overflow-y-auto"
       >
         <SortableContext items={deals.map((d) => d.id)} strategy={verticalListSortingStrategy}>
           {deals.length === 0 ? (
@@ -497,8 +683,28 @@ function KanbanColumn({
                 clientsById={clientsById}
                 usersById={usersById}
                 stageColor={stage.color}
+                stageType={stage.type}
               />
             ))
+          )}
+
+          {canLoadMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="w-full h-8 rounded-lg text-xs mt-1 bg-white hover:bg-gray-50"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Загружаю…
+                </>
+              ) : (
+                <>Загрузить ещё {Math.min(10, total - deals.length)}</>
+              )}
+            </Button>
           )}
         </SortableContext>
       </div>
@@ -517,6 +723,7 @@ function SortableDealCard({
   clientsById,
   usersById,
   stageColor,
+  stageType,
 }: {
   deal: Deal
   onOpen?: (id: number) => void
@@ -524,6 +731,7 @@ function SortableDealCard({
   clientsById: Map<number, string>
   usersById: Map<number, string>
   stageColor?: string
+  stageType?: string
 }) {
   const {
     attributes,
@@ -549,6 +757,7 @@ function SortableDealCard({
         clientsById={clientsById}
         usersById={usersById}
         stageColor={stageColor}
+        stageType={stageType}
       />
     </div>
   )
@@ -562,6 +771,7 @@ function DealCard({
   clientsById,
   usersById,
   stageColor,
+  stageType,
 }: {
   deal: Deal
   onOpen?: (id: number) => void
@@ -570,7 +780,11 @@ function DealCard({
   clientsById: Map<number, string>
   usersById: Map<number, string>
   stageColor?: string
+  stageType?: string
 }) {
+  const isWon = stageType === "won"
+  const isLost = stageType === "lost"
+  const isFinal = isWon || isLost
   const amount = deal.amount != null ? formatAmount(deal.amount, deal.currency) : "—"
   const clientName =
     (deal.client_id != null && clientsById.get(deal.client_id)) || "—"
@@ -581,6 +795,10 @@ function DealCard({
   const closing = deal.expected_close_at
     ? formatClosingInfo(deal.expected_close_at)
     : null
+  // «Источник»: приоритет — ручной выбор (deal_source), затем автомат из
+  // ingest (source_name). Если нет ни того, ни другого — поле не рендерим.
+  const sourceLabel =
+    deal.deal_source?.name || deal.source_name || null
 
   return (
     <Card
@@ -604,61 +822,72 @@ function DealCard({
         }
       }}
     >
-      <div className="p-2.5 space-y-2">
-        {/* Название + priority marker */}
+      <div className="p-2 space-y-2">
+        {/* Название сделки — зачёркиваем для карточек в финальных
+            стадиях (won/lost). Это Б24-поведение: завершённая сделка
+            отображается как «закрытое дело», визуально отличимое от
+            активных. */}
         <div className="flex items-start gap-1.5">
-          {deal.priority === "high" && (
+          {deal.priority === "high" && !isFinal && (
             <Circle className="h-2 w-2 mt-1 fill-red-500 text-red-500 shrink-0" />
           )}
-          <h4 className="text-sm font-medium line-clamp-2 flex-1">{deal.name}</h4>
-          {deal.source_ref_type && (
-            <span
-              className="text-[10px] uppercase tracking-wider text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded shrink-0 max-w-[120px] truncate"
-              title={
-                deal.source_name
-                  ? `Источник: ${deal.source_name}`
-                  : `Из источника: ${deal.source_ref_type}`
-              }
-            >
-              {deal.source_name || "ingest"}
-            </span>
+          {isWon && (
+            <Trophy className="h-3 w-3 mt-0.5 text-emerald-600 shrink-0" />
+          )}
+          {isLost && (
+            <Ban className="h-3 w-3 mt-0.5 text-red-500 shrink-0" />
+          )}
+          <h4 className={cn(
+            "text-[13px] font-semibold leading-tight line-clamp-2 flex-1",
+            isFinal && "line-through",
+            isWon && "text-emerald-700",
+            isLost && "text-gray-400",
+          )}>
+            {deal.name}
+          </h4>
+        </div>
+
+        {/* Поля — каждое двумя строками: лейбл сверху, значение снизу. */}
+        <div className="space-y-1.5">
+          <Field label="Сумма">
+            <span className="font-semibold tabular-nums text-gray-900">{amount}</span>
+          </Field>
+
+          {deal.client_id != null && (
+            <Field label="Клиент">
+              <span className="truncate" title={clientName}>{clientName}</span>
+            </Field>
+          )}
+
+          {deal.responsible_user_id != null && (
+            <Field label="Ответственный">
+              <span className="flex items-center gap-1">
+                <span className="h-4 w-4 rounded-full bg-brand-yellow/60 text-[9px] font-semibold flex items-center justify-center shrink-0 text-black">
+                  {(responsibleName[0] || "?").toUpperCase()}
+                </span>
+                <span className="truncate" title={responsibleName}>
+                  {responsibleName}
+                </span>
+              </span>
+            </Field>
+          )}
+
+          {sourceLabel && (
+            <Field label="Источник">
+              <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
+            </Field>
           )}
         </div>
 
-        {/* Поля-метки. `grid-cols-[auto_1fr]` держит колонки-лейблы
-            выровненными по ширине самого длинного лейбла. */}
-        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-xs">
-          <span className="text-gray-500">Дата:</span>
-          <span className="text-gray-800 tabular-nums truncate">{created}</span>
-
-          <span className="text-gray-500">Клиент:</span>
-          <span className="text-gray-800 truncate" title={clientName}>
-            {clientName}
+        {/* Нижняя строка: относительная дата создания + подсказка просрочки. */}
+        <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5 border-t border-gray-100">
+          <span className="tabular-nums pt-1">
+            {formatRelative(deal.created_at) || created}
           </span>
-
-          <span className="text-gray-500">Отв.:</span>
-          <span className="text-gray-800 truncate" title={responsibleName}>
-            {responsibleName}
-          </span>
-
-          <span className="text-gray-500">Сумма:</span>
-          <span className="text-gray-800 font-semibold tabular-nums truncate">
-            {amount}
-          </span>
-
           {closing && (
-            <>
-              <span className="text-gray-500">Закрытие:</span>
-              <span className="text-gray-800 tabular-nums truncate">
-                {closing.date}
-              </span>
-              {/* Подсказка на отдельной строке без отступа лейблов
-                  (col-span-2), чтобы длинные фразы «просрочено на 12
-                  дней» не резались троеточием. */}
-              <span className={cn("col-span-2 truncate", closing.hintClass)}>
-                {closing.hint}
-              </span>
-            </>
+            <span className={cn("tabular-nums pt-1", closing.hintClass)}>
+              {closing.hint}
+            </span>
           )}
         </div>
       </div>
@@ -721,6 +950,30 @@ function plural(n: number, one: string, few: string, many: string): string {
   return `${n} ${word}`
 }
 
+/**
+ * Поле карточки сделки: лейбл сверху мелким серым, значение снизу.
+ * Используется в DealCard для компактной выдачи «Сумма / Клиент /
+ * Ответственный / Источник». Лейбл не truncate'ится, значение — да.
+ */
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider text-gray-400 leading-tight">
+        {label}
+      </div>
+      <div className="text-[12px] text-gray-800 leading-snug truncate">
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function formatDate(iso?: string): string {
   if (!iso) return "—"
   const d = new Date(iso)
@@ -730,6 +983,38 @@ function formatDate(iso?: string): string {
     month: "2-digit",
     year: "numeric",
   })
+}
+
+/**
+ * Короткая относительная дата для карточки канбана: «только что»,
+ * «17 минут назад», «3 часа назад», «вчера», «3 дня назад», иначе —
+ * обычная дата «15.10.2026». Для старых дат (>7 дней) всегда дата.
+ */
+function formatRelative(iso?: string): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const diffMs = Date.now() - d.getTime()
+  if (diffMs < 0) return formatDate(iso)
+  const sec = Math.floor(diffMs / 1000)
+  if (sec < 60) return "только что"
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min} ${pluralRu(min, "минуту", "минуты", "минут")} назад`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} ${pluralRu(hr, "час", "часа", "часов")} назад`
+  const dys = Math.floor(hr / 24)
+  if (dys === 1) return "вчера"
+  if (dys < 7) return `${dys} ${pluralRu(dys, "день", "дня", "дней")} назад`
+  return formatDate(iso)
+}
+
+/** Склонение числительных для русского (1 минута / 2 минуты / 5 минут). */
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
+  return many
 }
 
 // ============================================================================

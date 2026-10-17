@@ -19,7 +19,27 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      // Focus/data-open ring переопределяем на brand-yellow вместо
+      // чёрного `ring-ring` из shadcn-дефолта. Всплывало N раз в
+      // разных экранах, теперь чинится один раз тут — см. memory
+      // feedback_focus_ring_brand_yellow.
+      //
+      // `[&>span]:flex-1 [&>span]:text-left` — гарантирует что
+      // SelectValue (Radix оборачивает его в span) занимает всю
+      // доступную ширину trigger'а и рендерит текст слева, а не
+      // «прижимается» к центру когда содержимое короче ширины
+      // trigger'а (наблюдалось на «Любой приоритет» в 150px-triggerе).
+      // `gap-2` — отступ между содержимым (SelectValue) и chevron'ом
+      // справа. Нужен для `w-auto` вариантов, где `justify-between` не
+      // создаёт пустого места между flex-детьми (SelectValue+chevron
+      // равны ширине контейнера, chevron прилипает к тексту без gap).
+      "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-left ring-offset-background placeholder:text-muted-foreground",
+      "focus:outline-none focus-visible:outline-none",
+      "focus:ring-2 focus:ring-brand-yellow focus:ring-offset-0",
+      "focus-visible:ring-2 focus-visible:ring-brand-yellow focus-visible:ring-offset-0",
+      "data-[state=open]:ring-2 data-[state=open]:ring-brand-yellow data-[state=open]:ring-offset-0",
+      "disabled:cursor-not-allowed disabled:opacity-50",
+      "[&>span]:line-clamp-1 [&>span]:flex-1 [&>span]:text-left",
       className
     )}
     {...props}

@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, KPColumnSettings, KPTextElement, KP_FONT_FAMILIES, DEFAULT_COLUMN_WIDTHS, DEFAULT_COLUMN_ALIGNS } from '@/context/kp-context'
+import { DockChatButtonToHeader } from '@/context/chat-button-position-context'
 import { useRouter } from 'next/navigation'
 import { formatProductPrice } from '@/lib/utils'
 import { computeContractPerUnit } from '@/lib/calculator-shared'
@@ -1650,6 +1651,10 @@ export default function KPPage() {
   // ═══════════════════════════════════════════════
   return (
     <div className="h-[calc(100vh-96px)] flex flex-col overflow-hidden">
+      {/* Поднимает плавающую кнопку чата в правый верхний угол, пока юзер
+          внутри редактора КП. При выходе из экрана (unmount) кнопка плавно
+          возвращается вниз-право. */}
+      <DockChatButtonToHeader />
       {/* Hidden measurement table — same styles as A4, used to get real row heights */}
       <div
         aria-hidden

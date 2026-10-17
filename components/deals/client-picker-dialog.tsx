@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { Search, X, Check } from "lucide-react"
+import { Search, X, Check, Plus } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,12 @@ interface Props {
   onChange: (id: number | null) => void
   allowClear?: boolean
   title?: string
+  /**
+   * Если задано — показывает жёлтую кнопку «Создать новый контакт»
+   * сразу под строкой поиска. Клик закрывает модалку и вызывает callback,
+   * где родитель должен открыть свой quick-create диалог.
+   */
+  onCreateNew?: () => void
 }
 
 const NO_RING =
@@ -49,6 +55,7 @@ export default function ClientPickerDialog({
   onChange,
   allowClear = true,
   title = "Выбрать клиента",
+  onCreateNew,
 }: Props) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -127,28 +134,50 @@ export default function ClientPickerDialog({
             </DialogPrimitive.Close>
           </div>
 
-          {/* Поиск */}
+          {/* Поиск + «Создать новый» справа одной строкой. Жёлтая
+              кнопка перенесена сюда из карточки сделки — чтобы не
+              городить два плюса снаружи и чтобы юзер мог сначала
+              поискать и, не найдя, тут же создать нового. */}
           <div className="px-4 py-3 border-b border-gray-100 shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              <Input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск по ФИО / телефону / объекту"
-                className={cn("pl-9 pr-9", NO_RING)}
-              />
-              {query && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <Input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Поиск по ФИО / телефону / объекту"
+                  className={cn("pl-9 pr-9", NO_RING)}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded",
+                      NO_RING,
+                    )}
+                    aria-label="Очистить"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {onCreateNew && (
                 <button
                   type="button"
-                  onClick={() => setQuery("")}
+                  onClick={() => {
+                    onOpenChange(false)
+                    onCreateNew()
+                  }}
                   className={cn(
-                    "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded",
+                    "inline-flex items-center gap-1 h-10 px-3 rounded-md text-sm font-medium shrink-0",
+                    "bg-brand-yellow text-black hover:bg-yellow-500",
                     NO_RING,
                   )}
-                  aria-label="Очистить"
                 >
-                  <X className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
+                  Создать
                 </button>
               )}
             </div>

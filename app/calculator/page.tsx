@@ -12,6 +12,7 @@ import { StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { useKP, KPItem, WarehousePriceOption } from '@/context/kp-context'
+import { DockChatButtonToHeader } from '@/context/chat-button-position-context'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/hooks/use-toast'
 import { getCurrencies, refreshRates } from '@/app/actions/currencies'
@@ -946,6 +947,9 @@ export default function CalculatorPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
+      {/* Поднимает плавающую кнопку чата в верх страницы, пока юзер в
+          корпоративном расчётнике. На unmount возвращает её вниз-право. */}
+      <DockChatButtonToHeader />
       {/* Боковая навигация — фиксированная по левому краю viewport'a, по центру
           вертикально. Скрыта на узких экранах (md и меньше) чтобы не мешать,
           и ниже шапки сайта. Каждая кнопка скроллит к якорю своей секции.

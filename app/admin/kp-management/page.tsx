@@ -64,28 +64,29 @@ export default function KpManagementPage() {
   }, [forbidden, router])
 
   const toggle = (uid: number) => {
-    setAllowedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(uid)) next.delete(uid)
-      else next.add(uid)
-      // Сохраняем сразу — UX как у /admin/ai-consultant
-      const ids = Array.from(next)
-      startTransition(async () => {
-        setSaveState("saving")
-        const res = await updateKpSuperAdminConfig(ids)
-        if (res.success) {
-          setSaveState("saved")
-          setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1500)
-        } else {
-          setSaveState("error")
-          toast({
-            variant: "destructive",
-            title: "Не удалось сохранить",
-            description: res.error,
-          })
-        }
-      })
-      return next
+    // Вычисляем новый набор явно — не внутри updater'а setAllowedIds.
+    // React 18 запрещает вызывать startTransition из state-updater'а
+    // (он бежит во время рендера, а startTransition — эффект).
+    const next = new Set(allowedIds)
+    if (next.has(uid)) next.delete(uid)
+    else next.add(uid)
+    setAllowedIds(next)
+
+    const ids = Array.from(next)
+    startTransition(async () => {
+      setSaveState("saving")
+      const res = await updateKpSuperAdminConfig(ids)
+      if (res.success) {
+        setSaveState("saved")
+        setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1500)
+      } else {
+        setSaveState("error")
+        toast({
+          variant: "destructive",
+          title: "Не удалось сохранить",
+          description: res.error,
+        })
+      }
     })
   }
 

@@ -25,16 +25,41 @@ import {
   Ban,
   ChevronDown,
   ChevronUp,
+  GripVertical,
   Loader2,
   Plus,
   RotateCcw,
   Save,
   Trash2,
   Trophy,
+  Users,
 } from "lucide-react"
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -61,6 +86,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/auth-context"
 import { cn } from "@/lib/utils"
 import { crmGet, crmPost, crmPut, crmDelete } from "@/lib/crm-fetch"
 import type {
@@ -174,6 +200,17 @@ function deepClone(list: DraftPipeline[]): DraftPipeline[] {
 export default function PipelinesManager() {
   const { toast } = useToast()
   const router = useRouter()
+  const { user } = useAuth()
+
+  // Гейт по спец-праву: только владелец или юзер с can_manage_pipelines.
+  // Остальных сразу выкидываем в /admin/deals (кнопка уже спрятана в
+  // deals-kanban, эта проверка — на случай прямого захода по URL).
+  const canManagePipelines = Boolean(
+    user && (user.is_owner || user.can_manage_pipelines),
+  )
+  useEffect(() => {
+    if (user && !canManagePipelines) router.replace("/admin/deals")
+  }, [user, canManagePipelines, router])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -189,6 +226,17 @@ export default function PipelinesManager() {
   } | null>(null)
   // Модалка «Уйти с несохранёнными правками?»
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
+
+  // Модалка «Кто видит воронку» (dialog открывается по иконке Users
+  // в заголовке карточки воронки). Пустой список viewers = публичная.
+  const [viewersModal, setViewersModal] = useState<{
+    pipelineServerId: number
+    pipelineName: string
+    allowed: Set<number>
+    users: Array<{ id: number; email: string; full_name: string; is_owner: boolean }>
+    loading: boolean
+    saving: boolean
+  } | null>(null)
 
   // ----- Load once -----
 
@@ -342,6 +390,85 @@ export default function PipelinesManager() {
     setActiveKey(p.clientKey)
   }
 
+  // DnD sensors — требуют небольшого удержания/смещения, чтобы клик по
+  // ряду воронки не ломал обычный выбор. Pointer с activationConstraint.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  )
+
+  const handlePipelineDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    reorderPipelines(String(active.id), String(over.id))
+  }
+
+  const handleStageDragEnd = (pipelineKey: string) => (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    reorderStages(pipelineKey, String(active.id), String(over.id))
+  }
+
+  const openViewersModal = async (serverId: number, name: string) => {
+    setViewersModal({
+      pipelineServerId: serverId,
+      pipelineName: name,
+      allowed: new Set(),
+      users: [],
+      loading: true,
+      saving: false,
+    })
+    try {
+      const resp = await crmGet<{
+        allowed_user_ids: number[]
+        system_users: Array<{ id: number; email: string; full_name: string; is_owner: boolean }>
+      }>(`/api/admin/deal-pipelines/${serverId}/viewers`)
+      setViewersModal((cur) =>
+        cur && cur.pipelineServerId === serverId
+          ? {
+              ...cur,
+              allowed: new Set(resp.allowed_user_ids || []),
+              users: resp.system_users || [],
+              loading: false,
+            }
+          : cur,
+      )
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось загрузить список",
+        description: e?.message,
+      })
+      setViewersModal(null)
+    }
+  }
+
+  const toggleViewer = (uid: number) => {
+    setViewersModal((cur) => {
+      if (!cur) return cur
+      const next = new Set(cur.allowed)
+      if (next.has(uid)) next.delete(uid)
+      else next.add(uid)
+      return { ...cur, allowed: next }
+    })
+  }
+
+  const saveViewers = async () => {
+    if (!viewersModal) return
+    const sid = viewersModal.pipelineServerId
+    const ids = Array.from(viewersModal.allowed)
+    setViewersModal({ ...viewersModal, saving: true })
+    try {
+      await crmPut(`/api/admin/deal-pipelines/${sid}/viewers`, { user_ids: ids })
+      toast({
+        title: ids.length === 0 ? "Воронка публичная" : `Доступ выдан (${ids.length})`,
+      })
+      setViewersModal(null)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Не удалось сохранить", description: e?.message })
+      setViewersModal((cur) => (cur ? { ...cur, saving: false } : cur))
+    }
+  }
+
   const requestDeletePipeline = (key: string) => setDeletePipelineKey(key)
   const confirmDeletePipeline = () => {
     if (!deletePipelineKey) return
@@ -375,6 +502,35 @@ export default function PipelinesManager() {
     // в конце (порядок не важен для _deleted).
     const deleted = draft.filter((p) => p._deleted)
     setDraft([...visible, ...deleted])
+  }
+
+  const reorderPipelines = (fromKey: string, toKey: string) => {
+    if (fromKey === toKey) return
+    const visible = draft.filter((p) => !p._deleted)
+    const from = visible.findIndex((p) => p.clientKey === fromKey)
+    const to = visible.findIndex((p) => p.clientKey === toKey)
+    if (from < 0 || to < 0) return
+    const [moved] = visible.splice(from, 1)
+    visible.splice(to, 0, moved)
+    const deleted = draft.filter((p) => p._deleted)
+    setDraft([...visible, ...deleted])
+  }
+
+  const reorderStages = (pKey: string, fromSKey: string, toSKey: string) => {
+    if (fromSKey === toSKey) return
+    setDraft((prev) =>
+      prev.map((p) => {
+        if (p.clientKey !== pKey) return p
+        const visible = p.stages.filter((s) => !s._deleted)
+        const from = visible.findIndex((s) => s.clientKey === fromSKey)
+        const to = visible.findIndex((s) => s.clientKey === toSKey)
+        if (from < 0 || to < 0) return p
+        const [moved] = visible.splice(from, 1)
+        visible.splice(to, 0, moved)
+        const deleted = p.stages.filter((s) => s._deleted)
+        return { ...p, stages: [...visible, ...deleted] }
+      }),
+    )
   }
 
   const addStage = () => {
@@ -619,7 +775,7 @@ export default function PipelinesManager() {
     return () => window.removeEventListener("beforeunload", handler)
   }, [isDirty])
 
-  if (loading) {
+  if (loading || (user && !canManagePipelines)) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -691,77 +847,9 @@ export default function PipelinesManager() {
             </div>
           )}
           <Card className="rounded-xl border-gray-200 p-3 space-y-2 h-fit">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 px-1">
-            Воронки
-          </h2>
-          <div className="space-y-1">
-            {visiblePipelines.length === 0 && (
-              <div className="text-xs text-gray-500 py-3 text-center">
-                Пока нет
-              </div>
-            )}
-            {visiblePipelines.map((p, i) => {
-              const isNew = p.serverId == null
-              const isRenamed =
-                p.serverId != null &&
-                snapshot.find((x) => x.clientKey === p.clientKey)?.name !== p.name
-              return (
-                <div
-                  key={p.clientKey}
-                  className={cn(
-                    "flex items-center gap-1 rounded-lg border p-2 transition-colors",
-                    activeKey === p.clientKey
-                      ? "border-brand-yellow bg-brand-yellow/15"
-                      : "border-gray-200 hover:bg-gray-50 cursor-pointer",
-                    !p.active && "opacity-60",
-                  )}
-                  onClick={() =>
-                    activeKey !== p.clientKey && setActiveKey(p.clientKey)
-                  }
-                >
-                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                    <span className="text-sm font-medium truncate">
-                      {p.name}
-                    </span>
-                    {isNew && (
-                      <span className="text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-700 rounded px-1 shrink-0">
-                        new
-                      </span>
-                    )}
-                    {isRenamed && (
-                      <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-700 rounded px-1 shrink-0">
-                        edit
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <IconBtn
-                      title="Вверх"
-                      disabled={i === 0}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        movePipeline(p.clientKey, -1)
-                      }}
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </IconBtn>
-                    <IconBtn
-                      title="Вниз"
-                      disabled={i === visiblePipelines.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        movePipeline(p.clientKey, 1)
-                      }}
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </IconBtn>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="pt-2 border-t border-gray-100">
+          {/* Сверху — создание новой воронки, чтобы часто используемое поле
+              было сразу под рукой (не нужно скроллить к низу карточки). */}
+          <div>
             <Label className="text-xs text-gray-500">Новая воронка</Label>
             <div className="flex gap-1 mt-1">
               <Input
@@ -786,6 +874,54 @@ export default function PipelinesManager() {
               Не создаётся сразу — уйдёт на бэк после «Сохранить».
             </p>
           </div>
+
+          <div className="pt-2 border-t border-gray-100">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 px-1">
+              Воронки
+            </h2>
+            <div className="space-y-1 mt-2">
+              {visiblePipelines.length === 0 && (
+                <div className="text-xs text-gray-500 py-3 text-center">
+                  Пока нет
+                </div>
+              )}
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handlePipelineDragEnd}
+              >
+                <SortableContext
+                  items={visiblePipelines.map((p) => p.clientKey)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {visiblePipelines.map((p, i) => {
+                    const isNew = p.serverId == null
+                    const isRenamed =
+                      p.serverId != null &&
+                      snapshot.find((x) => x.clientKey === p.clientKey)?.name !== p.name
+                    return (
+                      <SortablePipelineRow
+                        key={p.clientKey}
+                        clientKey={p.clientKey}
+                        name={p.name}
+                        active={activeKey === p.clientKey}
+                        enabled={p.active}
+                        isNew={isNew}
+                        isRenamed={isRenamed}
+                        canUp={i > 0}
+                        canDown={i < visiblePipelines.length - 1}
+                        onSelect={() =>
+                          activeKey !== p.clientKey && setActiveKey(p.clientKey)
+                        }
+                        onMoveUp={() => movePipeline(p.clientKey, -1)}
+                        onMoveDown={() => movePipeline(p.clientKey, 1)}
+                      />
+                    )
+                  })}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </div>
           </Card>
         </div>
 
@@ -805,6 +941,21 @@ export default function PipelinesManager() {
                     updatePipeline(active.clientKey, { name: e.target.value })
                   }
                 />
+                {/* Иконка «Пользователи» — открывает модалку "кто видит воронку".
+                    Доступна только для СОХРАНЁННЫХ воронок (есть serverId).
+                    Для свежесозданной (ещё не нажато «Сохранить») — скрыта
+                    (нечего гейтить, записи на бэке ещё нет). */}
+                {active.serverId !== null && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openViewersModal(active.serverId!, active.name)}
+                    className="text-gray-600 hover:bg-gray-100 rounded-full shrink-0"
+                    title="Кто видит воронку"
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                )}
                 <div className="flex items-center gap-2 shrink-0">
                   <Switch
                     checked={active.active}
@@ -828,50 +979,147 @@ export default function PipelinesManager() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-                    Стадии
-                  </h3>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={addStage}
-                    className="rounded-lg"
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Добавить
-                  </Button>
-                </div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                  Стадии
+                </h3>
 
                 {visibleStages.length === 0 ? (
                   <div className="text-sm text-gray-500 text-center py-8 border border-dashed border-gray-300 rounded-lg">
                     Стадий нет — добавьте первую
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {visibleStages.map((s, i) => (
-                      <StageRow
-                        key={s.clientKey}
-                        stage={s}
-                        onUpdate={(patch) =>
-                          updateStage(active.clientKey, s.clientKey, patch)
-                        }
-                        onDelete={() =>
-                          requestDeleteStage(active.clientKey, s.clientKey)
-                        }
-                        onMove={(dir) =>
-                          moveStage(active.clientKey, s.clientKey, dir)
-                        }
-                        canMoveUp={i > 0}
-                        canMoveDown={i < visibleStages.length - 1}
-                      />
-                    ))}
-                  </div>
+                  <DndContext
+                    sensors={dndSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleStageDragEnd(active.clientKey)}
+                  >
+                    <SortableContext
+                      items={visibleStages.map((s) => s.clientKey)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {visibleStages.map((s, i) => (
+                          <SortableStageWrapper key={s.clientKey} id={s.clientKey}>
+                            {({ dragHandleProps }) => (
+                              <StageRow
+                                stage={s}
+                                onUpdate={(patch) =>
+                                  updateStage(active.clientKey, s.clientKey, patch)
+                                }
+                                onDelete={() =>
+                                  requestDeleteStage(active.clientKey, s.clientKey)
+                                }
+                                onMove={(dir) =>
+                                  moveStage(active.clientKey, s.clientKey, dir)
+                                }
+                                canMoveUp={i > 0}
+                                canMoveDown={i < visibleStages.length - 1}
+                                dragHandleProps={dragHandleProps}
+                              />
+                            )}
+                          </SortableStageWrapper>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
+
+                {/* «Добавить стадию» снизу — единственная кнопка (верхнюю
+                    убрали по дизайну). Видна всегда, в т.ч. в пустом состоянии. */}
+                <div className="pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={addStage}
+                    className="rounded-lg w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Добавить стадию
+                  </Button>
+                </div>
               </div>
             </div>
           )}
         </Card>
       </div>
+
+      {/* Модалка «Кто видит воронку» */}
+      <Dialog
+        open={Boolean(viewersModal)}
+        onOpenChange={(v) => !v && !viewersModal?.saving && setViewersModal(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Доступ к воронке</DialogTitle>
+            <DialogDescription>
+              {viewersModal?.pipelineName
+                ? `Выберите пользователей, которым будет видна воронка «${viewersModal.pipelineName}». `
+                : "Выберите пользователей, которым будет видна воронка. "}
+              Если никто не выбран — воронка публичная (видна всем).
+              Владелец и управляющие воронками видят её всегда.
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewersModal?.loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
+              {viewersModal?.users
+                .filter((u) => !u.is_owner)
+                .map((u) => {
+                  const checked = viewersModal.allowed.has(u.id)
+                  return (
+                    <label
+                      key={u.id}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-all bg-white",
+                        checked
+                          ? "border-blue-400 shadow-[0_2px_6px_rgba(59,130,246,0.20)]"
+                          : "border-gray-200 hover:border-gray-300",
+                      )}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleViewer(u.id)}
+                        className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {u.full_name || u.email}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{u.email}</div>
+                      </div>
+                    </label>
+                  )
+                })}
+              {viewersModal && viewersModal.users.filter((u) => !u.is_owner).length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  Нет других пользователей
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setViewersModal(null)}
+              disabled={viewersModal?.saving}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={saveViewers}
+              disabled={viewersModal?.saving || viewersModal?.loading}
+              className="bg-brand-yellow text-black hover:bg-yellow-500"
+            >
+              {viewersModal?.saving && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirms */}
       <AlertDialog
@@ -982,6 +1230,7 @@ function StageRow({
   onMove,
   canMoveUp,
   canMoveDown,
+  dragHandleProps,
 }: {
   stage: DraftStage
   onUpdate: (patch: Partial<DraftStage>) => void
@@ -989,6 +1238,7 @@ function StageRow({
   onMove: (dir: -1 | 1) => void
   canMoveUp: boolean
   canMoveDown: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
 }) {
   const typeMeta =
     STAGE_TYPES.find((t) => t.value === stage.type) ?? STAGE_TYPES[0]
@@ -997,6 +1247,14 @@ function StageRow({
 
   return (
     <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-2 bg-white">
+      <button
+        type="button"
+        {...(dragHandleProps || {})}
+        className="h-6 w-5 flex items-center justify-center text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing shrink-0"
+        title="Перетащить"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
       <div className="flex items-center gap-0.5 shrink-0">
         <IconBtn title="Вверх" disabled={!canMoveUp} onClick={() => onMove(-1)}>
           <ChevronUp className="h-3.5 w-3.5" />
@@ -1056,6 +1314,127 @@ function StageRow({
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+    </div>
+  )
+}
+
+// ============================================================================
+// Sortable wrappers (DnD)
+// ============================================================================
+
+function SortablePipelineRow({
+  clientKey,
+  name,
+  active,
+  enabled,
+  isNew,
+  isRenamed,
+  canUp,
+  canDown,
+  onSelect,
+  onMoveUp,
+  onMoveDown,
+}: {
+  clientKey: string
+  name: string
+  active: boolean
+  enabled: boolean
+  isNew: boolean
+  isRenamed: boolean
+  canUp: boolean
+  canDown: boolean
+  onSelect: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: clientKey })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-1 rounded-lg border p-2 transition-colors",
+        active
+          ? "border-brand-yellow bg-brand-yellow/15"
+          : "border-gray-200 hover:bg-gray-50 cursor-pointer",
+        !enabled && "opacity-60",
+      )}
+      onClick={() => onSelect()}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="h-5 w-5 flex items-center justify-center text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing shrink-0"
+        title="Перетащить"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        <span className="text-sm font-medium truncate">{name}</span>
+        {isNew && (
+          <span className="text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-700 rounded px-1 shrink-0">
+            new
+          </span>
+        )}
+        {isRenamed && (
+          <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-700 rounded px-1 shrink-0">
+            edit
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0">
+        <IconBtn
+          title="Вверх"
+          disabled={!canUp}
+          onClick={(e) => {
+            e.stopPropagation()
+            onMoveUp()
+          }}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </IconBtn>
+        <IconBtn
+          title="Вниз"
+          disabled={!canDown}
+          onClick={(e) => {
+            e.stopPropagation()
+            onMoveDown()
+          }}
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </IconBtn>
+      </div>
+    </div>
+  )
+}
+
+function SortableStageWrapper({
+  id,
+  children,
+}: {
+  id: string
+  children: (opts: {
+    dragHandleProps: React.HTMLAttributes<HTMLButtonElement>
+  }) => React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ dragHandleProps: { ...attributes, ...listeners } as any })}
     </div>
   )
 }

@@ -2,8 +2,11 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink, Crown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useChatUnread } from "@/context/chat-unread-context"
+import WebPushBell from "@/components/web-push-bell"
+import WebPushLock from "@/components/web-push-lock"
 import type { AdminMode, AdminNavSection } from "@/lib/admin-nav-config"
 
 interface Props {
@@ -23,6 +26,19 @@ interface Props {
  * этот пункт и автоматически сворачивает сайдбар — этим занимается
  * AdminLayout, здесь мы только отдаём наружу id раздела.
  */
+/**
+ * Количество непрочитанных для конкретного раздела CRM. Секции с id
+ * chat/deals/tasks маплю на соответствующее поле контекста; остальным —
+ * 0.
+ */
+function unreadForSection(sectionId: string, ctx: ReturnType<typeof useChatUnread>): number {
+  // «Чат» — только rooms.unread, notifCounts.chat уже дублирует.
+  if (sectionId === "chat") return ctx.chatUnread
+  if (sectionId === "deals") return ctx.dealUnreadIds.size + (ctx.notifCounts?.deals || 0)
+  if (sectionId === "tasks") return ctx.taskUnreadIds.size + (ctx.notifCounts?.tasks || 0)
+  return 0
+}
+
 export default function AdminHeaderNav({
   isCollapsed,
   onCollapseToggle,
@@ -32,6 +48,16 @@ export default function AdminHeaderNav({
   activeSectionId,
   onSectionSelect,
 }: Props) {
+  const unread = useChatUnread()
+  // Суммарный «CRM-непрочит» для бейджа на кнопке CRM в segmented —
+  // виден когда user в PosPro Shop mode, чтобы он видел что в CRM ждёт
+  // непрочитанное. Сумма: чат-комнаты + сделки с непрочитанным +
+  // задачи с непрочитанным (в единицах-сущностях, как у pill'ов ниже).
+  // notifCounts.chat не считаем — он дублирует chatUnread.
+  const crmUnreadTotal =
+    unread.chatUnread + unread.dealUnreadIds.size + unread.taskUnreadIds.size +
+    (unread.notifCounts?.deals || 0) +
+    (unread.notifCounts?.tasks || 0)
   return (
     <div className="sticky top-0 z-40 h-16 flex items-center gap-2 px-3 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
       <Button
@@ -63,13 +89,25 @@ export default function AdminHeaderNav({
           type="button"
           onClick={() => onModeChange("crm")}
           className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap",
+            "relative rounded-md px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap",
+            "inline-flex items-center justify-center gap-1.5",
             mode === "crm"
               ? "bg-brand-yellow text-black shadow-[0_2px_6px_rgba(250,204,21,0.35)]"
               : "text-gray-500 hover:text-gray-900",
           )}
         >
           CRM
+          {mode !== "crm" && crmUnreadTotal > 0 && (
+            <span
+              title={`Непрочитанных в CRM: ${crmUnreadTotal}`}
+              className={cn(
+                "inline-flex items-center justify-center min-w-[16px] h-[16px] px-1",
+                "rounded-full bg-red-500 text-white text-[9px] font-semibold shrink-0",
+              )}
+            >
+              {crmUnreadTotal > 9 ? "9+" : crmUnreadTotal}
+            </span>
+          )}
         </button>
       </div>
 
@@ -88,13 +126,16 @@ export default function AdminHeaderNav({
       >
         {sections.map((s) => {
           const active = s.id === activeSectionId
+          const unreadCount = unreadForSection(s.id, unread)
           return (
             <button
               key={s.id}
               type="button"
               onClick={() => onSectionSelect(s.id)}
+              title={s.ownerOnly ? "Виден только владельцу" : undefined}
               className={cn(
                 "shrink-0 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap bg-white",
+                "inline-flex items-center gap-1.5",
                 "transition-all duration-150 ease-out will-change-transform",
                 active
                   ? "bg-brand-yellow/25 text-black font-semibold border border-brand-yellow shadow-[0_4px_12px_rgba(250,204,21,0.35)]"
@@ -102,10 +143,27 @@ export default function AdminHeaderNav({
               )}
             >
               {s.label}
+              {s.ownerOnly && (
+                <Crown className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              )}
+              {unreadCount > 0 && (
+                <span
+                  title={`Непрочитанных: ${unreadCount}`}
+                  className={cn(
+                    "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1",
+                    "rounded-full bg-red-500 text-white text-[10px] font-semibold shrink-0",
+                  )}
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
           )
         })}
       </div>
+
+      <WebPushBell />
+      <WebPushLock />
 
       <Link
         href="/"

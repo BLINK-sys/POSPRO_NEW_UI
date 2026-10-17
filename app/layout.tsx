@@ -6,11 +6,14 @@ import "./globals.css"
 import { cn } from "@/lib/utils"
 import { AuthProvider } from "@/context/auth-context"
 import { AdminToolsProvider } from "@/context/admin-tools-context"
+import { ChatButtonPositionProvider } from "@/context/chat-button-position-context"
 import { CartProvider } from "@/context/cart-context"
 import { CatalogPanelProvider } from "@/context/catalog-panel-context"
 import { KPProvider } from "@/context/kp-context"
 import { BulkRecalcProvider } from "@/context/bulk-recalc-context"
 import { CompareProvider } from "@/context/compare-context"
+import { ChatUnreadAutoProvider } from "@/context/chat-unread-context"
+import ChatWidget from "@/components/chat-widget"
 import { BulkRecalcFloatingButton } from "@/components/bulk-recalc-floating-button"
 import { BulkRecalcDialog } from "@/components/bulk-recalc-dialog"
 import { CompareReplaceDialog } from "@/components/compare-replace-dialog"
@@ -69,6 +72,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         <AuthProvider initialUser={user}>
+          <ChatUnreadAutoProvider>
+          <ChatButtonPositionProvider>
           <AdminToolsProvider>
           <CartProvider>
             <KPProvider>
@@ -89,6 +94,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                         доступен через иконку «Сравнение» в шапке —
                         плавающая полоса больше не нужна. */}
                     <CompareReplaceDialog />
+                    {/* Плавающий чат-виджет — только для admin/system,
+                        живёт справа-снизу на всех страницах включая
+                        витрину. */}
+                    <ChatWidget />
                     <Toaster />
                   </CompareProvider>
                 </BulkRecalcProvider>
@@ -96,6 +105,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             </KPProvider>
           </CartProvider>
           </AdminToolsProvider>
+          </ChatButtonPositionProvider>
+          </ChatUnreadAutoProvider>
         </AuthProvider>
       </body>
     </html>

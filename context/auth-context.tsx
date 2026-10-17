@@ -21,10 +21,15 @@ interface User {
   delivery_address?: string
   iin?: string
   bin?: string
-  role: "client" | "admin" | "system"
+  role: "client" | "admin" | "system" | string
   is_wholesale?: boolean | string | number
   isWholesale?: boolean | string | number
   wholesale?: boolean | string | number
+  is_owner?: boolean
+  can_see_all_deals?: boolean
+  can_see_all_tasks?: boolean
+  can_manage_pipelines?: boolean
+  can_manage_projects?: boolean
   [key: string]: any
 }
 

@@ -9,7 +9,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react"
-import { Copy, Loader2, Check } from "lucide-react"
+import { Copy, Loader2, Check, Plus } from "lucide-react"
+import DealSourceQuickCreateDialog from "./deal-source-quick-create"
+import EntityPickerDialog from "./entity-picker-dialog"
 
 import {
   Dialog,
@@ -60,16 +62,48 @@ interface SystemUser {
   email: string
 }
 
-const PLACEHOLDERS = [
-  "{source_ref_id}",
-  "{client.name}",
-  "{client.email}",
-  "{client.phone}",
-  "{product_name}",
-  "{amount}",
-  "{currency}",
-  "{external_url}",
-]
+// Маппинг «технический плейсхолдер (как в БД) → русский для UI». В БД и в
+// рендере на бэке используются английские (`{client.name}` и т.п.). Юзеру
+// в UI показываем русские — вставляем русские, при сохранении на бэк
+// конвертируем обратно в английские через `toStorage`. При загрузке
+// существующей записи — через `toDisplay`.
+const PLACEHOLDER_MAP: Record<string, string> = {
+  "{source_ref_id}": "{ID источника}",
+  "{client.name}": "{Имя клиента}",
+  "{client.email}": "{Email клиента}",
+  "{client.phone}": "{Телефон клиента}",
+  "{product_name}": "{Название товара}",
+  "{amount}": "{Сумма}",
+  "{currency}": "{Валюта}",
+  "{external_url}": "{Внешняя ссылка}",
+}
+
+const PLACEHOLDERS = Object.values(PLACEHOLDER_MAP)
+
+// Заменить en→ru (для показа в UI). Берём ключи длиннее-first чтобы не
+// словить префиксное наложение (напр. `{client.name}` раньше `{client}`).
+function toDisplay(text: string | null | undefined): string {
+  if (!text) return ""
+  let out = text
+  for (const [en, ru] of Object.entries(PLACEHOLDER_MAP).sort(
+    (a, b) => b[0].length - a[0].length,
+  )) {
+    out = out.split(en).join(ru)
+  }
+  return out
+}
+
+// Заменить ru→en (при сохранении на бэк).
+function toStorage(text: string | null | undefined): string {
+  if (!text) return ""
+  let out = text
+  for (const [en, ru] of Object.entries(PLACEHOLDER_MAP).sort(
+    (a, b) => b[1].length - a[1].length,
+  )) {
+    out = out.split(ru).join(en)
+  }
+  return out
+}
 
 const SAMPLE_PAYLOAD_TEMPLATE = {
   source_ref_id: "12345",
@@ -112,6 +146,12 @@ export default function SourceBuilder({
     useState<CrmIngestClientResolution>("find_by_email")
   const [dedupeByRef, setDedupeByRef] = useState(true)
   const [active, setActive] = useState(true)
+  const [defaultDealSourceId, setDefaultDealSourceId] = useState<string>("")
+  const [dealSources, setDealSources] = useState<
+    Array<{ id: number; name: string; color: string | null; is_active: boolean }>
+  >([])
+  const [quickSourceOpen, setQuickSourceOpen] = useState(false)
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
 
   const [saving, setSaving] = useState(false)
   // Показываем «Хук готов» после первого создания webhook'а.
@@ -140,11 +180,15 @@ export default function SourceBuilder({
       console.error("load system users:", e)
       return [] as SystemUser[]
     })
-    Promise.all([loadPipelines, loadUsers]).then(([p, u]) => {
+    const loadSources = crmGet<{
+      sources: Array<{ id: number; name: string; color: string | null; is_active: boolean }>
+    }>("/api/admin/deal-sources").catch(() => ({ sources: [] }))
+    Promise.all([loadPipelines, loadUsers, loadSources]).then(([p, u, src]) => {
       if (ignore) return
       setPipelines(p.pipelines || [])
       const users = Array.isArray(u) ? u : u.users || []
       setSystemUsers(users)
+      setDealSources(src.sources || [])
     })
     return () => {
       ignore = true
@@ -162,8 +206,8 @@ export default function SourceBuilder({
       setName(initial.name)
       setPipelineId(String(initial.pipeline_id))
       setStageId(String(initial.stage_id))
-      setTitleTemplate(initial.title_template)
-      setNotesTemplate(initial.notes_template || "")
+      setTitleTemplate(toDisplay(initial.title_template))
+      setNotesTemplate(toDisplay(initial.notes_template || ""))
       setPoolIds(initial.pool_user_ids || [])
       setStrategy(initial.assignment_strategy)
       setFixedUserId(initial.fixed_user_id ? String(initial.fixed_user_id) : "")
@@ -171,11 +215,16 @@ export default function SourceBuilder({
       setClientResolution(initial.client_resolution)
       setDedupeByRef(initial.dedupe_by_ref)
       setActive(initial.active)
+      setDefaultDealSourceId(
+        initial.default_deal_source_id != null
+          ? String(initial.default_deal_source_id)
+          : "",
+      )
     } else {
       setName("")
       setPipelineId("")
       setStageId("")
-      setTitleTemplate("Заявка #{source_ref_id}")
+      setTitleTemplate(toDisplay("Заявка #{source_ref_id}"))
       setNotesTemplate("")
       setPoolIds([])
       setStrategy("unassigned")
@@ -184,6 +233,7 @@ export default function SourceBuilder({
       setClientResolution("find_by_email")
       setDedupeByRef(true)
       setActive(true)
+      setDefaultDealSourceId("")
     }
   }, [open, initial])
 
@@ -222,14 +272,15 @@ export default function SourceBuilder({
         name: name.trim(),
         pipeline_id: Number(pipelineId),
         stage_id: Number(stageId),
-        title_template: titleTemplate.trim(),
-        notes_template: notesTemplate.trim() || null,
+        title_template: toStorage(titleTemplate.trim()),
+        notes_template: toStorage(notesTemplate.trim()) || null,
         priority,
         assignment_strategy: strategy,
         pool_user_ids: strategy === "fixed" || strategy === "unassigned" ? [] : poolIds,
         fixed_user_id:
           strategy === "fixed" && fixedUserId ? Number(fixedUserId) : null,
         client_resolution: clientResolution,
+        default_deal_source_id: defaultDealSourceId ? Number(defaultDealSourceId) : null,
         dedupe_by_ref: dedupeByRef,
         active,
       }
@@ -360,7 +411,7 @@ export default function SourceBuilder({
                 <Input
                   value={titleTemplate}
                   onChange={(e) => setTitleTemplate(e.target.value)}
-                  placeholder="Заказ с CAMPO — {source_ref_id}"
+                  placeholder="Заказ с CAMPO — {ID источника}"
                 />
                 <PlaceholderChips
                   onInsert={(p) => insertPlaceholder(p, "title")}
@@ -520,6 +571,51 @@ export default function SourceBuilder({
               </div>
             </div>
 
+            <div className="pt-2">
+              <Label className="text-xs text-gray-600">Источник сделки по умолчанию</Label>
+              <p className="text-[11px] text-gray-500 mt-0.5 mb-1.5">
+                Проставится в поле «Источник сделки» для сделок, созданных
+                через этот хук. Если не выбран — поле останется пустым.
+              </p>
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const current = dealSources.find(
+                    (s) => String(s.id) === defaultDealSourceId,
+                  )
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setSourcePickerOpen(true)}
+                      className="flex-1 h-10 px-3 text-sm text-left rounded-md border border-input bg-background flex items-center gap-2 hover:bg-gray-50 transition-colors"
+                    >
+                      {current ? (
+                        <>
+                          {current.color && (
+                            <span
+                              className="h-2.5 w-2.5 rounded-full border border-gray-200 shrink-0"
+                              style={{ backgroundColor: current.color }}
+                            />
+                          )}
+                          <span className="truncate">{current.name}</span>
+                        </>
+                      ) : (
+                        <span className="text-gray-400">Не указан</span>
+                      )}
+                    </button>
+                  )
+                })()}
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => setQuickSourceOpen(true)}
+                  className="h-10 w-10 shrink-0 bg-brand-yellow text-black hover:bg-yellow-500"
+                  title="Создать источник"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 pt-2">
               <label className="flex items-center gap-3 border border-gray-200 rounded-lg p-3 cursor-pointer">
                 <Switch checked={dedupeByRef} onCheckedChange={setDedupeByRef} />
@@ -557,6 +653,41 @@ export default function SourceBuilder({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <EntityPickerDialog
+        open={sourcePickerOpen}
+        onOpenChange={setSourcePickerOpen}
+        title="Источник сделки по умолчанию"
+        searchPlaceholder="Поиск по названию"
+        emptyText="Источники не найдены"
+        clearText="Не указан"
+        value={defaultDealSourceId ? Number(defaultDealSourceId) : null}
+        onChange={(id) => setDefaultDealSourceId(id != null ? String(id) : "")}
+        allowClear
+        items={dealSources
+          .filter(
+            (s) =>
+              s.is_active ||
+              (defaultDealSourceId && String(s.id) === defaultDealSourceId),
+          )
+          .map((s) => ({
+            id: s.id,
+            primary: s.name,
+            colorDot: s.color,
+            badge: s.is_active ? undefined : "выкл.",
+          }))}
+      />
+
+      <DealSourceQuickCreateDialog
+        open={quickSourceOpen}
+        onOpenChange={setQuickSourceOpen}
+        onCreated={(s) => {
+          setDealSources((prev) =>
+            prev.some((x) => x.id === s.id) ? prev : [...prev, s],
+          )
+          setDefaultDealSourceId(String(s.id))
+        }}
+      />
     </Dialog>
   )
 }
