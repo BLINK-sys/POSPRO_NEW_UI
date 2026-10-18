@@ -1,24 +1,26 @@
 "use client"
 
 /**
- * Пикер клиента с табличным представлением (ФИО / Телефон / Объект).
+ * Пикер клиента с СЕРВЕРНЫМ поиском и бесконечным скроллом.
  *
- * По устройству дублирует EntityPickerDialog (тот же Radix Dialog без
- * overlay, тот же размер, поиск, hover-подсветка), но вместо
- * одноколонного списка рендерит таблицу — по клиентам обычно
- * нужны сразу телефон и объект, иначе не отличишь двух «Айнур».
+ * При 29k контактах клиентский фильтр нереален — всё грузим страницами
+ * по 50 через `/api/kp-clients?q=…&limit=50&offset=N`. Серверный поиск
+ * `q` ищет по ФИО, объекту, телефонам и email в JSONB `contacts`.
  *
- * Поле `contacts` — JSONB-массив `[{phone, note}]`. Показываем первый
- * непустой phone.
+ * Props `clients` — legacy, остаётся для back-compat (если родитель
+ * хочет исключить какие-то id, передаёт их через `excludeIds`); если
+ * передан — используется как первая страница пока сервер не ответил.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { Search, X, Check, Plus } from "lucide-react"
+import { Loader2, Search, X, Check, Plus } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { crmGet } from "@/lib/crm-fetch"
+
 
 export interface ClientPickerItem {
   id: number
@@ -31,68 +33,126 @@ export interface ClientPickerItem {
 interface Props {
   open: boolean
   onOpenChange: (v: boolean) => void
-  clients: ClientPickerItem[]
+  /** Legacy: предзагруженный список (использовался при маленьких объёмах).
+   *  Сейчас игнорируется — поиск идёт на сервер. */
+  clients?: ClientPickerItem[]
   value: number | null
   onChange: (id: number | null) => void
   allowClear?: boolean
   title?: string
-  /**
-   * Если задано — показывает жёлтую кнопку «Создать новый контакт»
-   * сразу под строкой поиска. Клик закрывает модалку и вызывает callback,
-   * где родитель должен открыть свой quick-create диалог.
-   */
   onCreateNew?: () => void
+  /** Исключить эти id из результатов (чтобы напр. не предлагать уже
+   *  выбранного primary при добавлении доп. контактов). */
+  excludeIds?: number[]
 }
 
+const PAGE_SIZE = 50
 const NO_RING =
   "focus:!ring-0 focus:!ring-offset-0 focus-visible:!ring-0 focus-visible:!ring-offset-0 focus:!outline-none focus-visible:!outline-none"
+
+
+function pickPhone(c: ClientPickerItem): string {
+  for (const x of c.contacts || []) {
+    const p = (x.phone || "").trim()
+    if (p) return p
+  }
+  return ""
+}
+
 
 export default function ClientPickerDialog({
   open,
   onOpenChange,
-  clients,
   value,
   onChange,
   allowClear = true,
   title = "Выбрать клиента",
   onCreateNew,
+  excludeIds,
 }: Props) {
   const [query, setQuery] = useState("")
+  const [debouncedQ, setDebouncedQ] = useState("")
+  const [rows, setRows] = useState<ClientPickerItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const excludeSet = new Set(excludeIds || [])
 
+  // Reset при открытии / закрытии.
   useEffect(() => {
     if (open) {
       setQuery("")
+      setDebouncedQ("")
+      setRows([])
+      setTotal(0)
+      setOffset(0)
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [open])
 
-  // Предвычисляем плоские поля для поиска и рендера. Так фильтр не
-  // ходит в contacts на каждом keystroke.
-  const rows = useMemo(() => {
-    return clients.map((c) => {
-      const phone = (c.contacts || [])
-        .map((x) => (x.phone || "").trim())
-        .find((p) => p) || ""
-      return {
-        id: c.id,
-        name: c.full_name || c.display_name || "—",
-        phone,
-        object: (c.object || "").trim(),
-      }
-    })
-  }, [clients])
+  // Debounce запроса 300ms.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.phone.toLowerCase().includes(q) ||
-        r.object.toLowerCase().includes(q),
+  // Fetch первой страницы при смене поиска (или первом открытии).
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    const p = new URLSearchParams()
+    if (debouncedQ) p.set("q", debouncedQ)
+    p.set("limit", String(PAGE_SIZE))
+    p.set("offset", "0")
+    crmGet<{ clients: ClientPickerItem[]; total: number }>(
+      `/api/kp-clients?${p.toString()}`,
     )
-  }, [rows, query])
+      .then((r) => {
+        setRows(r.clients || [])
+        setTotal(r.total ?? 0)
+        setOffset(r.clients?.length ?? 0)
+        // Скроллим список к началу при новом поиске.
+        if (bodyRef.current) bodyRef.current.scrollTop = 0
+      })
+      .catch(() => {
+        setRows([])
+        setTotal(0)
+      })
+      .finally(() => setLoading(false))
+  }, [open, debouncedQ])
+
+  // Lazy-load следующей страницы при скролле в конец.
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || rows.length >= total) return
+    setLoadingMore(true)
+    try {
+      const p = new URLSearchParams()
+      if (debouncedQ) p.set("q", debouncedQ)
+      p.set("limit", String(PAGE_SIZE))
+      p.set("offset", String(offset))
+      const r = await crmGet<{ clients: ClientPickerItem[] }>(
+        `/api/kp-clients?${p.toString()}`,
+      )
+      const extra = r.clients || []
+      setRows((prev) => {
+        const seen = new Set(prev.map((x) => x.id))
+        return [...prev, ...extra.filter((x) => !seen.has(x.id))]
+      })
+      setOffset((o) => o + extra.length)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, loading, rows.length, total, debouncedQ, offset])
+
+  const handleScroll = () => {
+    const el = bodyRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 240
+    if (nearBottom) loadMore()
+  }
 
   const handlePick = (id: number) => {
     onChange(id)
@@ -102,6 +162,10 @@ export default function ClientPickerDialog({
     onChange(null)
     onOpenChange(false)
   }
+
+  const visibleRows = excludeSet.size
+    ? rows.filter((r) => !excludeSet.has(r.id))
+    : rows
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -134,10 +198,7 @@ export default function ClientPickerDialog({
             </DialogPrimitive.Close>
           </div>
 
-          {/* Поиск + «Создать новый» справа одной строкой. Жёлтая
-              кнопка перенесена сюда из карточки сделки — чтобы не
-              городить два плюса снаружи и чтобы юзер мог сначала
-              поискать и, не найдя, тут же создать нового. */}
+          {/* Поиск + «Создать» */}
           <div className="px-4 py-3 border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -146,7 +207,7 @@ export default function ClientPickerDialog({
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Поиск по ФИО / телефону / объекту"
+                  placeholder="Поиск по ФИО / телефону / email / объекту"
                   className={cn("pl-9 pr-9", NO_RING)}
                 />
                 {query && (
@@ -181,6 +242,13 @@ export default function ClientPickerDialog({
                 </button>
               )}
             </div>
+            <div className="mt-1.5 text-[11px] text-gray-500">
+              {loading ? "Загрузка…" : (
+                total > 0 ? (
+                  <>Найдено: <b>{total}</b> · показано {Math.min(visibleRows.length, total)}</>
+                ) : "—"
+              )}
+            </div>
           </div>
 
           {/* Заголовок таблицы */}
@@ -191,54 +259,69 @@ export default function ClientPickerDialog({
             <div></div>
           </div>
 
-          {/* Тело таблицы */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {filtered.length === 0 ? (
+          {/* Тело таблицы — скроллится, lazy-load по скроллу. */}
+          <div
+            ref={bodyRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 overflow-y-auto"
+          >
+            {loading && visibleRows.length === 0 ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : visibleRows.length === 0 ? (
               <div className="text-sm text-gray-500 text-center py-10">
                 Клиенты не найдены
               </div>
             ) : (
               <ul>
-                {filtered.map((r) => {
-                  const selected = r.id === value
+                {visibleRows.map((c) => {
+                  const selected = c.id === value
+                  const name = c.full_name || c.display_name || "—"
+                  const phone = pickPhone(c)
+                  const obj = (c.object || "").trim()
                   return (
-                    <li key={r.id}>
+                    <li key={c.id}>
                       <button
                         type="button"
-                        onClick={() => handlePick(r.id)}
+                        onClick={() => handlePick(c.id)}
                         className={cn(
                           "w-full text-left grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_24px] gap-3",
                           "px-4 py-2 transition-colors items-center border-b border-gray-50",
-                          selected
-                            ? "bg-brand-yellow/25"
-                            : "hover:bg-gray-50",
+                          selected ? "bg-brand-yellow/25" : "hover:bg-gray-50",
                           NO_RING,
                         )}
                       >
-                        <div className="text-sm font-medium truncate">
-                          {r.name}
-                        </div>
+                        <div className="text-sm font-medium truncate">{name}</div>
                         <div className={cn(
                           "text-sm truncate tabular-nums",
-                          r.phone ? "text-gray-700" : "text-gray-400 italic",
+                          phone ? "text-gray-700" : "text-gray-400 italic",
                         )}>
-                          {r.phone || "—"}
+                          {phone || "—"}
                         </div>
                         <div className={cn(
                           "text-sm truncate",
-                          r.object ? "text-gray-700" : "text-gray-400 italic",
+                          obj ? "text-gray-700" : "text-gray-400 italic",
                         )}>
-                          {r.object || "—"}
+                          {obj || "—"}
                         </div>
                         <div>
-                          {selected && (
-                            <Check className="h-4 w-4 text-emerald-600" />
-                          )}
+                          {selected && <Check className="h-4 w-4 text-emerald-600" />}
                         </div>
                       </button>
                     </li>
                   )
                 })}
+                {loadingMore && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                )}
+                {!loadingMore && visibleRows.length < total && (
+                  <div className="text-center py-2 text-[11px] text-gray-400">
+                    прокрутите вниз чтобы загрузить ещё
+                  </div>
+                )}
               </ul>
             )}
           </div>
@@ -249,10 +332,7 @@ export default function ClientPickerDialog({
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
-                className={cn(
-                  "w-full text-gray-500 hover:text-gray-900",
-                  NO_RING,
-                )}
+                className={cn("w-full text-gray-500 hover:text-gray-900", NO_RING)}
               >
                 Убрать выбор
               </Button>

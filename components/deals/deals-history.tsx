@@ -30,6 +30,7 @@ import { crmGet, crmPut } from "@/lib/crm-fetch"
 import { TablePager } from "@/components/ui/table-pager"
 import DateRangeDialog from "@/components/ui/date-range-dialog"
 import ClientPickerDialog from "./client-picker-dialog"
+import CompanyPickerDialog from "./company-picker-dialog"
 import EntityPickerDialog from "./entity-picker-dialog"
 import DealsTabsHeader from "./deals-tabs-header"
 
@@ -338,11 +339,12 @@ export default function DealsHistory() {
         <DealsTabsHeader />
       </div>
 
-      {/* Статы-плитки */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Статы-плитки — на 5 колонок (не 4) чтобы влезла «Проиграно». */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Всего сделок" value={stats.total || 0} icon={<Briefcase className="h-5 w-5" />} />
         <StatCard label="Сумма открытых" value={formatMoney(stats.sum_open)} icon={<TrendingUp className="h-5 w-5 text-blue-600" />} />
         <StatCard label="Сумма выигранных" value={formatMoney(stats.sum_won)} icon={<TrendingUp className="h-5 w-5 text-emerald-600" />} />
+        <StatCard label="Сумма проигранных" value={formatMoney(stats.sum_lost)} icon={<TrendingUp className="h-5 w-5 text-red-600" />} />
         <StatCard label="Средний чек win" value={formatMoney(stats.avg_won)} icon={<TrendingUp className="h-5 w-5 text-yellow-600" />} />
       </div>
 
@@ -604,16 +606,13 @@ export default function DealsHistory() {
         value={filters.clientId ?? null}
         onChange={(id) => setFilters({ ...filters, clientId: id })}
       />
-      <EntityPickerDialog
+      <CompanyPickerDialog
         open={companyPicker}
         onOpenChange={setCompanyPicker}
         title="Выбрать компанию"
-        searchPlaceholder="Поиск по названию"
-        emptyText="Компании не найдены"
         value={filters.companyId ?? null}
         onChange={(id) => setFilters({ ...filters, companyId: id })}
         allowClear
-        items={companies.map((c: any) => ({ id: c.id, primary: c.name }))}
       />
       <EntityPickerDialog
         open={respPicker}

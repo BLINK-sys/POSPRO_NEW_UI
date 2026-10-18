@@ -9,12 +9,13 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Briefcase, Loader2, PieChart } from "lucide-react"
+import { Briefcase, CalendarRange, Loader2, PieChart } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { crmGet } from "@/lib/crm-fetch"
+import DateRangeDialog from "@/components/ui/date-range-dialog"
 import DealsTabsHeader from "./deals-tabs-header"
 
 
@@ -33,7 +34,12 @@ type SortKey = "total" | "open" | "won" | "lost" | "sum_won" | "conversion"
 export default function DealsSourcesStats() {
   const router = useRouter()
   const { toast } = useToast()
+  // period: число месяцев (preset) ИЛИ 'custom' для кастомного диапазона.
   const [months, setMonths] = useState<number>(3)
+  const [customFrom, setCustomFrom] = useState<string | null>(null)
+  const [customTo, setCustomTo] = useState<string | null>(null)
+  const [isCustom, setIsCustom] = useState(false)
+  const [rangeOpen, setRangeOpen] = useState(false)
   const [rows, setRows] = useState<any[]>([])
   const [totals, setTotals] = useState<any>({})
   const [loading, setLoading] = useState(true)
@@ -43,7 +49,12 @@ export default function DealsSourcesStats() {
   useEffect(() => {
     setLoading(true)
     const q = new URLSearchParams()
-    if (months) q.set("months", String(months))
+    if (isCustom && customFrom && customTo) {
+      q.set("created_after", customFrom)
+      q.set("created_before", customTo)
+    } else if (months) {
+      q.set("months", String(months))
+    }
     crmGet<any>(`/api/admin/deals/sources-stats?${q.toString()}`)
       .then((r) => {
         setRows(r.rows || [])
@@ -57,7 +68,7 @@ export default function DealsSourcesStats() {
         }),
       )
       .finally(() => setLoading(false))
-  }, [months, toast])
+  }, [months, isCustom, customFrom, customTo, toast])
 
   const sortedRows = useMemo(() => {
     const copy = [...rows]
@@ -101,17 +112,17 @@ export default function DealsSourcesStats() {
         <DealsTabsHeader />
       </div>
 
-      {/* Переключатель периода */}
+      {/* Переключатель периода + кастомный диапазон */}
       <Card className="rounded-xl border-gray-200 p-3">
         <div className="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
           {PERIODS.map((p) => (
             <button
               key={p.months}
               type="button"
-              onClick={() => setMonths(p.months)}
+              onClick={() => { setMonths(p.months); setIsCustom(false) }}
               className={cn(
                 "px-3 h-7 text-xs rounded-md transition-colors",
-                months === p.months
+                !isCustom && months === p.months
                   ? "bg-brand-yellow text-black font-medium"
                   : "text-gray-600 hover:bg-white",
               )}
@@ -119,8 +130,35 @@ export default function DealsSourcesStats() {
               {p.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setRangeOpen(true)}
+            className={cn(
+              "inline-flex items-center gap-1 px-3 h-7 text-xs rounded-md transition-colors",
+              isCustom
+                ? "bg-brand-yellow text-black font-medium"
+                : "text-gray-600 hover:bg-white",
+            )}
+          >
+            <CalendarRange className="h-3.5 w-3.5" />
+            {isCustom && customFrom && customTo
+              ? `${new Date(customFrom).toLocaleDateString("ru-RU")} — ${new Date(customTo).toLocaleDateString("ru-RU")}`
+              : "Период"}
+          </button>
         </div>
       </Card>
+
+      <DateRangeDialog
+        open={rangeOpen}
+        onOpenChange={setRangeOpen}
+        from={customFrom}
+        to={customTo}
+        onApply={(fromIso, toIso) => {
+          setCustomFrom(fromIso)
+          setCustomTo(toIso)
+          setIsCustom(true)
+        }}
+      />
 
       {/* Таблица */}
       <Card className="rounded-xl border-gray-200 overflow-hidden">

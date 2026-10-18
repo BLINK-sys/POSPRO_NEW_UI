@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { crmGet, crmPost, crmPut } from "@/lib/crm-fetch"
 import { cn, formatPhone } from "@/lib/utils"
-import EntityPickerDialog from "@/components/deals/entity-picker-dialog"
+import CompanyPickerDialog from "@/components/deals/company-picker-dialog"
 import KpCompanyQuickCreateDialog from "@/components/deals/kp-company-quick-create"
 import { TablePager } from "@/components/ui/table-pager"
 
@@ -590,25 +590,15 @@ export default function ClientsList() {
         </DialogContent>
       </Dialog>
 
-      {/* Пикер компании — с кнопкой «+ Создать» внутри, которая открывает
-          KpCompanyQuickCreateDialog. После создания — компания сразу
-          добавляется в список и подставляется в поле. */}
-      <EntityPickerDialog
+      {/* Серверный пикер компании (бесконечный скролл по /api/admin/kp-companies). */}
+      <CompanyPickerDialog
         open={companyPickerOpen}
         onOpenChange={setCompanyPickerOpen}
         title="Выбрать компанию"
-        searchPlaceholder="Поиск по названию"
-        emptyText="Компании не найдены"
-        clearText="Без компании"
         value={form.company_id ?? null}
         onChange={(id) => setForm({ ...form, company_id: id })}
         allowClear
         onCreateNew={() => setCompanyCreateOpen(true)}
-        createNewLabel="Создать"
-        items={companies.map((c) => ({
-          id: c.id,
-          primary: c.name,
-        }))}
       />
 
       <KpCompanyQuickCreateDialog

@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, Briefcase, Circle, Trophy, Ban } from "lucide-react"
+import { Loader2, Plus, Briefcase, Circle, Trophy, Ban, TrendingUp, Maximize2, Minimize2 } from "lucide-react"
+import { createPortal } from "react-dom"
 import {
   DndContext,
   PointerSensor,
@@ -114,6 +115,36 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
   // сохраняются per-user в /api/user-prefs/deals_canvas.
   const { filters, setFilters, loaded: filtersLoaded } = useDealsFilters()
 
+  // Статистика по текущей выборке (воронка + фильтры): open/won/lost.
+  const [stats, setStats] = useState<{ sum_open: number; sum_won: number; sum_lost: number }>({
+    sum_open: 0, sum_won: 0, sum_lost: 0,
+  })
+
+  // Fullscreen режим: канбан на всю страницу. Сохраняем в localStorage,
+  // чтобы при возврате со страницы сделки состояние осталось то же.
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  // SSR safety: `createPortal(..., document.body)` требует браузер.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    try {
+      if (localStorage.getItem("deals_canvas_fullscreen") === "1") {
+        setIsFullscreen(true)
+      }
+    } catch {
+      /* localStorage недоступен — ok, остаёмся свёрнутыми */
+    }
+  }, [])
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((v) => {
+      const next = !v
+      try {
+        localStorage.setItem("deals_canvas_fullscreen", next ? "1" : "0")
+      } catch { /* noop */ }
+      return next
+    })
+  }, [])
+
   const DEALS_PAGE_SIZE = 10
 
   // 1) Первичная загрузка воронок + справочников клиентов/юзеров.
@@ -200,6 +231,21 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
       }
       setStageData(next)
     })
+
+    // Параллельно подгружаем суммы (open/won/lost) с теми же фильтрами +
+    // фиксированной текущей воронкой.
+    const statsQuery = new URLSearchParams(base)
+    statsQuery.set("pipeline_id", String(activePipelineId))
+    crmGet<any>(`/api/admin/deals/stats?${statsQuery.toString()}`)
+      .then((r) => {
+        if (ignore) return
+        setStats({
+          sum_open: r.sum_open || 0,
+          sum_won: r.sum_won || 0,
+          sum_lost: r.sum_lost || 0,
+        })
+      })
+      .catch(() => setStats({ sum_open: 0, sum_won: 0, sum_lost: 0 }))
 
     return () => {
       ignore = true
@@ -467,6 +513,168 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     )
   }
 
+  // Кнопка «на весь экран / свернуть» — передаём как rightAction в
+  // DealsFilters, чтобы она стояла справа в панели фильтров.
+  const fullscreenButton = (
+    <button
+      type="button"
+      onClick={toggleFullscreen}
+      className="h-7 inline-flex items-center gap-1.5 px-2 rounded-md border border-gray-200 bg-white text-xs text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors"
+      title={isFullscreen ? "Свернуть" : "Развернуть на весь экран"}
+    >
+      {isFullscreen ? (
+        <>
+          <Minimize2 className="h-3.5 w-3.5" />
+          <span>Свернуть</span>
+        </>
+      ) : (
+        <>
+          <Maximize2 className="h-3.5 w-3.5" />
+          <span>На весь экран</span>
+        </>
+      )}
+    </button>
+  )
+
+  // Контент «canvas»: статы + фильтры + сама kanban-доска. Рендерим его
+  // либо inline (обычный режим), либо внутри Portal'а на весь экран.
+  // Выделение в переменную гарантирует, что ВСЕ хуки/рефы/dnd-состояние
+  // остаются общими — переключение режима ничего не теряет.
+  //
+  // В fullscreen:
+  //   - статы компактные (в строку, высота как у селектора воронки)
+  //   - канбан получает `flex-1 min-h-0`, parent — `flex flex-col` →
+  //     высота самой доски занимает всё оставшееся место без скролла страницы
+  const canvasContent = (
+    <>
+      {/* Строка: селектор воронки слева + 3 стат-плитки справа. */}
+      <div className="flex items-stretch gap-3 flex-wrap">
+        {pipelines.length > 1 ? (
+          <div className="w-64 shrink-0 flex items-center">
+            <Select
+              value={activePipelineId != null ? String(activePipelineId) : ""}
+              onValueChange={(v) => setActivePipelineId(Number(v))}
+            >
+              <SelectTrigger className="w-full bg-white border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] rounded-lg font-semibold">
+                <SelectValue placeholder="Выберите воронку" />
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                    {!p.active && (
+                      <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : pipelines.length === 1 ? (
+          <div className="w-64 shrink-0 flex items-center text-sm font-semibold text-gray-700">
+            {pipelines[0].name}
+            {!pipelines[0].active && (
+              <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
+            )}
+          </div>
+        ) : null}
+
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 min-w-[320px]">
+          <KanbanStatCard label="Сумма открытых" value={stats.sum_open} iconColor="text-blue-600" compact={isFullscreen} />
+          <KanbanStatCard label="Сумма выигранных" value={stats.sum_won} iconColor="text-emerald-600" compact={isFullscreen} />
+          <KanbanStatCard label="Сумма проигранных" value={stats.sum_lost} iconColor="text-red-600" compact={isFullscreen} />
+        </div>
+      </div>
+
+      {/* Фильтры канбана. Справа — кнопка fullscreen toggle. */}
+      <DealsFilters
+        value={filters}
+        onChange={setFilters}
+        clients={clients}
+        companies={companies}
+        users={users}
+        canChooseResponsible={Boolean(user && (user.is_owner || user.can_see_all_deals))}
+        rightAction={fullscreenButton}
+      />
+
+      {/* Kanban */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <TopScrollbar
+          targetRef={boardScrollRef}
+          deps={[stages.length, allLoadedDeals.length, activePipelineId, isFullscreen]}
+        />
+
+        <div
+          ref={boardScrollRef}
+          onMouseDown={handleBoardMouseDown}
+          onContextMenu={(e) => e.preventDefault()}
+          className={cn(
+            "flex gap-3 pt-3 -mt-3 pb-6 -mb-6 overflow-x-auto",
+            // Fullscreen: parent — flex-col в Portal'е, канбан растягивается
+            // через flex-1 на всё оставшееся место (без calc'ов).
+            // Отрицательный mx = padding Portal'а → контейнер канбана
+            // расширяется ровно до краёв экрана, карточки обрезаются
+            // прямо у края. «Воздух» для первой/последней стадии даётся
+            // через ml/mr на самих колонках (см. firstInRow/lastInRow ниже).
+            // `w-full` здесь намеренно НЕ ставим — без явной ширины div
+            // расширяется до `parent + |marginLeft| + |marginRight|`, иначе
+            // отрицательный margin справа «съедал» бы правую колонку.
+            // Inline: прежняя схема с явной шириной и calc'ом окна.
+            isFullscreen
+              ? "flex-1 min-h-0 -mx-3 md:-mx-4"
+              : "w-full max-w-full h-[calc(100dvh-180px)] min-h-[400px]",
+            "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
+            panning && "cursor-grabbing select-none",
+          )}
+          title="Держите правую кнопку мыши и тяните — прокрутка колонок"
+        >
+          {stages.map((s, i) => {
+            const row = stageData.get(s.id)
+            const deals = dealsByStage.get(s.id) ?? []
+            const total = row?.total ?? 0
+            return (
+              <KanbanColumn
+                key={s.id}
+                stage={s}
+                deals={deals}
+                total={total}
+                onLoadMore={() => loadMoreForStage(s.id)}
+                loadingMore={loadingMoreStageId === s.id}
+                onOpenDeal={onOpenDeal}
+                movingId={movingId}
+                clientsById={clientsById}
+                usersById={usersById}
+                firstInRow={isFullscreen && i === 0}
+                lastInRow={isFullscreen && i === stages.length - 1}
+              />
+            )
+          })}
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? (() => {
+            const st = stages.find((s) => s.id === activeDrag.stage_id)
+            return (
+              <DealCard
+                deal={activeDrag}
+                isOverlay
+                clientsById={clientsById}
+                usersById={usersById}
+                stageColor={st?.color}
+                stageType={st?.type}
+              />
+            )
+          })() : null}
+        </DragOverlay>
+      </DndContext>
+    </>
+  )
+
   return (
     // min-w-0 нужен чтобы flex-child (наш root) не растягивался под ширину
     // содержимого — иначе `overflow-x-auto` ниже не сработает и вся
@@ -507,127 +715,22 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
         </div>
       </div>
 
-      {/* Выпадающий список воронок. Было табами — упиралось в ширину экрана
-          когда у юзера много воронок. Dropdown компактнее и держит сколько
-          угодно. Если воронка одна — показываем просто её имя без селекта. */}
-      {pipelines.length > 1 ? (
-        <div className="w-64">
-          <Select
-            value={activePipelineId != null ? String(activePipelineId) : ""}
-            onValueChange={(v) => setActivePipelineId(Number(v))}
-          >
-            <SelectTrigger className="w-full bg-white border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)] rounded-lg font-semibold">
-              <SelectValue placeholder="Выберите воронку" />
-            </SelectTrigger>
-            <SelectContent>
-              {pipelines.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                  {!p.active && (
-                    <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : pipelines.length === 1 ? (
-        <div className="text-sm font-semibold text-gray-700">
-          {pipelines[0].name}
-          {!pipelines[0].active && (
-            <span className="ml-1.5 text-xs text-gray-400">(выкл.)</span>
-          )}
-        </div>
-      ) : null}
+      {/* В обычном режиме канбан отображается inline. В fullscreen —
+          уходит в Portal на document.body (`fixed inset-0 z-50`). Между
+          режимами переключается кнопкой «На весь экран» в панели
+          фильтров. Состояние хранится в localStorage, поэтому возврат
+          со страницы сделки сохраняет выбранный вид. */}
+      {!isFullscreen && canvasContent}
 
-      {/* Фильтры канбана: период / клиент / компания / ответственный.
-          Сохраняются per-user в /api/user-prefs/deals_canvas.
-          «Ответственный» фильтр — только для owner/can_see_all_deals,
-          обычный менеджер и так видит только свои сделки. */}
-      <DealsFilters
-        value={filters}
-        onChange={setFilters}
-        clients={clients}
-        companies={companies}
-        users={users}
-        canChooseResponsible={Boolean(user && (user.is_owner || user.can_see_all_deals))}
-      />
-
-      {/* Kanban */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        {/* Кастомная жёлтая скроллбар-полоска над колонками. Показывается
-            только когда содержимое шире контейнера. deps'ы триггерят
-            пересчёт когда меняется набор колонок (смена воронки) или
-            их наполнение (новые сделки). */}
-        <TopScrollbar
-          targetRef={boardScrollRef}
-          deps={[stages.length, allLoadedDeals.length, activePipelineId]}
-        />
-
-        <div
-          ref={boardScrollRef}
-          onMouseDown={handleBoardMouseDown}
-          onContextMenu={(e) => e.preventDefault()}
-          className={cn(
-            // Фиксированная высота = окно минус шапка/контролы (~260px).
-            // Внутри каждая колонка `h-full` → у неё bounded height →
-            // внутренняя зона с карточками скроллится независимо.
-            // `overflow-x-auto` неявно клипит и по y — отрицательные
-            // margin'ы компенсируют запас под тень колонок.
-            "flex gap-3 pt-3 -mt-3 pb-6 -mb-6 w-full max-w-full overflow-x-auto",
-            // Высота = окно - шапка/контролы (~180px). Колонки доходят
-            // почти до нижнего края viewport'а, с небольшим воздухом.
-            "h-[calc(100dvh-180px)] min-h-[400px]",
-            // Прячем нативный горизонтальный скроллбар — управление
-            // прокруткой через верхний жёлтый bar + правую кнопку.
-            "[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
-            // Cursor'ом показываем режим pan (когда юзер держит ПКМ).
-            panning && "cursor-grabbing select-none",
-          )}
-          title="Держите правую кнопку мыши и тяните — прокрутка колонок"
-        >
-          {stages.map((s) => {
-            const row = stageData.get(s.id)
-            const deals = dealsByStage.get(s.id) ?? []
-            const total = row?.total ?? 0
-            return (
-              <KanbanColumn
-                key={s.id}
-                stage={s}
-                deals={deals}
-                total={total}
-                onLoadMore={() => loadMoreForStage(s.id)}
-                loadingMore={loadingMoreStageId === s.id}
-                onOpenDeal={onOpenDeal}
-                movingId={movingId}
-                clientsById={clientsById}
-                usersById={usersById}
-              />
-            )
-          })}
-        </div>
-
-        <DragOverlay dropAnimation={null}>
-          {activeDrag ? (() => {
-            const st = stages.find((s) => s.id === activeDrag.stage_id)
-            return (
-              <DealCard
-                deal={activeDrag}
-                isOverlay
-                clientsById={clientsById}
-                usersById={usersById}
-                stageColor={st?.color}
-                stageType={st?.type}
-              />
-            )
-          })() : null}
-        </DragOverlay>
-      </DndContext>
+      {mounted && isFullscreen && createPortal(
+        // `flex-col + gap-2` → секции плотнее друг к другу (меньше воздуха);
+        // `overflow-hidden` → страница не скроллится, канбан получает flex-1
+        // и занимает ВСЁ оставшееся место ровно до низа viewport'а.
+        <div className="fixed inset-0 z-50 bg-gray-50 overflow-hidden p-3 md:p-4 flex flex-col gap-2">
+          {canvasContent}
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
@@ -646,6 +749,8 @@ function KanbanColumn({
   movingId,
   clientsById,
   usersById,
+  firstInRow,
+  lastInRow,
 }: {
   stage: DealStage
   deals: Deal[]
@@ -656,9 +761,49 @@ function KanbanColumn({
   movingId: number | null
   clientsById: Map<number, string>
   usersById: Map<number, string>
+  /** В fullscreen — первая колонка в ряду: получает ml для «воздуха»
+   *  от края экрана, иначе прижмётся к стенке скролла. */
+  firstInRow?: boolean
+  /** Аналогично для последней — mr. */
+  lastInRow?: boolean
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `stage-${stage.id}` })
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: `stage-${stage.id}` })
   const canLoadMore = deals.length < total
+
+  // Автоподгрузка: когда юзер доскроллил колонку до низа и кнопка
+  // «Загрузить ещё» попала в viewport скроллящейся зоны — сами триггерим
+  // onLoadMore. Используем IntersectionObserver с `root` = нашим внутренним
+  // overflow-y контейнером (не окном). Для этого нужен прямой ref на этот
+  // div — совмещаем с setNodeRef от useDroppable через callback-ref.
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef<HTMLButtonElement | null>(null)
+  const setScrollAndDroppable = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollRef.current = el
+      setDroppableRef(el)
+    },
+    [setDroppableRef],
+  )
+
+  useEffect(() => {
+    if (!canLoadMore) return
+    const root = scrollRef.current
+    const target = loadMoreRef.current
+    if (!root || !target) return
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        // Защита от повторных вызовов — внешний loadingMore может ещё не
+        // успеть переключиться к моменту следующего пересечения.
+        if (entry.isIntersecting && !loadingMore) {
+          onLoadMore()
+        }
+      },
+      { root, threshold: 0.1 },
+    )
+    io.observe(target)
+    return () => io.disconnect()
+  }, [canLoadMore, loadingMore, onLoadMore])
 
   return (
     <div
@@ -670,6 +815,16 @@ function KanbanColumn({
         // Рамка — тонкая (`border`), цветом стадии через inline style.
         "border bg-gray-50/60 transition-all",
         "shadow-[0_6px_18px_rgba(0,0,0,0.10),0_2px_4px_rgba(0,0,0,0.06)]",
+        // overflow-hidden клипит содержимое по rounded-xl, иначе
+        // scrollbar внутренней зоны вылезает в нижний-правый угол и
+        // делает его квадратным.
+        "overflow-hidden",
+        // В fullscreen боковой padding Portal'а = 0, канбан-контейнер
+        // с negative mx доходит до края экрана. «Воздух» для крайних
+        // стадий даётся здесь — чтобы остальные колонки могли обрезаться
+        // прямо у края при скролле.
+        firstInRow && "ml-3 md:ml-4",
+        lastInRow && "mr-3 md:mr-4",
         isOver && "bg-brand-yellow/10 shadow-[0_12px_28px_rgba(250,204,21,0.30),0_4px_8px_rgba(250,204,21,0.20)]",
       )}
       style={{ borderColor: isOver ? "#facc15" : stage.color }}
@@ -709,12 +864,12 @@ function KanbanColumn({
         </span>
       </div>
 
-      {/* Скроллящаяся зона с карточками. Отдельный ref от droppable —
-          хочется чтобы drop-детект работал по всей колонке. Независимый
-          overflow-y: родительская доска имеет фикс.высоту → `flex-1` + и
-          overflow-y-auto = свой скролл в каждой колонке. */}
+      {/* Скроллящаяся зона с карточками. Независимый overflow-y: родительская
+          доска имеет фикс.высоту → `flex-1` + overflow-y-auto = свой скролл
+          в каждой колонке. callback-ref совмещает droppable (dnd-kit) и
+          scrollRef (IntersectionObserver для автоподгрузки). */}
       <div
-        ref={setNodeRef}
+        ref={setScrollAndDroppable}
         className="flex-1 min-h-0 p-2 space-y-2 overflow-y-auto"
       >
         <SortableContext items={deals.map((d) => d.id)} strategy={verticalListSortingStrategy}>
@@ -739,6 +894,7 @@ function KanbanColumn({
 
           {canLoadMore && (
             <Button
+              ref={loadMoreRef}
               variant="outline"
               size="sm"
               onClick={onLoadMore}
@@ -1208,6 +1364,49 @@ function TopScrollbar({
     </div>
   )
 }
+
+/**
+ * Статистика сверху канбана — тот же визуал что StatCard в /admin/deals/history:
+ * иконка в кружке слева + label (uppercase) и жирное значение справа.
+ *
+ * В `compact` варианте (fullscreen) — всё в одну строку, высота как у
+ * SelectTrigger (`h-10`), чтобы ряд «воронка + статы» был одной линией.
+ */
+function KanbanStatCard({
+  label, value, iconColor, compact = false,
+}: {
+  label: string
+  value: number
+  iconColor: string
+  compact?: boolean
+}) {
+  const money = value
+    ? new Intl.NumberFormat("ru-KZ", {
+        style: "currency", currency: "KZT", maximumFractionDigits: 0,
+      }).format(value)
+    : "—"
+  if (compact) {
+    return (
+      <div className="h-10 rounded-lg border border-gray-200 bg-white px-3 flex items-center gap-2 shadow-[0_1px_3px_rgba(0,0,0,0.06)] min-w-0">
+        <TrendingUp className={cn("h-4 w-4 shrink-0", iconColor)} />
+        <div className="text-[10px] uppercase text-gray-500 tracking-wider whitespace-nowrap truncate">{label}</div>
+        <div className="text-sm font-semibold tabular-nums ml-auto whitespace-nowrap">{money}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3 flex items-center gap-3">
+      <div className="h-10 w-10 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
+        <TrendingUp className={cn("h-5 w-5", iconColor)} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase text-gray-500 tracking-wider">{label}</div>
+        <div className="text-base font-semibold tabular-nums truncate">{money}</div>
+      </div>
+    </div>
+  )
+}
+
 
 function formatAmount(amount: number, currency: string): string {
   try {

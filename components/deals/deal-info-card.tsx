@@ -14,8 +14,8 @@
  * было раньше в «Обзоре».
  */
 
-import { useState } from "react"
-import { Loader2, Plus, Save, User, X } from "lucide-react"
+import React, { useState } from "react"
+import { ExternalLink, Loader2, Plus, Save, User, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -33,6 +33,7 @@ import {
 import { useAuth } from "@/context/auth-context"
 import EntityPickerDialog from "./entity-picker-dialog"
 import ClientPickerDialog from "./client-picker-dialog"
+import CompanyPickerDialog from "./company-picker-dialog"
 import DealSourceQuickCreateDialog from "./deal-source-quick-create"
 import KpCompanyQuickCreateDialog from "./kp-company-quick-create"
 import KpClientQuickCreateDialog from "./kp-client-quick-create"
@@ -323,6 +324,7 @@ export default function DealInfoCard({
             onChange={(e) => onDraft({ notes: e.target.value })}
             placeholder="Контекст, договорённости, важные детали…"
           />
+          <NotesLinks text={draft.notes ?? ""} />
         </FieldRow>
 
         {deal.source_ref_type && (
@@ -396,25 +398,16 @@ export default function DealInfoCard({
         }}
       />
 
-      {/* Пикер компании — простой EntityPicker (не ClientPicker, у которого
-          другие поля отображения). bin показываем как secondary для различимости. */}
-      <EntityPickerDialog
+      {/* Пикер компании — серверный поиск по /api/admin/kp-companies
+          с бесконечным скроллом (у user'а 3k+ компаний). */}
+      <CompanyPickerDialog
         open={companyPicker}
         onOpenChange={setCompanyPicker}
         title="Выбрать компанию"
-        searchPlaceholder="Поиск по названию / БИН"
-        emptyText="Компании не найдены"
-        clearText="Не указана"
         value={(draft as any).company_id ?? null}
         onChange={(id) => onDraft({ company_id: id } as any)}
         allowClear
         onCreateNew={() => setCompanyCreateOpen(true)}
-        createNewLabel="Создать"
-        items={companies.map((c) => ({
-          id: c.id,
-          primary: c.name,
-          secondary: c.bin || undefined,
-        }))}
       />
 
       {/* Пикер доп. контакта — тот же ClientPicker, но на выбор исключаем
@@ -472,6 +465,50 @@ export default function DealInfoCard({
     </>
   )
 }
+
+/**
+ * Парсит URL в тексте заметок и показывает их отдельно как
+ * кликабельные ссылки, открывающиеся в новом окне. Textarea остаётся
+ * обычной — редактируемый plain-text, а снизу удобный клик по ссылке.
+ * Если ссылок нет — ничего не рендерится.
+ */
+function NotesLinks({ text }: { text: string }) {
+  const urls = React.useMemo(() => {
+    if (!text) return [] as string[]
+    const re = /(https?:\/\/[^\s<>"']+)/gi
+    const found = Array.from(text.matchAll(re)).map((m) => m[1])
+    // dedup с сохранением порядка
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const u of found) {
+      if (!seen.has(u)) {
+        seen.add(u)
+        out.push(u)
+      }
+    }
+    return out
+  }, [text])
+  if (urls.length === 0) return null
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+      <span className="text-gray-400">ссылки:</span>
+      {urls.map((u) => (
+        <a
+          key={u}
+          href={u}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 max-w-[280px]"
+          title={u}
+        >
+          <ExternalLink className="h-3 w-3 shrink-0" />
+          <span className="truncate">{u.replace(/^https?:\/\//, "")}</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 
 function FieldRow({
   label,

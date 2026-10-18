@@ -23,6 +23,7 @@ import { crmGet, crmPut } from "@/lib/crm-fetch"
 import DateRangeDialog from "@/components/ui/date-range-dialog"
 import EntityPickerDialog from "./entity-picker-dialog"
 import ClientPickerDialog from "./client-picker-dialog"
+import CompanyPickerDialog from "./company-picker-dialog"
 
 export type PeriodKey = "2w" | "1m" | "2m" | "3m" | "all" | "custom"
 
@@ -79,10 +80,10 @@ interface Props {
   clients: Array<{ id: number; display_name?: string; full_name?: string | null }>
   companies: Array<{ id: number; name: string }>
   users: Array<{ id: number; full_name?: string; email?: string; name?: string }>
-  /** Разрешить выбирать «Ответственного». Для обычных менеджеров фильтр
-   *  бесполезен — _visible_deals_query на бэке и так возвращает только
-   *  их сделки. Показывается если юзер owner / can_see_all_deals. */
   canChooseResponsible?: boolean
+  /** Опциональная кнопка-слот в правом углу панели фильтров
+   *  (напр. toggle «во весь экран»). */
+  rightAction?: React.ReactNode
 }
 
 export default function DealsFilters({
@@ -92,6 +93,7 @@ export default function DealsFilters({
   companies,
   users,
   canChooseResponsible = false,
+  rightAction,
 }: Props) {
   const [clientPicker, setClientPicker] = useState(false)
   const [companyPicker, setCompanyPicker] = useState(false)
@@ -198,6 +200,14 @@ export default function DealsFilters({
             Сбросить
           </Button>
         )}
+        {rightAction && (
+          <div className={cn(
+            // Если нет кнопки «Сбросить» выше — прижимаем rightAction вправо.
+            !(value.clientId || value.companyId || value.responsibleId || value.period !== "3m") && "ml-auto",
+          )}>
+            {rightAction}
+          </div>
+        )}
       </div>
 
       <ClientPickerDialog
@@ -207,16 +217,13 @@ export default function DealsFilters({
         value={value.clientId ?? null}
         onChange={(id) => onChange({ ...value, clientId: id })}
       />
-      <EntityPickerDialog
+      <CompanyPickerDialog
         open={companyPicker}
         onOpenChange={setCompanyPicker}
         title="Выбрать компанию"
-        searchPlaceholder="Поиск по названию"
-        emptyText="Компании не найдены"
         value={value.companyId ?? null}
         onChange={(id) => onChange({ ...value, companyId: id })}
         allowClear
-        items={companies.map((c) => ({ id: c.id, primary: c.name }))}
       />
       <EntityPickerDialog
         open={respPicker}

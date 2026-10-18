@@ -13,7 +13,7 @@
  * пользователей — то что один менеджер добавил, увидят все.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Plus, Search, Trash2, Check, Phone, X } from "lucide-react"
 import {
   Dialog,
@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import {
   listKpClients,
+  searchKpClients,
   createKpClient,
   updateKpClient,
   deleteKpClient,
@@ -88,50 +89,90 @@ function formToInput(f: FormState): KpClientInput {
 export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onPicked }: Props) {
   const { toast } = useToast()
   const [clients, setClients] = useState<KpClient[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [activeId, setActiveId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deleteCandidate, setDeleteCandidate] = useState<KpClient | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const listRef = useRef<HTMLDivElement | null>(null)
 
-  // Загрузка списка при открытии
+  const PAGE_SIZE = 50
+
+  // Debounce поиска — 300ms, чтобы не долбить бэк на каждую букву.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Reset при открытии.
+  useEffect(() => {
+    if (!open) return
+    setSearch("")
+    setDebouncedSearch("")
+    setClients([])
+    setTotal(0)
+    setOffset(0)
+    setActiveId(null)
+    setForm(EMPTY_FORM)
+  }, [open])
+
+  // Fetch первой страницы (при открытии или смене поиска).
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    setSearch("")
-    listKpClients()
-      .then((list) => {
-        setClients(list)
-        if (selectedClientId) {
-          const found = list.find((c) => c.id === selectedClientId)
+    searchKpClients(debouncedSearch, PAGE_SIZE, 0)
+      .then((r) => {
+        setClients(r.clients)
+        setTotal(r.total)
+        setOffset(r.clients.length)
+        if (listRef.current) listRef.current.scrollTop = 0
+
+        // При первой загрузке — если выбранный клиент есть в выдаче, активируем его.
+        if (!debouncedSearch && selectedClientId) {
+          const found = r.clients.find((c) => c.id === selectedClientId)
           if (found) {
             setActiveId(found.id)
             setForm(clientToForm(found))
-            return
           }
         }
-        setActiveId(null)
-        setForm(EMPTY_FORM)
       })
       .catch(() => {
         toast({ title: "Ошибка", description: "Не удалось загрузить список клиентов", variant: "destructive" })
       })
       .finally(() => setLoading(false))
-  }, [open, selectedClientId, toast])
+  }, [open, debouncedSearch, selectedClientId, toast])
 
-  // Локальный фильтр по поисковой строке.
-  const filteredClients = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return clients
-    return clients.filter((c) => {
-      const fields = [c.full_name, c.object].filter(Boolean) as string[]
-      if (fields.some((f) => f.toLowerCase().includes(q))) return true
-      // Поиск по телефонам тоже — менеджеры часто ищут по номеру.
-      return (c.contacts || []).some(ct => ct.phone.toLowerCase().includes(q))
-    })
-  }, [clients, search])
+  // Lazy-load следующей страницы при скролле в конец списка.
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || clients.length >= total) return
+    setLoadingMore(true)
+    try {
+      const r = await searchKpClients(debouncedSearch, PAGE_SIZE, offset)
+      setClients((prev) => {
+        const seen = new Set(prev.map((c) => c.id))
+        return [...prev, ...r.clients.filter((c) => !seen.has(c.id))]
+      })
+      setOffset((o) => o + r.clients.length)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, loading, clients.length, total, debouncedSearch, offset])
+
+  const handleScroll = () => {
+    const el = listRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMore()
+  }
+
+  // Для совместимости со старым рендером оставляем переменную — но
+  // теперь это просто серверный результат, фильтр уже на бэке.
+  const filteredClients = clients
 
   const handleSelect = (c: KpClient) => {
     setActiveId(c.id)
@@ -223,12 +264,12 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl p-0 overflow-hidden">
+        <DialogContent className="max-w-5xl p-0 overflow-hidden h-[90vh] max-h-[90vh]">
           <DialogHeader className="px-6 pt-5 pb-3 border-b">
             <DialogTitle className="text-lg">Выбор клиента</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-[320px_1fr] h-[560px] min-h-0">
+          <div className="grid grid-cols-[320px_1fr] h-full min-h-0">
             {/* ─── Левая колонка: список ─────────────── */}
             <div className="border-r flex flex-col bg-gray-50/50 min-h-0">
               <div className="p-3 space-y-2 border-b">
@@ -255,8 +296,21 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                {loading ? (
+              {/* Счётчик «Найдено: N» над списком */}
+              <div className="px-3 py-1 text-[11px] text-gray-500 border-b border-gray-100 shrink-0">
+                {loading ? "Загрузка…" : (
+                  total > 0
+                    ? <>Найдено: <b>{total}</b> · показано {Math.min(filteredClients.length, total)}</>
+                    : "—"
+                )}
+              </div>
+
+              <div
+                ref={listRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto"
+              >
+                {loading && filteredClients.length === 0 ? (
                   <div className="flex items-center justify-center py-10">
                     <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                   </div>
@@ -303,6 +357,16 @@ export function KpClientPickerDialog({ open, onOpenChange, selectedClientId, onP
                         </li>
                       )
                     })}
+                    {loadingMore && (
+                      <div className="flex items-center justify-center py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      </div>
+                    )}
+                    {!loadingMore && filteredClients.length < total && (
+                      <div className="text-center py-2 text-[10px] text-gray-400">
+                        прокрутите вниз, чтобы загрузить ещё
+                      </div>
+                    )}
                   </ul>
                 )}
               </div>

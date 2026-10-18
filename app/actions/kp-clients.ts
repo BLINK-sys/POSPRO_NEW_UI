@@ -54,6 +54,29 @@ export async function listKpClients(query?: string): Promise<KpClient[]> {
   }
 }
 
+/**
+ * Серверный поиск с пагинацией — для пикеров где 29k контактов и
+ * клиентский фильтр не прокатит. Возвращает текущую страницу + total.
+ */
+export async function searchKpClients(
+  query: string | undefined,
+  limit = 50,
+  offset = 0,
+): Promise<{ clients: KpClient[]; total: number }> {
+  try {
+    const p = new URLSearchParams()
+    if (query?.trim()) p.set("q", query.trim())
+    p.set("limit", String(limit))
+    p.set("offset", String(offset))
+    const res = await authedFetch(`/api/kp-clients?${p.toString()}`)
+    if (!res.ok) return { clients: [], total: 0 }
+    const data = await res.json()
+    return { clients: data.clients || [], total: data.total ?? 0 }
+  } catch {
+    return { clients: [], total: 0 }
+  }
+}
+
 export async function getKpClient(id: number): Promise<KpClient | null> {
   try {
     const res = await authedFetch(`/api/kp-clients/${id}`)
