@@ -35,10 +35,19 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { crmGet, crmPost, crmPut, crmDelete } from "@/lib/crm-fetch"
 import { formatPhone } from "@/lib/utils"
 import { TablePager } from "@/components/ui/table-pager"
+
+interface Creator { id: number; name: string; email: string }
 
 export interface Company {
   id: number
@@ -94,6 +103,13 @@ export default function CompaniesList() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(25)
 
+  // Фильтр «Кем создана». "all" — не фильтруем, "none" — без автора,
+  // "<id>" — конкретный пользователь. Опции тянем раз при монтировании
+  // с `/api/admin/kp-companies/creators`.
+  const [creatorFilter, setCreatorFilter] = useState<string>("all")
+  const [creatorOptions, setCreatorOptions] = useState<Creator[]>([])
+  const [hasNullCreator, setHasNullCreator] = useState(false)
+
   const [debouncedQuery, setDebouncedQuery] = useState("")
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 300)
@@ -102,12 +118,28 @@ export default function CompaniesList() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, pageSize])
+  }, [debouncedQuery, creatorFilter, pageSize])
+
+  useEffect(() => {
+    crmGet<{ creators: Creator[]; has_null: boolean }>(
+      "/api/admin/kp-companies/creators",
+    )
+      .then((res) => {
+        setCreatorOptions(res.creators || [])
+        setHasNullCreator(Boolean(res.has_null))
+      })
+      .catch(() => {
+        setCreatorOptions([])
+        setHasNullCreator(false)
+      })
+  }, [])
 
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (debouncedQuery) params.set("q", debouncedQuery)
+    if (creatorFilter === "none") params.set("creator_id", "none")
+    else if (creatorFilter !== "all") params.set("creator_id", creatorFilter)
     params.set("limit", String(pageSize))
     params.set("offset", String((page - 1) * pageSize))
     crmGet<{ companies: Company[]; total?: number }>(
@@ -125,7 +157,7 @@ export default function CompaniesList() {
         }),
       )
       .finally(() => setLoading(false))
-  }, [toast, debouncedQuery, page, pageSize])
+  }, [toast, debouncedQuery, creatorFilter, page, pageSize])
 
   useEffect(() => {
     load()
@@ -224,16 +256,32 @@ export default function CompaniesList() {
         </Button>
       </div>
 
-      {/* Поиск */}
+      {/* Поиск + фильтр «Кем создана» */}
       <Card className="rounded-xl border-gray-200 p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Название / БИН / телефон / email"
-            className="h-9 pl-9 rounded-lg"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Название / БИН / телефон / email"
+              className="h-9 pl-9 rounded-lg"
+            />
+          </div>
+          <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+            <SelectTrigger className="h-9 w-[220px] rounded-lg">
+              <SelectValue placeholder="Все пользователи" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все пользователи</SelectItem>
+              {hasNullCreator && (
+                <SelectItem value="none">— без автора —</SelectItem>
+              )}
+              {creatorOptions.map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </Card>
 
