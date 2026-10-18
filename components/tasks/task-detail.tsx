@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Loader2, Trash2, CheckCircle2, Circle, Clock,
   AlertCircle, PauseCircle, Briefcase, RotateCcw, Check, Save,
+  Play, Pause, Send, CheckCheck, Undo2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -261,7 +262,7 @@ export default function TaskDetail({ taskId }: Props) {
             К списку
           </Button>
 
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 max-w-[300px] shrink">
             <div className="flex items-center gap-2 min-w-0">
               <h1 className={cn(
                 "text-base font-semibold truncate leading-tight",
@@ -306,8 +307,111 @@ export default function TaskDetail({ taskId }: Props) {
             )}
           </div>
 
-          {/* Сохранить черновик — рядом с «Завершить». Активна только
-              если есть неподтверждённые изменения (isDirty). */}
+          {/* Spacer слева от центральных кнопок — чтобы они встали по центру. */}
+          <div className="flex-1" />
+
+          {/* Контекстные кнопки действий по статусу — по центру шапки
+              (как в Б24). Зависят от текущего task.status. Селект
+              статуса справа остаётся как fallback для нестандартных
+              переходов. */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {task.status === "pending" && (
+              <Button
+                size="sm"
+                onClick={() => handleStatusChange("in_progress")}
+                className="rounded-lg h-8 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Play className="h-3.5 w-3.5 mr-1.5" />
+                Начать
+              </Button>
+            )}
+            {task.status === "in_progress" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStatusChange("paused")}
+                  className="rounded-lg h-8 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  <Pause className="h-3.5 w-3.5 mr-1.5" />
+                  Пауза
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStatusChange("waiting_check")}
+                  className="rounded-lg h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  На проверку
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusChange("done")}
+                  className="rounded-lg h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  Завершить
+                </Button>
+              </>
+            )}
+            {task.status === "paused" && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusChange("in_progress")}
+                  className="rounded-lg h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Play className="h-3.5 w-3.5 mr-1.5" />
+                  Продолжить
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusChange("done")}
+                  className="rounded-lg h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  Завершить
+                </Button>
+              </>
+            )}
+            {task.status === "waiting_check" && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => handleStatusChange("done")}
+                  className="rounded-lg h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+                  Принять
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStatusChange("in_progress")}
+                  className="rounded-lg h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <Undo2 className="h-3.5 w-3.5 mr-1.5" />
+                  На доработку
+                </Button>
+              </>
+            )}
+            {task.status === "done" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleStatusChange("in_progress")}
+                className="rounded-lg h-8 border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Открыть заново
+              </Button>
+            )}
+          </div>
+
+          {/* Spacer чтобы «правые» кнопки прижать к правому краю. */}
+          <div className="flex-1" />
+
           <Button
             size="sm"
             onClick={handleSave}
@@ -321,32 +425,6 @@ export default function TaskDetail({ taskId }: Props) {
             )}
             Сохранить
           </Button>
-
-          {/* Кнопка «Завершить» (как в Б24) — большая и видная. Для
-              завершённой задачи превращается в «Открыть заново». Для
-              промежуточных статусов (pending/in_progress/paused/waiting_check)
-              доступен ещё селектор статуса рядом — через него делают
-              «Начать/Пауза/Отправить на проверку». */}
-          {task.status === "done" ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleStatusChange("in_progress")}
-              className="rounded-lg h-8 border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Открыть заново
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => handleStatusChange("done")}
-              className="rounded-lg h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Check className="h-3.5 w-3.5 mr-1.5" />
-              Завершить
-            </Button>
-          )}
 
           <div className="w-40">
             <Select
