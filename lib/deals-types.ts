@@ -15,6 +15,9 @@ export interface DealStage {
   color: string
   order: number
   type: DealStageType
+  /** Если false — стадия скрыта в канбане и в большинстве селектов,
+   *  но сделки остаются привязаны. */
+  is_active?: boolean
   created_at?: string | null
   updated_at?: string | null
 }

@@ -415,6 +415,10 @@ export default function DealDetail({ dealId }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   {(pipeline.stages ?? [])
+                    // Прячем деактивированные, кроме той, что сейчас у
+                    // сделки — её оставляем видимой с меткой «архив»,
+                    // чтобы юзер мог сменить на активную.
+                    .filter((s) => (s as any).is_active !== false || s.id === deal.stage_id)
                     .sort((a, b) => a.order - b.order)
                     .map((s) => (
                       <SelectItem key={s.id} value={String(s.id)}>
@@ -423,6 +427,11 @@ export default function DealDetail({ dealId }: Props) {
                           style={{ backgroundColor: s.color }}
                         />
                         {s.name}
+                        {(s as any).is_active === false && (
+                          <span className="ml-1.5 text-[10px] uppercase text-gray-400">
+                            архив
+                          </span>
+                        )}
                       </SelectItem>
                     ))}
                 </SelectContent>

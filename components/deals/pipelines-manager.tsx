@@ -112,6 +112,7 @@ interface DraftStage {
   name: string
   color: string
   type: DealStageType
+  is_active: boolean
   _deleted?: boolean
 }
 
@@ -182,6 +183,7 @@ function fromServer(pipelines: DealPipeline[]): DraftPipeline[] {
           name: s.name,
           color: s.color,
           type: s.type,
+          is_active: (s as any).is_active !== false,
         })),
     }))
 }
@@ -541,6 +543,7 @@ export default function PipelinesManager() {
       name: "Новая стадия",
       color: DEFAULT_STAGE_COLOR,
       type: "normal",
+      is_active: true,
     }
     setDraft((prev) =>
       prev.map((p) =>
@@ -677,6 +680,7 @@ export default function PipelinesManager() {
           if (os.name !== s.name) patch.name = s.name
           if (os.color !== s.color) patch.color = s.color
           if (os.type !== s.type) patch.type = s.type
+          if (os.is_active !== s.is_active) patch.is_active = s.is_active
           if (Object.keys(patch).length > 0) {
             await crmPut(`/api/admin/deal-stages/${s.serverId}`, patch)
           }
@@ -1304,13 +1308,39 @@ function StageRow({
           new
         </span>
       )}
+      {!stage.is_active && !isNew && (
+        <span className="text-[10px] uppercase tracking-wider bg-gray-200 text-gray-600 rounded px-1 shrink-0"
+              title="Скрыта в канбане и в селектах">
+          архив
+        </span>
+      )}
+
+      {/* Toggle активности — скрывает стадию в канбане/селектах без
+          удаления. Для стадий с привязанными сделками это единственный
+          способ «убрать» их из рабочего пространства. */}
+      <button
+        type="button"
+        onClick={() => onUpdate({ is_active: !stage.is_active })}
+        className={cn(
+          "h-5 w-9 rounded-full relative transition-colors shrink-0",
+          stage.is_active ? "bg-emerald-500" : "bg-gray-300",
+        )}
+        title={stage.is_active ? "Активна — клик чтобы скрыть" : "Скрыта — клик чтобы показать"}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform",
+            stage.is_active ? "translate-x-[18px]" : "translate-x-[2px]",
+          )}
+        />
+      </button>
 
       <Button
         variant="ghost"
         size="icon"
         onClick={onDelete}
         className="text-red-500 hover:bg-red-50 rounded-full shrink-0"
-        title="Удалить"
+        title="Удалить (только если нет сделок)"
       >
         <Trash2 className="h-4 w-4" />
       </Button>

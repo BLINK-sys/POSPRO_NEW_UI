@@ -231,7 +231,11 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     [pipelines, activePipelineId],
   )
   const stages = useMemo<DealStage[]>(
-    () => [...(activePipeline?.stages ?? [])].sort((a, b) => a.order - b.order),
+    () => [...(activePipeline?.stages ?? [])]
+      // Скрываем стадии с is_active=false — они используются только для
+      // хранения исторических сделок (видны в карточке/истории).
+      .filter((s) => (s as any).is_active !== false)
+      .sort((a, b) => a.order - b.order),
     [activePipeline],
   )
 
