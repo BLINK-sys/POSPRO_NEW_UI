@@ -644,12 +644,19 @@ function KanbanColumn({
           style={{ backgroundColor: stage.color }}
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-semibold truncate">{stage.name}</h3>
+          <div className="flex items-start gap-1.5">
+            <h3
+              className="text-sm font-semibold leading-tight break-words line-clamp-2"
+              title={stage.name}
+            >
+              {stage.name}
+            </h3>
             {stage.type === "won" && (
-              <Trophy className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              <Trophy className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
             )}
-            {stage.type === "lost" && <Ban className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+            {stage.type === "lost" && (
+              <Ban className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+            )}
           </div>
         </div>
         <span
