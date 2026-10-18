@@ -79,6 +79,10 @@ interface Props {
   clients: Array<{ id: number; display_name?: string; full_name?: string | null }>
   companies: Array<{ id: number; name: string }>
   users: Array<{ id: number; full_name?: string; email?: string; name?: string }>
+  /** Разрешить выбирать «Ответственного». Для обычных менеджеров фильтр
+   *  бесполезен — _visible_deals_query на бэке и так возвращает только
+   *  их сделки. Показывается если юзер owner / can_see_all_deals. */
+  canChooseResponsible?: boolean
 }
 
 export default function DealsFilters({
@@ -87,6 +91,7 @@ export default function DealsFilters({
   clients,
   companies,
   users,
+  canChooseResponsible = false,
 }: Props) {
   const [clientPicker, setClientPicker] = useState(false)
   const [companyPicker, setCompanyPicker] = useState(false)
@@ -173,13 +178,15 @@ export default function DealsFilters({
           onPick={() => setCompanyPicker(true)}
           onClear={value.companyId ? () => onChange({ ...value, companyId: null }) : undefined}
         />
-        <FilterChip
-          icon={<UserIcon className="h-3.5 w-3.5" />}
-          label="Ответственный"
-          current={resp ? (resp.full_name || resp.name || resp.email) : undefined}
-          onPick={() => setRespPicker(true)}
-          onClear={value.responsibleId ? () => onChange({ ...value, responsibleId: null }) : undefined}
-        />
+        {canChooseResponsible && (
+          <FilterChip
+            icon={<UserIcon className="h-3.5 w-3.5" />}
+            label="Ответственный"
+            current={resp ? (resp.full_name || resp.name || resp.email) : undefined}
+            onPick={() => setRespPicker(true)}
+            onClear={value.responsibleId ? () => onChange({ ...value, responsibleId: null }) : undefined}
+          />
+        )}
 
         {(value.clientId || value.companyId || value.responsibleId || value.period !== "3m") && (
           <Button

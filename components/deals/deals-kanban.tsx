@@ -540,13 +540,16 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
       ) : null}
 
       {/* Фильтры канбана: период / клиент / компания / ответственный.
-          Сохраняются per-user в /api/user-prefs/deals_canvas. */}
+          Сохраняются per-user в /api/user-prefs/deals_canvas.
+          «Ответственный» фильтр — только для owner/can_see_all_deals,
+          обычный менеджер и так видит только свои сделки. */}
       <DealsFilters
         value={filters}
         onChange={setFilters}
         clients={clients}
         companies={companies}
         users={users}
+        canChooseResponsible={Boolean(user && (user.is_owner || user.can_see_all_deals))}
       />
 
       {/* Kanban */}
