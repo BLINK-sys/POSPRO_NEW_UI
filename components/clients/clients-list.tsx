@@ -3,8 +3,9 @@
 /**
  * CRM-справочник клиентов (/admin/clients). Shared-пул: используется в
  * КП (`kp_history.client_id`), сделках (`deal.client_id`), задачах
- * (`task.client_id`). Удаление запрещено (по решению пользователя — на
- * фронте кнопки нет, бэк тоже возвращает 409 при любых ссылках).
+ * (`task.client_id`). Удаление разрешено, но бэк возвращает 409 если
+ * клиент используется хотя бы в одном КП / сделке / задаче — чтобы не
+ * осиротить документы. Текст ошибки показываем как есть в toast.
  *
  * Бэк: /api/kp-clients.
  */
@@ -23,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -34,7 +45,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { crmGet, crmPost, crmPut } from "@/lib/crm-fetch"
+import { crmGet, crmPost, crmPut, crmDelete } from "@/lib/crm-fetch"
 import { cn, formatPhone } from "@/lib/utils"
 import CompanyPickerDialog from "@/components/deals/company-picker-dialog"
 import KpCompanyQuickCreateDialog from "@/components/deals/kp-company-quick-create"
@@ -101,6 +112,8 @@ export default function ClientsList() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null)
+  const [deleting, setDeleting] = useState(false)
   // Пикер и квик-создание компании — внутри модалки клиента.
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false)
   const [companyCreateOpen, setCompanyCreateOpen] = useState(false)
@@ -225,6 +238,27 @@ export default function ClientsList() {
           : [{ phone: "", note: "" }],
     })
     setEditorOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await crmDelete(`/api/kp-clients/${deleteTarget.id}`)
+      toast({ title: "Клиент удалён" })
+      setDeleteTarget(null)
+      load()
+    } catch (e: any) {
+      // Бэк отдаёт 409 с осмысленным текстом когда клиент используется
+      // в КП / сделках / задачах — показываем как есть.
+      toast({
+        variant: "destructive",
+        title: "Не удалось удалить",
+        description: e?.message,
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const addContactRow = () =>
@@ -420,15 +454,28 @@ export default function ClientsList() {
                       {fmtDate(c.created_at)}
                     </td>
                     <td className="px-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(c)}
-                        className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
-                        title={used > 0 ? `Используется в ${used} местах` : "Редактировать"}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(c)}
+                          className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
+                          title={used > 0 ? `Используется в ${used} местах` : "Редактировать"}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteTarget(c)}
+                          className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
+                          title={used > 0
+                            ? `Нельзя удалить — используется в ${used} местах`
+                            : "Удалить"}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -615,6 +662,36 @@ export default function ClientsList() {
           setForm((p) => ({ ...p, company_id: co.id }))
         }}
       />
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить клиента?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && (
+                <>
+                  Клиент <strong>«{deleteTarget.full_name || "—"}»</strong> будет
+                  удалён. Если на него есть ссылки в КП, сделках или задачах —
+                  бэк вернёт ошибку и удаление не произойдёт.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete() }}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? "Удаляю…" : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
