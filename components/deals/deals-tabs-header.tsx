@@ -34,8 +34,11 @@ export default function DealsTabsHeader() {
   if (visibleTabs.length <= 1) return null
 
   const isActive = (tab: typeof TABS[number]) => {
-    if (tab.matchExact) return pathname === tab.href
-    return pathname === tab.href || pathname.startsWith(tab.href + "/")
+    // Убираем trailing slash — иначе Next иногда отдаёт `/admin/deals/`
+    // и строгое равенство ломается, Канбан не подсвечивается.
+    const p = pathname.replace(/\/$/, "") || "/"
+    if (tab.matchExact) return p === tab.href
+    return p === tab.href || p.startsWith(tab.href + "/")
   }
 
   return (
