@@ -1077,11 +1077,13 @@ function DealCard({
             </Field>
           )}
 
-          {sourceLabel && (
-            <Field label="Источник">
+          <Field label="Источник">
+            {sourceLabel ? (
               <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
-            </Field>
-          )}
+            ) : (
+              <span className="text-gray-400">—</span>
+            )}
+          </Field>
         </div>
 
         {/* Нижняя строка: относительная дата создания + подсказка просрочки. */}

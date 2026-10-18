@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react"
-import { CalendarRange, Users, Building2, User as UserIcon, X } from "lucide-react"
+import { CalendarRange, Users, Building2, User as UserIcon, X, Tag } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -36,6 +36,8 @@ export interface DealsFilters {
   clientId?: number | null
   companyId?: number | null
   responsibleId?: number | null
+  /** Источник сделки. 0 = «Без источника», число > 0 = конкретный DealSource. */
+  sourceId?: number | null
 }
 
 const DEFAULTS: DealsFilters = {
@@ -43,6 +45,7 @@ const DEFAULTS: DealsFilters = {
   clientId: null,
   companyId: null,
   responsibleId: null,
+  sourceId: null,
 }
 
 const PRESETS: Array<{ key: PeriodKey; label: string; days: number | null }> = [
@@ -54,8 +57,9 @@ const PRESETS: Array<{ key: PeriodKey; label: string; days: number | null }> = [
 ]
 
 /** Sentinel-id для пункта «Без ответственного» (responsibleId=0 ↔ бэк вернёт
- *  сделки где responsible_user_id IS NULL). */
+ *  сделки где responsible_user_id IS NULL). Такой же паттерн — для источника. */
 export const RESPONSIBLE_NONE = 0
+export const SOURCE_NONE = 0
 
 /** Переводит фильтры в query-строку для /api/admin/deals. */
 export function filtersToQuery(f: DealsFilters): URLSearchParams {
@@ -76,6 +80,8 @@ export function filtersToQuery(f: DealsFilters): URLSearchParams {
   if (f.companyId) p.set("company_id", String(f.companyId))
   if (f.responsibleId === RESPONSIBLE_NONE) p.set("responsible_id", "none")
   else if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
+  if (f.sourceId === SOURCE_NONE) p.set("source_id", "none")
+  else if (f.sourceId) p.set("source_id", String(f.sourceId))
   return p
 }
 
@@ -103,7 +109,18 @@ export default function DealsFilters({
   const [clientPicker, setClientPicker] = useState(false)
   const [companyPicker, setCompanyPicker] = useState(false)
   const [respPicker, setRespPicker] = useState(false)
+  const [sourcePicker, setSourcePicker] = useState(false)
   const [rangeOpen, setRangeOpen] = useState(false)
+  const [sources, setSources] = useState<Array<{ id: number; name: string; color?: string | null }>>([])
+
+  // Справочник источников — один раз при монтировании (небольшой список).
+  useEffect(() => {
+    crmGet<{ sources: Array<{ id: number; name: string; color?: string | null }> }>(
+      "/api/admin/deal-sources",
+    )
+      .then((r) => setSources(r.sources || []))
+      .catch(() => setSources([]))
+  }, [])
 
   const client = useMemo(
     () => clients.find((c) => c.id === value.clientId) ?? null,
@@ -118,6 +135,11 @@ export default function DealsFilters({
     [users, value.responsibleId],
   )
   const respIsNone = value.responsibleId === RESPONSIBLE_NONE
+  const source = useMemo(
+    () => sources.find((s) => s.id === value.sourceId) ?? null,
+    [sources, value.sourceId],
+  )
+  const sourceIsNone = value.sourceId === SOURCE_NONE
 
   const setPeriod = (key: PeriodKey) => {
     if (key === "custom") {
@@ -204,7 +226,23 @@ export default function DealsFilters({
           />
         )}
 
-        {(value.clientId || value.companyId || value.responsibleId != null || value.period !== "3m") && (
+        <FilterChip
+          icon={<Tag className="h-3.5 w-3.5" />}
+          label="Источник"
+          current={
+            sourceIsNone
+              ? "Без источника"
+              : source?.name
+          }
+          onPick={() => setSourcePicker(true)}
+          onClear={
+            value.sourceId != null
+              ? () => onChange({ ...value, sourceId: null })
+              : undefined
+          }
+        />
+
+        {(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.period !== "3m") && (
           <Button
             variant="ghost"
             size="sm"
@@ -217,7 +255,7 @@ export default function DealsFilters({
         {rightAction && (
           <div className={cn(
             // Если нет кнопки «Сбросить» выше — прижимаем rightAction вправо.
-            !(value.clientId || value.companyId || value.responsibleId != null || value.period !== "3m") && "ml-auto",
+            !(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.period !== "3m") && "ml-auto",
           )}>
             {rightAction}
           </div>
@@ -257,6 +295,27 @@ export default function DealsFilters({
           id: u.id,
           primary: u.full_name || u.name || u.email || `#${u.id}`,
           secondary: u.email,
+        }))}
+      />
+
+      <EntityPickerDialog
+        open={sourcePicker}
+        onOpenChange={setSourcePicker}
+        title="Выбрать источник"
+        searchPlaceholder="Поиск источника"
+        emptyText="Источники не найдены"
+        value={value.sourceId ?? null}
+        onChange={(id) => onChange({ ...value, sourceId: id })}
+        allowClear
+        nullOption={{
+          id: SOURCE_NONE,
+          primary: "Без источника",
+          secondary: "Сделки без указания источника",
+        }}
+        items={sources.map((s) => ({
+          id: s.id,
+          primary: s.name,
+          colorDot: s.color ?? null,
         }))}
       />
 
