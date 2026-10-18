@@ -18,7 +18,7 @@ import {
   Plus, Search, X, Loader2, ListTodo, CheckCircle2, Clock,
   Circle, PauseCircle, AlertCircle, Briefcase,
   FolderKanban, ChevronDown, CalendarDays,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Star,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,7 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/auth-context"
 import { cn } from "@/lib/utils"
-import { crmGet, crmPost, crmPut } from "@/lib/crm-fetch"
+import { crmGet, crmPost, crmPut, crmDelete } from "@/lib/crm-fetch"
 import {
   STATUS_META,
   PRIORITY_META,
@@ -106,6 +106,11 @@ export default function TasksList() {
   )
   const [overdue, setOverdue] = useState<boolean>(searchParams.get("overdue") === "1")
   const [q, setQ] = useState<string>(searchParams.get("q") || "")
+  // Таб-переключатель «Все задачи / Отслеживаемые». Персональный список
+  // избранного (task_watcher), фильтруется на бэке через ?watched=1.
+  const [view, setView] = useState<"all" | "watched">(
+    searchParams.get("view") === "watched" ? "watched" : "all",
+  )
 
   // Пагинация: страница 1-based, размер страницы 10/25/50.
   // Начальные значения — из URL, чтобы back из карточки возвращал
@@ -132,7 +137,7 @@ export default function TasksList() {
   // pageSize меняет page косвенно (через вторую зависимость ниже).
   useEffect(() => {
     setPage(1)
-  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, q, pageSize])
+  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, q, view, pageSize])
 
   const usersById = useMemo(
     () => new Map(users.map((u) => [u.id, userDisplayName(u)])),
@@ -177,6 +182,7 @@ export default function TasksList() {
       if (projectFilter !== "all") params.set("project_id", projectFilter)
       if (responsibleFilter !== "all") params.set("responsible_id", responsibleFilter)
       if (overdue) params.set("overdue", "1")
+      if (view === "watched") params.set("watched", "1")
       if (q.trim()) params.set("q", q.trim())
       params.set("limit", String(pageSize))
       params.set("offset", String((page - 1) * pageSize))
@@ -193,7 +199,7 @@ export default function TasksList() {
     } finally {
       setLoading(false)
     }
-  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, q, page, pageSize, toast])
+  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, view, q, page, pageSize, toast])
 
   useEffect(() => {
     const t = setTimeout(load, 250)
@@ -209,12 +215,13 @@ export default function TasksList() {
     if (projectFilter !== "all") p.set("project", projectFilter)
     if (responsibleFilter !== "all") p.set("responsible", responsibleFilter)
     if (overdue) p.set("overdue", "1")
+    if (view === "watched") p.set("view", "watched")
     if (q.trim()) p.set("q", q.trim())
     if (page !== 1) p.set("page", String(page))
     if (pageSize !== 25) p.set("size", String(pageSize))
     const qs = p.toString()
     router.replace(qs ? `/admin/tasks?${qs}` : "/admin/tasks", { scroll: false })
-  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, q, page, pageSize, router])
+  }, [roleFilter, statusFilter, priorityFilter, projectFilter, responsibleFilter, overdue, view, q, page, pageSize, router])
 
   const handleStatusChange = async (task: TaskListItem, status: TaskStatus) => {
     const prev = task.status
@@ -226,6 +233,39 @@ export default function TasksList() {
       toast({
         variant: "destructive",
         title: "Не удалось обновить статус",
+        description: e?.message,
+      })
+    }
+  }
+
+  const handleToggleWatch = async (task: TaskListItem) => {
+    const prev = Boolean(task.is_watched)
+    const next = !prev
+    // Оптимистично переключаем звёздочку. В режиме «Отслеживаемые» строку
+    // убираем сразу — не ждём ответа бэка, иначе пользователь успевает
+    // кликнуть снова.
+    setTasks((list) => {
+      if (view === "watched" && !next) {
+        return list.filter((t) => t.id !== task.id)
+      }
+      return list.map((t) => t.id === task.id ? { ...t, is_watched: next } : t)
+    })
+    try {
+      if (next) {
+        await crmPost(`/api/admin/tasks/${task.id}/watch`, {})
+      } else {
+        await crmDelete(`/api/admin/tasks/${task.id}/watch`)
+      }
+    } catch (e: any) {
+      // Откат.
+      setTasks((list) => {
+        const already = list.some((t) => t.id === task.id)
+        if (!already) return [...list, { ...task, is_watched: prev }]
+        return list.map((t) => t.id === task.id ? { ...t, is_watched: prev } : t)
+      })
+      toast({
+        variant: "destructive",
+        title: "Не удалось обновить отслеживание",
         description: e?.message,
       })
     }
@@ -258,6 +298,36 @@ export default function TasksList() {
             <h1 className="text-2xl font-semibold leading-tight">Задачи</h1>
             <p className="text-sm text-gray-500">Всего: {total}</p>
           </div>
+        </div>
+        {/* Табы «Все задачи / Отслеживаемые» — переключают персональный
+            фильтр по task_watcher. Положение между заголовком и правыми
+            кнопками: читается как часть шапки, не прыгает со сменой. */}
+        <div className="inline-flex items-center bg-gray-100 rounded-lg p-0.5 self-center">
+          <button
+            type="button"
+            onClick={() => setView("all")}
+            className={cn(
+              "h-8 px-3 text-sm rounded-md transition-colors",
+              view === "all"
+                ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(0,0,0,0.06)] font-medium"
+                : "text-gray-500 hover:text-gray-900",
+            )}
+          >
+            Все задачи
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("watched")}
+            className={cn(
+              "h-8 px-3 text-sm rounded-md transition-colors inline-flex items-center gap-1.5",
+              view === "watched"
+                ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(0,0,0,0.06)] font-medium"
+                : "text-gray-500 hover:text-gray-900",
+            )}
+          >
+            <Star className={cn("h-3.5 w-3.5", view === "watched" && "fill-brand-yellow text-brand-yellow")} />
+            Отслеживаемые
+          </button>
         </div>
         <div className="flex items-center gap-2">
           {canManageProjects && (
@@ -427,6 +497,7 @@ export default function TasksList() {
             <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
               <thead className="bg-gray-50/70 text-gray-500 text-[11px] uppercase tracking-wider">
                 <tr>
+                  <th className="text-center px-2 py-2.5 font-normal border-b border-gray-100 w-[36px]" aria-label="Отслеживать" />
                   <th className="text-left px-3 py-2.5 font-normal border-b border-gray-100 w-[28%] min-w-[220px]">Название</th>
                   <th className="text-left px-3 py-2.5 font-normal border-b border-gray-100 w-[130px]">Статус</th>
                   <th className="text-left px-3 py-2.5 font-normal border-b border-gray-100 w-[110px]">Приоритет</th>
@@ -453,6 +524,7 @@ export default function TasksList() {
                     }
                     onStatusChange={(s) => handleStatusChange(t, s)}
                     onPriorityChange={(p) => handlePriorityChange(t, p)}
+                    onToggleWatch={() => handleToggleWatch(t)}
                   />
                 ))}
               </tbody>
@@ -495,12 +567,14 @@ function TaskRow({
   creatorName,
   onStatusChange,
   onPriorityChange,
+  onToggleWatch,
 }: {
   task: TaskListItem
   responsibleName: string | null
   creatorName: string | null
   onStatusChange: (s: TaskStatus) => void
   onPriorityChange: (p: TaskPriority) => void
+  onToggleWatch: () => void
 }) {
   const st = STATUS_META[task.status]
   const pr = PRIORITY_META[task.priority]
@@ -511,12 +585,30 @@ function TaskRow({
     new Date(task.due_at).getTime() < Date.now()
 
   const router = useRouter()
+  const isWatched = Boolean(task.is_watched)
 
   return (
     <tr
       className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/70 cursor-pointer group"
       onClick={() => router.push(`/admin/tasks/${task.id}`)}
     >
+      <td
+        className="px-2 py-2.5 align-middle text-center border-b border-gray-100"
+        onClick={(e) => { e.stopPropagation(); onToggleWatch() }}
+      >
+        <button
+          type="button"
+          title={isWatched ? "Убрать из «Отслеживаемые»" : "Добавить в «Отслеживаемые»"}
+          className={cn(
+            "inline-flex items-center justify-center h-7 w-7 rounded-full transition-colors",
+            isWatched
+              ? "text-brand-yellow hover:bg-brand-yellow/10"
+              : "text-gray-300 hover:text-brand-yellow hover:bg-gray-100",
+          )}
+        >
+          <Star className={cn("h-4 w-4", isWatched && "fill-brand-yellow")} />
+        </button>
+      </td>
       <td className="px-3 py-2.5 align-middle border-b border-gray-100">
         <div className={cn(
           "text-sm truncate max-w-[500px] group-hover:text-brand-yellow-dark",

@@ -53,6 +53,8 @@ export interface TaskListItem {
   deal_ref: TaskDealRef | null
   /** Денормализовано на бэке — привязанный проект (если есть). */
   project_ref: TaskProjectRef | null
+  /** В личном списке «Отслеживаемые» у текущего пользователя. */
+  is_watched?: boolean
 }
 
 export interface TaskMember {

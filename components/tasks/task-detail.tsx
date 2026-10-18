@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Loader2, Trash2, CheckCircle2, Circle, Clock,
   AlertCircle, PauseCircle, Briefcase, RotateCcw, Check, Save,
-  Play, Pause, Send, CheckCheck, Undo2,
+  Play, Pause, Send, CheckCheck, Undo2, Star,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -206,6 +206,25 @@ export default function TaskDetail({ taskId }: Props) {
       toast({
         variant: "destructive",
         title: "Не удалось удалить",
+        description: e?.message,
+      })
+    }
+  }
+
+  const handleToggleWatch = async () => {
+    if (!task) return
+    const prev = Boolean(task.is_watched)
+    const next = !prev
+    // Оптимистично меняем звёздочку в state. Откатываем при ошибке.
+    setTask((t) => t ? { ...t, is_watched: next } : t)
+    try {
+      if (next) await crmPost(`/api/admin/tasks/${task.id}/watch`, {})
+      else      await crmDelete(`/api/admin/tasks/${task.id}/watch`)
+    } catch (e: any) {
+      setTask((t) => t ? { ...t, is_watched: prev } : t)
+      toast({
+        variant: "destructive",
+        title: "Не удалось обновить отслеживание",
         description: e?.message,
       })
     }
@@ -442,6 +461,24 @@ export default function TaskDetail({ taskId }: Props) {
               </SelectContent>
             </Select>
           </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleWatch}
+            className={cn(
+              "rounded-lg h-8 px-2.5 gap-1.5",
+              task.is_watched
+                ? "text-brand-yellow hover:bg-brand-yellow/10"
+                : "text-gray-500 hover:text-brand-yellow hover:bg-gray-100",
+            )}
+            title={task.is_watched ? "Убрать из «Отслеживаемые»" : "Добавить в «Отслеживаемые»"}
+          >
+            <Star className={cn("h-4 w-4", task.is_watched && "fill-brand-yellow")} />
+            <span className="text-sm">
+              {task.is_watched ? "Отслеживается" : "Отслеживать"}
+            </span>
+          </Button>
 
           <Button
             variant="ghost"

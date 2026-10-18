@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePathname } from "next/navigation"
 import {
   MessageSquare, X, Users2, UserRound, Briefcase, ListTodo,
-  ExternalLink,
+  ExternalLink, Archive, Inbox,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -51,6 +51,10 @@ export default function ChatWidget() {
   const [open, setOpen] = useState(false)
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null)
   const [users, setUsers] = useState<Sys[]>([])
+  // Фильтр по типу чатов. "all" = все активные (без архива), "archived"
+  // = только архив, остальные значения — конкретный kind.
+  const [kindFilter, setKindFilter] =
+    useState<"all" | ChatRoomKind | "archived">("all")
 
   // Справочник юзеров для отображения имён в списке и сообщениях.
   useEffect(() => {
@@ -75,6 +79,49 @@ export default function ChatWidget() {
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId],
   )
+
+  // Счётчики комнат и непрочитанных по типам — для табов и badges.
+  // В active-табы (direct/group/deal/task) НЕ попадают архивные комнаты;
+  // "all" тоже без архива. Отдельный таб "archived" — только архивные.
+  const kindStats = useMemo(() => {
+    const stats = {
+      all: { count: 0, unread: 0 },
+      direct: { count: 0, unread: 0 },
+      group: { count: 0, unread: 0 },
+      deal: { count: 0, unread: 0 },
+      task: { count: 0, unread: 0 },
+      archived: { count: 0, unread: 0 },
+    } as Record<"all" | ChatRoomKind | "archived", { count: number; unread: number }>
+    for (const r of rooms) {
+      const u = r.unread || 0
+      if (r.is_archived) {
+        stats.archived.count += 1
+        stats.archived.unread += u
+        continue
+      }
+      stats.all.count += 1
+      stats.all.unread += u
+      // "general" попадает в all/группы — закинем в group.
+      const k = r.kind === "general" ? "group" : r.kind
+      if (k in stats) {
+        stats[k as ChatRoomKind].count += 1
+        stats[k as ChatRoomKind].unread += u
+      }
+    }
+    return stats
+  }, [rooms])
+
+  // Отфильтрованный список для списка комнат.
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => {
+      if (kindFilter === "all") return !r.is_archived
+      if (kindFilter === "archived") return r.is_archived
+      if (r.is_archived) return false
+      // "general" показываем в табе "group" (это, по сути, групповые чаты).
+      if (kindFilter === "group") return r.kind === "group" || r.kind === "general"
+      return r.kind === kindFilter
+    })
+  }, [rooms, kindFilter])
 
   const selectRoom = useCallback((id: number) => {
     setSelectedRoomId(id)
@@ -109,14 +156,22 @@ export default function ChatWidget() {
               onClose={closeWidget}
             />
             <div className="flex-1 min-h-0 grid grid-cols-[240px_1fr]">
-              <div className="border-r border-gray-100 overflow-y-auto min-h-0">
-                <RoomsList
-                  rooms={rooms}
-                  usersById={usersById}
-                  currentUserId={currentUserId}
-                  selectedRoomId={selectedRoomId}
-                  onSelect={selectRoom}
+              <div className="border-r border-gray-100 flex flex-col min-h-0">
+                <KindTabs
+                  value={kindFilter}
+                  onChange={setKindFilter}
+                  stats={kindStats}
                 />
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <RoomsList
+                    rooms={filteredRooms}
+                    usersById={usersById}
+                    currentUserId={currentUserId}
+                    selectedRoomId={selectedRoomId}
+                    onSelect={selectRoom}
+                    emptyText={kindFilterEmpty(kindFilter)}
+                  />
+                </div>
               </div>
               <div className="min-h-0 flex flex-col">
                 {selectedRoom ? (
@@ -254,17 +309,19 @@ function RoomsList({
   currentUserId,
   selectedRoomId,
   onSelect,
+  emptyText,
 }: {
   rooms: ChatRoomSummary[]
   usersById: Map<number, string>
   currentUserId: number | null
   selectedRoomId: number | null
   onSelect: (id: number) => void
+  emptyText?: string
 }) {
   if (rooms.length === 0) {
     return (
       <div className="text-xs text-gray-400 text-center py-10 px-3">
-        Чатов пока нет
+        {emptyText || "Чатов пока нет"}
       </div>
     )
   }
@@ -285,6 +342,77 @@ function RoomsList({
   )
 }
 
+
+// ============================================================================
+// Табы по типу чатов — узкая горизонтальная полоса иконок над списком.
+// Иконки + badge с кол-вом непрочитанных на конкретном типе. Для «Все»
+// — total count. Активный таб подсвечен брендовым жёлтым.
+// ============================================================================
+
+type KindFilter = "all" | ChatRoomKind | "archived"
+
+const KIND_TABS: Array<{
+  key: KindFilter
+  title: string
+  Icon: typeof MessageSquare
+}> = [
+  { key: "all",      title: "Все",         Icon: Inbox },
+  { key: "direct",   title: "Личные",      Icon: UserRound },
+  { key: "group",    title: "Группы",      Icon: Users2 },
+  { key: "deal",     title: "Сделки",      Icon: Briefcase },
+  { key: "task",     title: "Задачи",      Icon: ListTodo },
+  { key: "archived", title: "Архив",       Icon: Archive },
+]
+
+function KindTabs({
+  value,
+  onChange,
+  stats,
+}: {
+  value: KindFilter
+  onChange: (next: KindFilter) => void
+  stats: Record<KindFilter, { count: number; unread: number }>
+}) {
+  return (
+    <div className="flex items-stretch gap-0.5 px-1 py-1 border-b border-gray-100 shrink-0">
+      {KIND_TABS.map(({ key, title, Icon }) => {
+        const s = stats[key]
+        const active = value === key
+        const unread = s?.unread || 0
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            title={`${title} · ${s?.count ?? 0}${unread ? ` (${unread} новых)` : ""}`}
+            className={cn(
+              "flex-1 min-w-0 relative h-9 rounded-md inline-flex items-center justify-center transition-colors",
+              active
+                ? "bg-brand-yellow/25 text-black"
+                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {unread > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-semibold ring-1 ring-white tabular-nums">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function kindFilterEmpty(k: KindFilter): string {
+  if (k === "archived") return "В архиве пусто"
+  if (k === "direct") return "Нет личных чатов"
+  if (k === "group") return "Нет групповых чатов"
+  if (k === "deal") return "Нет чатов по сделкам"
+  if (k === "task") return "Нет чатов по задачам"
+  return "Чатов пока нет"
+}
 
 // ============================================================================
 // helpers
