@@ -117,18 +117,10 @@ export default function DealsHistory() {
   const [filters, setFilters] = useState<Filters>(DEFAULTS)
   const [prefsLoaded, setPrefsLoaded] = useState(false)
 
-  // URL-override: при переходе из «Источники» с ?source=X ставим фильтр
-  // источника. Срабатывает один раз на моунт.
-  useEffect(() => {
-    const src = searchParams.get("source")
-    if (src) {
-      setFilters((prev) => ({
-        ...prev,
-        sourceId: src === "none" ? "none" : (Number(src) || null),
-      }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // URL-override вынесен в единый load-эффект prefs ниже — иначе была
+  // гонка: отдельный useEffect ставил sourceId из URL, а затем приходили
+  // загруженные prefs и затирали его целиком через setFilters({...DEFAULTS,
+  // ...prefs}). Теперь prefs и URL-override мерджатся в один setState.
   const [debouncedQ, setDebouncedQ] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(25)
@@ -156,16 +148,42 @@ export default function DealsHistory() {
   const [expandedClients, setExpandedClients] = useState<Set<number | null>>(new Set())
   const [expandedDeals, setExpandedDeals] = useState<Record<string, any[]>>({})
 
-  // Prefs: load once
+  // Prefs: load once + URL-override поверх, одним setState (чтобы не было
+  // гонки «prefs затирают source/period, пришедшие из /sources-stats»).
   useEffect(() => {
     crmGet<{ value: Filters | null }>(`/api/user-prefs/${PREFS_KEY}`)
       .then((res) => {
-        if (res.value && typeof res.value === "object") {
-          setFilters({ ...DEFAULTS, ...res.value })
+        const base: Filters = (res.value && typeof res.value === "object")
+          ? { ...DEFAULTS, ...res.value }
+          : { ...DEFAULTS }
+
+        // URL-параметры из /sources-stats:
+        //   source=<id>|none   — pre-фильтр источника
+        //   period=1m|3m|6m|1y|all   — пресет периода
+        //   from=<iso>&to=<iso>      — кастомный диапазон
+        const src = searchParams.get("source")
+        if (src) {
+          base.sourceId = src === "none" ? "none" : (Number(src) || null)
         }
+        const periodQ = searchParams.get("period")
+        if (periodQ && ["2w","1m","3m","6m","1y","all"].includes(periodQ)) {
+          base.period = periodQ as any
+          base.customFrom = null
+          base.customTo = null
+        }
+        const from = searchParams.get("from")
+        const to = searchParams.get("to")
+        if (from && to) {
+          base.period = "custom"
+          base.customFrom = from
+          base.customTo = to
+        }
+
+        setFilters(base)
       })
       .catch(() => {})
       .finally(() => setPrefsLoaded(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Save prefs (debounce 500ms)

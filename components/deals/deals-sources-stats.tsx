@@ -98,6 +98,27 @@ export default function DealsSourcesStats() {
     const q = new URLSearchParams()
     if (sourceId == null) q.set("source", "none")
     else q.set("source", String(sourceId))
+    // Передаём текущий период: history умеет period=1m/3m/6m/1y/all
+    // (ровно те пресеты, что есть в source-stats), а для «2 мес» (которого
+    // в history нет) и custom-диапазона — ISO-даты from/to.
+    if (isCustom && customFrom && customTo) {
+      q.set("from", customFrom)
+      q.set("to", customTo)
+    } else {
+      const PERIOD_MAP: Record<number, string> = {
+        1: "1m", 3: "3m", 6: "6m", 12: "1y", 0: "all",
+      }
+      const key = PERIOD_MAP[months]
+      if (key) {
+        q.set("period", key)
+      } else if (months === 2) {
+        // Для «2 мес» эмулируем через custom-диапазон (period 2m в history нет).
+        const to = new Date()
+        const from = new Date(to.getTime() - 60 * 24 * 3600 * 1000)
+        q.set("from", from.toISOString())
+        q.set("to", to.toISOString())
+      }
+    }
     router.push(`/admin/deals/history?${q.toString()}`)
   }
 
