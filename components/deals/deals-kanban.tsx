@@ -55,6 +55,7 @@ import type {
   DealsListResponse,
   PipelinesListResponse,
 } from "@/lib/deals-types"
+import DealsFilters, { useDealsFilters, filtersToQuery } from "./deals-filters"
 
 interface Props {
   onCreate?: () => void       // клик по «+ Новая сделка» открывает модалку
@@ -70,6 +71,11 @@ interface SystemUserLite {
   id: number
   full_name: string
   email: string
+}
+
+interface CompanyLite {
+  id: number
+  name: string
 }
 
 export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
@@ -94,11 +100,18 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
   // Какая колонка сейчас грузит очередную порцию — для спиннера на кнопке
   // «Загрузить ещё». null = ни одна не грузит.
   const [loadingMoreStageId, setLoadingMoreStageId] = useState<number | null>(null)
+  const [clients, setClients] = useState<KpClientLite[]>([])
+  const [companies, setCompanies] = useState<CompanyLite[]>([])
+  const [users, setUsers] = useState<SystemUserLite[]>([])
   const [clientsById, setClientsById] = useState<Map<number, string>>(new Map())
   const [usersById, setUsersById] = useState<Map<number, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [movingId, setMovingId] = useState<number | null>(null)
   const [activeDrag, setActiveDrag] = useState<Deal | null>(null)
+
+  // Фильтры канбана (период / клиент / компания / ответственный),
+  // сохраняются per-user в /api/user-prefs/deals_canvas.
+  const { filters, setFilters, loaded: filtersLoaded } = useDealsFilters()
 
   const DEALS_PAGE_SIZE = 10
 
@@ -118,26 +131,31 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
       })
       return { success: false, pipelines: [] as any[] } as PipelinesListResponse
     })
-    const loadClients = crmGet<{ clients: KpClientLite[] }>("/api/kp-clients").catch(
+    const loadClients = crmGet<{ clients: KpClientLite[] }>("/api/kp-clients?limit=500").catch(
       () => ({ clients: [] as KpClientLite[] }),
     )
+    const loadCompanies = crmGet<{ companies: CompanyLite[] }>(
+      "/api/admin/kp-companies?limit=500",
+    ).catch(() => ({ companies: [] as CompanyLite[] }))
     // Flask отдаёт system-users плоским массивом.
     const loadUsers = crmGet<SystemUserLite[] | { users: SystemUserLite[] }>(
       "/api/system-users",
     ).catch(() => [] as SystemUserLite[])
 
-    Promise.all([loadPipelines, loadClients, loadUsers])
-      .then(([p, c, u]) => {
+    Promise.all([loadPipelines, loadClients, loadCompanies, loadUsers])
+      .then(([p, c, co, u]) => {
         if (ignore) return
         const list = p.pipelines || []
         setPipelines(list)
         const first = list.find((x) => x.active) ?? list[0]
         if (first) setActivePipelineId(first.id)
-        setClientsById(
-          new Map((c.clients || []).map((x) => [x.id, x.display_name])),
-        )
-        const users = Array.isArray(u) ? u : u.users || []
-        setUsersById(new Map(users.map((x) => [x.id, x.full_name || x.email])))
+        const cs = c.clients || []
+        setClients(cs)
+        setClientsById(new Map(cs.map((x) => [x.id, x.display_name])))
+        setCompanies(co.companies || [])
+        const us = Array.isArray(u) ? u : u.users || []
+        setUsers(us)
+        setUsersById(new Map(us.map((x) => [x.id, x.full_name || x.email])))
       })
       .finally(() => {
         if (!ignore) setLoading(false)
@@ -148,29 +166,30 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     }
   }, [toast])
 
-  // 2) Загрузка сделок при смене активной воронки — параллельно по
-  //    всем стадиям, по DEALS_PAGE_SIZE на каждую. Если в стадии больше —
-  //    юзер жмёт «Загрузить ещё 10» внутри колонки.
-  //
-  //    Делаем именно N запросов (а не один общий с limit=200) — иначе
-  //    в большой базе 29k сделок первые 200 могут все оказаться в одной
-  //    стадии, и остальные колонки будут пусты.
+  // 2) Загрузка сделок при смене активной воронки или фильтров —
+  //    параллельно по всем стадиям, по DEALS_PAGE_SIZE на каждую + с
+  //    применёнными фильтрами (период, клиент, компания, ответственный).
   useEffect(() => {
     if (activePipelineId == null) return
+    if (!filtersLoaded) return  // ждём загрузку prefs чтобы не делать 2 запроса
     const pipeline = pipelines.find((p) => p.id === activePipelineId)
     if (!pipeline || !pipeline.stages) return
 
     let ignore = false
-    const results = pipeline.stages.map((s) =>
-      crmGet<DealsListResponse>(
-        `/api/admin/deals?pipeline_id=${activePipelineId}&stage_id=${s.id}&limit=${DEALS_PAGE_SIZE}&offset=0`,
-      )
+    const base = filtersToQuery(filters)
+    const results = pipeline.stages.map((s) => {
+      const p = new URLSearchParams(base)
+      p.set("pipeline_id", String(activePipelineId))
+      p.set("stage_id", String(s.id))
+      p.set("limit", String(DEALS_PAGE_SIZE))
+      p.set("offset", "0")
+      return crmGet<DealsListResponse>(`/api/admin/deals?${p.toString()}`)
         .then((res) => ({ stageId: s.id, deals: res.deals || [], total: res.total || 0 }))
         .catch((e) => {
           console.error(`load deals (stage ${s.id}):`, e)
           return { stageId: s.id, deals: [] as Deal[], total: 0 }
-        }),
-    )
+        })
+    })
 
     Promise.all(results).then((rows) => {
       if (ignore) return
@@ -184,7 +203,7 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     return () => {
       ignore = true
     }
-  }, [activePipelineId, pipelines])
+  }, [activePipelineId, pipelines, filters, filtersLoaded])
 
   /** Догружает следующую порцию сделок конкретной стадии. */
   const loadMoreForStage = useCallback(
@@ -196,8 +215,13 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
 
       setLoadingMoreStageId(stageId)
       try {
+        const p = new URLSearchParams(filtersToQuery(filters))
+        p.set("pipeline_id", String(activePipelineId))
+        p.set("stage_id", String(stageId))
+        p.set("limit", String(DEALS_PAGE_SIZE))
+        p.set("offset", String(row.deals.length))
         const res = await crmGet<DealsListResponse>(
-          `/api/admin/deals?pipeline_id=${activePipelineId}&stage_id=${stageId}&limit=${DEALS_PAGE_SIZE}&offset=${row.deals.length}`,
+          `/api/admin/deals?${p.toString()}`,
         )
         setStageData((prev) => {
           const next = new Map(prev)
@@ -223,7 +247,7 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
         setLoadingMoreStageId(null)
       }
     },
-    [activePipelineId, stageData, toast],
+    [activePipelineId, stageData, filters, toast],
   )
 
   const activePipeline = useMemo(
@@ -514,6 +538,16 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
           )}
         </div>
       ) : null}
+
+      {/* Фильтры канбана: период / клиент / компания / ответственный.
+          Сохраняются per-user в /api/user-prefs/deals_canvas. */}
+      <DealsFilters
+        value={filters}
+        onChange={setFilters}
+        clients={clients}
+        companies={companies}
+        users={users}
+      />
 
       {/* Kanban */}
       <DndContext
