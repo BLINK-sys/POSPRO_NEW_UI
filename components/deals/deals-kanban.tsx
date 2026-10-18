@@ -56,6 +56,7 @@ import type {
   PipelinesListResponse,
 } from "@/lib/deals-types"
 import DealsFilters, { useDealsFilters, filtersToQuery } from "./deals-filters"
+import DealsTabsHeader from "./deals-tabs-header"
 
 interface Props {
   onCreate?: () => void       // клик по «+ Новая сделка» открывает модалку
@@ -473,18 +474,18 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     // `-mr-4 md:-mr-6` «съедает» правый padding админ-layout (`p-4 md:p-6`),
     // чтобы доска доходила до самого края экрана — по просьбе юзера.
     <div className="space-y-4 w-full min-w-0 -mr-4 md:-mr-6">
-      {/* Шапка страницы */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-brand-yellow/25 flex items-center justify-center">
-            <Briefcase className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold leading-tight">Сделки</h1>
-            <p className="text-sm text-gray-500">Всего в воронке: {totalInPipeline}</p>
-          </div>
+      {/* Шапка страницы: иконка + заголовок + табы (История/Источники для
+          owner/can_see_all_deals) + правый блок кнопок. */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="h-10 w-10 rounded-full bg-brand-yellow/25 flex items-center justify-center">
+          <Briefcase className="h-5 w-5" />
         </div>
-        <div className="flex items-center gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold leading-tight">Сделки</h1>
+          <p className="text-sm text-gray-500">Всего в воронке: {totalInPipeline}</p>
+        </div>
+        <DealsTabsHeader />
+        <div className="flex items-center gap-2 ml-auto">
           {canManagePipelines && (
             <>
               <Button asChild variant="outline" size="sm" className="rounded-lg">
