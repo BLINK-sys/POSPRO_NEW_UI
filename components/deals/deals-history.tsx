@@ -328,15 +328,14 @@ export default function DealsHistory() {
 
   return (
     <div className="space-y-4 min-w-0">
-      {/* Шапка: табы + заголовок */}
+      {/* Шапка: заголовок + табы сразу после (единое положение на всех
+          табах, не прыгают при переключении). */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="h-10 w-10 rounded-full bg-brand-yellow/25 flex items-center justify-center">
           <Briefcase className="h-5 w-5" />
         </div>
         <h1 className="text-2xl font-semibold leading-tight">Сделки</h1>
-        <div className="ml-auto">
-          <DealsTabsHeader />
-        </div>
+        <DealsTabsHeader />
       </div>
 
       {/* Статы-плитки */}
