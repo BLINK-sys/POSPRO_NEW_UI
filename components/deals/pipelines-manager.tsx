@@ -33,6 +33,8 @@ import {
   Trash2,
   Trophy,
   Users,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import {
   DndContext,
@@ -1308,31 +1310,35 @@ function StageRow({
           new
         </span>
       )}
-      {!stage.is_active && !isNew && (
-        <span className="text-[10px] uppercase tracking-wider bg-gray-200 text-gray-600 rounded px-1 shrink-0"
-              title="Скрыта в канбане и в селектах">
-          архив
-        </span>
-      )}
 
-      {/* Toggle активности — скрывает стадию в канбане/селектах без
-          удаления. Для стадий с привязанными сделками это единственный
-          способ «убрать» их из рабочего пространства. */}
+      {/* Переключатель видимости — кнопка с иконкой + текстом,
+          чтобы было сразу понятно какое сейчас состояние. */}
       <button
         type="button"
         onClick={() => onUpdate({ is_active: !stage.is_active })}
         className={cn(
-          "h-5 w-9 rounded-full relative transition-colors shrink-0",
-          stage.is_active ? "bg-emerald-500" : "bg-gray-300",
+          "inline-flex items-center gap-1 h-8 px-2.5 rounded-md border text-xs font-medium shrink-0 transition-colors",
+          stage.is_active
+            ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200",
         )}
-        title={stage.is_active ? "Активна — клик чтобы скрыть" : "Скрыта — клик чтобы показать"}
+        title={
+          stage.is_active
+            ? "Стадия активна — видна в канбане и в селектах. Клик чтобы скрыть."
+            : "Стадия в архиве — скрыта в канбане, но сделки на ней остались. Клик чтобы показать."
+        }
       >
-        <span
-          className={cn(
-            "absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform",
-            stage.is_active ? "translate-x-[18px]" : "translate-x-[2px]",
-          )}
-        />
+        {stage.is_active ? (
+          <>
+            <Eye className="h-3.5 w-3.5" />
+            Активна
+          </>
+        ) : (
+          <>
+            <EyeOff className="h-3.5 w-3.5" />
+            Архив
+          </>
+        )}
       </button>
 
       <Button
