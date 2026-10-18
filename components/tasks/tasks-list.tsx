@@ -18,7 +18,7 @@ import {
   Plus, Search, X, Loader2, ListTodo, CheckCircle2, Clock,
   Circle, PauseCircle, AlertCircle, Briefcase,
   FolderKanban, ChevronDown, CalendarDays,
-  ChevronLeft, ChevronRight, Star,
+  ChevronLeft, ChevronRight, Star, User as UserIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,7 @@ import type { Project } from "@/lib/projects-types"
 
 import TaskCreateDialog from "./task-create-dialog"
 import TasksCalendarDialog from "./tasks-calendar-dialog"
+import EntityPickerDialog from "@/components/deals/entity-picker-dialog"
 
 interface SystemUserLite {
   id: number
@@ -131,6 +132,7 @@ export default function TasksList() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [respPickerOpen, setRespPickerOpen] = useState(false)
 
   // При смене любого фильтра возвращаемся на первую страницу — иначе
   // юзер меняет статус и видит пустой список (page=4 для 3 строк).
@@ -446,24 +448,46 @@ export default function TasksList() {
               </SelectContent>
             </Select>
 
-            <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px] max-w-[320px] rounded-lg">
-                <SelectValue placeholder="Исполнитель" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Все исполнители</SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {/* Сокращаем «Ф И О» → «Ф И. О.» — иначе SelectValue
-                        в trigger'е с max-w-[320px] обрезает длинные
-                        ФИО троеточием. Полное имя в title. */}
-                    <span title={userDisplayName(u)}>
-                      {compactName(userDisplayName(u))}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Исполнитель — chip + модалка EntityPickerDialog (как в сделках),
+                вместо shadcn Select с длинным списком. Поиск по имени/email
+                внутри модалки. Пустое значение "all" = все исполнители. */}
+            {(() => {
+              const selectedUser = responsibleFilter !== "all"
+                ? users.find((u) => String(u.id) === responsibleFilter)
+                : null
+              const isSet = Boolean(selectedUser)
+              return (
+                <div className={cn(
+                  "inline-flex items-center h-9 rounded-lg border text-sm overflow-hidden",
+                  isSet ? "border-brand-yellow bg-brand-yellow/15" : "border-gray-200 bg-white",
+                )}>
+                  <button
+                    type="button"
+                    onClick={() => setRespPickerOpen(true)}
+                    className="inline-flex items-center gap-1.5 h-full px-3 text-gray-700 hover:text-gray-900"
+                  >
+                    <UserIcon className="h-4 w-4 shrink-0" />
+                    {isSet ? (
+                      <span className="truncate max-w-[180px]" title={userDisplayName(selectedUser!)}>
+                        {compactName(userDisplayName(selectedUser!))}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">Все исполнители</span>
+                    )}
+                  </button>
+                  {isSet && (
+                    <button
+                      type="button"
+                      onClick={() => setResponsibleFilter("all")}
+                      className="h-full w-7 inline-flex items-center justify-center text-gray-400 hover:text-red-500"
+                      aria-label="Сбросить"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
 
             <label className="inline-flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none pl-1">
               <input
@@ -555,6 +579,27 @@ export default function TasksList() {
       />
 
       <TasksCalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} />
+
+      {/* Пикер исполнителя — тот же что в сделках, но БЕЗ пункта
+          «Без ответственного» (в задачах responsible — обязательное поле). */}
+      <EntityPickerDialog
+        open={respPickerOpen}
+        onOpenChange={setRespPickerOpen}
+        title="Выбрать исполнителя"
+        searchPlaceholder="Поиск по имени / email"
+        emptyText="Исполнители не найдены"
+        value={responsibleFilter !== "all" ? Number(responsibleFilter) : null}
+        onChange={(id) =>
+          setResponsibleFilter(id == null ? "all" : String(id))
+        }
+        allowClear
+        clearText="Все исполнители"
+        items={users.map((u) => ({
+          id: u.id,
+          primary: userDisplayName(u),
+          secondary: u.email,
+        }))}
+      />
     </div>
   )
 }
