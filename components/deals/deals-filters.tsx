@@ -53,6 +53,10 @@ const PRESETS: Array<{ key: PeriodKey; label: string; days: number | null }> = [
   { key: "all", label: "Все", days: null },
 ]
 
+/** Sentinel-id для пункта «Без ответственного» (responsibleId=0 ↔ бэк вернёт
+ *  сделки где responsible_user_id IS NULL). */
+export const RESPONSIBLE_NONE = 0
+
 /** Переводит фильтры в query-строку для /api/admin/deals. */
 export function filtersToQuery(f: DealsFilters): URLSearchParams {
   const p = new URLSearchParams()
@@ -70,7 +74,8 @@ export function filtersToQuery(f: DealsFilters): URLSearchParams {
   }
   if (f.clientId) p.set("client_id", String(f.clientId))
   if (f.companyId) p.set("company_id", String(f.companyId))
-  if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
+  if (f.responsibleId === RESPONSIBLE_NONE) p.set("responsible_id", "none")
+  else if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
   return p
 }
 
@@ -112,6 +117,7 @@ export default function DealsFilters({
     () => users.find((u) => u.id === value.responsibleId) ?? null,
     [users, value.responsibleId],
   )
+  const respIsNone = value.responsibleId === RESPONSIBLE_NONE
 
   const setPeriod = (key: PeriodKey) => {
     if (key === "custom") {
@@ -184,13 +190,21 @@ export default function DealsFilters({
           <FilterChip
             icon={<UserIcon className="h-3.5 w-3.5" />}
             label="Ответственный"
-            current={resp ? (resp.full_name || resp.name || resp.email) : undefined}
+            current={
+              respIsNone
+                ? "Без ответственного"
+                : resp ? (resp.full_name || resp.name || resp.email) : undefined
+            }
             onPick={() => setRespPicker(true)}
-            onClear={value.responsibleId ? () => onChange({ ...value, responsibleId: null }) : undefined}
+            onClear={
+              value.responsibleId != null
+                ? () => onChange({ ...value, responsibleId: null })
+                : undefined
+            }
           />
         )}
 
-        {(value.clientId || value.companyId || value.responsibleId || value.period !== "3m") && (
+        {(value.clientId || value.companyId || value.responsibleId != null || value.period !== "3m") && (
           <Button
             variant="ghost"
             size="sm"
@@ -203,7 +217,7 @@ export default function DealsFilters({
         {rightAction && (
           <div className={cn(
             // Если нет кнопки «Сбросить» выше — прижимаем rightAction вправо.
-            !(value.clientId || value.companyId || value.responsibleId || value.period !== "3m") && "ml-auto",
+            !(value.clientId || value.companyId || value.responsibleId != null || value.period !== "3m") && "ml-auto",
           )}>
             {rightAction}
           </div>
@@ -234,6 +248,11 @@ export default function DealsFilters({
         value={value.responsibleId ?? null}
         onChange={(id) => onChange({ ...value, responsibleId: id })}
         allowClear
+        nullOption={{
+          id: RESPONSIBLE_NONE,
+          primary: "Без ответственного",
+          secondary: "Сделки где ответственный не назначен",
+        }}
         items={users.map((u) => ({
           id: u.id,
           primary: u.full_name || u.name || u.email || `#${u.id}`,

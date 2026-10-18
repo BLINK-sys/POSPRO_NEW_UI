@@ -95,7 +95,8 @@ function filtersToQuery(f: Filters, extra?: Record<string, string>): URLSearchPa
   if (f.stageId) p.set("stage_id", String(f.stageId))
   if (f.clientId) p.set("client_id", String(f.clientId))
   if (f.companyId) p.set("company_id", String(f.companyId))
-  if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
+  if (f.responsibleId === 0) p.set("responsible_id", "none")
+  else if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
   if (f.sourceId === "none") p.set("source_id", "none")
   else if (f.sourceId) p.set("source_id", String(f.sourceId))
   if (f.amountMin != null) p.set("amount_min", String(f.amountMin))
@@ -321,7 +322,7 @@ export default function DealsHistory() {
     (filters.stageId ? 1 : 0) +
     (filters.clientId ? 1 : 0) +
     (filters.companyId ? 1 : 0) +
-    (filters.responsibleId ? 1 : 0) +
+    (filters.responsibleId != null ? 1 : 0) +
     (filters.sourceId ? 1 : 0) +
     (filters.amountMin != null ? 1 : 0) +
     (filters.amountMax != null ? 1 : 0) +
@@ -479,9 +480,19 @@ export default function DealsHistory() {
             <FilterChip
               icon={<UserIcon className="h-3.5 w-3.5" />}
               label="Ответственный"
-              current={filters.responsibleId ? userNameById.get(filters.responsibleId) : null}
+              current={
+                filters.responsibleId === 0
+                  ? "Без ответственного"
+                  : filters.responsibleId
+                  ? userNameById.get(filters.responsibleId)
+                  : null
+              }
               onPick={() => setRespPicker(true)}
-              onClear={filters.responsibleId ? () => setFilters({ ...filters, responsibleId: null }) : undefined}
+              onClear={
+                filters.responsibleId != null
+                  ? () => setFilters({ ...filters, responsibleId: null })
+                  : undefined
+              }
             />
           )}
 
@@ -623,6 +634,11 @@ export default function DealsHistory() {
         value={filters.responsibleId ?? null}
         onChange={(id) => setFilters({ ...filters, responsibleId: id })}
         allowClear
+        nullOption={{
+          id: 0,
+          primary: "Без ответственного",
+          secondary: "Сделки где ответственный не назначен",
+        }}
         items={users.map((u: any) => ({
           id: u.id,
           primary: u.full_name || u.name || u.email || `#${u.id}`,

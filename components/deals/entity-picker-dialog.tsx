@@ -58,6 +58,13 @@ interface Props {
    */
   onCreateNew?: () => void
   createNewLabel?: string
+  /**
+   * Опциональный «особый» пункт в самом верху списка (например
+   * «Без ответственного»). При клике onChange получает `nullOption.id`
+   * (родитель договаривается о sentinel-значении, обычно 0). Пункт не
+   * фильтруется поиском.
+   */
+  nullOption?: { id: number; primary: string; secondary?: string }
 }
 
 // Убираем ВСЕ focus-подсветки (и focus:, и focus-visible:, и outline).
@@ -78,6 +85,7 @@ export default function EntityPickerDialog({
   toolbar,
   onCreateNew,
   createNewLabel = "Создать",
+  nullOption,
 }: Props) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -193,12 +201,41 @@ export default function EntityPickerDialog({
 
           {/* Список — растягивается, скроллится при переполнении */}
           <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && !nullOption ? (
               <div className="text-sm text-gray-500 text-center py-10">
                 {emptyText}
               </div>
             ) : (
               <ul className="space-y-0.5">
+                {nullOption && (
+                  <li key={`__null_${nullOption.id}`}>
+                    <button
+                      type="button"
+                      onClick={() => handlePick(nullOption.id)}
+                      className={cn(
+                        "w-full text-left rounded-lg px-3 py-2 flex items-center gap-2 transition-colors",
+                        value === nullOption.id
+                          ? "bg-brand-yellow/25 border border-brand-yellow"
+                          : "hover:bg-gray-100 border border-dashed border-gray-200",
+                        NO_RING,
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate text-gray-700">
+                          {nullOption.primary}
+                        </div>
+                        {nullOption.secondary && (
+                          <div className="text-xs text-gray-500 truncate">
+                            {nullOption.secondary}
+                          </div>
+                        )}
+                      </div>
+                      {value === nullOption.id && (
+                        <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                      )}
+                    </button>
+                  </li>
+                )}
                 {filtered.map((it) => {
                   const selected = it.id === value
                   return (
