@@ -20,7 +20,7 @@ import { CalendarRange, Users, Building2, User as UserIcon, X } from "lucide-rea
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { crmGet, crmPut } from "@/lib/crm-fetch"
-import { DateTimePicker } from "@/components/ui/date-time-picker"
+import DateRangeDialog from "@/components/ui/date-range-dialog"
 import EntityPickerDialog from "./entity-picker-dialog"
 import ClientPickerDialog from "./client-picker-dialog"
 
@@ -91,6 +91,7 @@ export default function DealsFilters({
   const [clientPicker, setClientPicker] = useState(false)
   const [companyPicker, setCompanyPicker] = useState(false)
   const [respPicker, setRespPicker] = useState(false)
+  const [rangeOpen, setRangeOpen] = useState(false)
 
   const client = useMemo(
     () => clients.find((c) => c.id === value.clientId) ?? null,
@@ -107,11 +108,20 @@ export default function DealsFilters({
 
   const setPeriod = (key: PeriodKey) => {
     if (key === "custom") {
-      onChange({ ...value, period: "custom" })
+      // Открываем модалку диапазона — применится после двух кликов.
+      setRangeOpen(true)
     } else {
       onChange({ ...value, period: key, customFrom: null, customTo: null })
     }
   }
+
+  const formatRange = (fromIso?: string | null, toIso?: string | null) => {
+    if (!fromIso || !toIso) return null
+    const a = new Date(fromIso).toLocaleDateString("ru-RU")
+    const b = new Date(toIso).toLocaleDateString("ru-RU")
+    return `${a} — ${b}`
+  }
+  const rangeLabel = formatRange(value.customFrom, value.customTo)
 
   return (
     <>
@@ -144,27 +154,9 @@ export default function DealsFilters({
             )}
           >
             <CalendarRange className="h-3.5 w-3.5" />
-            Период
+            {value.period === "custom" && rangeLabel ? rangeLabel : "Период"}
           </button>
         </div>
-
-        {/* Кастомные даты (только когда period='custom') */}
-        {value.period === "custom" && (
-          <>
-            <span className="text-xs text-gray-400">с</span>
-            <DateTimePicker
-              value={value.customFrom ?? null}
-              onChange={(iso) => onChange({ ...value, customFrom: iso })}
-              placeholder="…"
-            />
-            <span className="text-xs text-gray-400">по</span>
-            <DateTimePicker
-              value={value.customTo ?? null}
-              onChange={(iso) => onChange({ ...value, customTo: iso })}
-              placeholder="…"
-            />
-          </>
-        )}
 
         {/* Фильтры-пикеры: клиент / компания / ответственный */}
         <FilterChip
@@ -233,6 +225,21 @@ export default function DealsFilters({
           primary: u.full_name || u.name || u.email || `#${u.id}`,
           secondary: u.email,
         }))}
+      />
+
+      <DateRangeDialog
+        open={rangeOpen}
+        onOpenChange={setRangeOpen}
+        from={value.customFrom ?? null}
+        to={value.customTo ?? null}
+        onApply={(fromIso, toIso) =>
+          onChange({
+            ...value,
+            period: "custom",
+            customFrom: fromIso,
+            customTo: toIso,
+          })
+        }
       />
     </>
   )
