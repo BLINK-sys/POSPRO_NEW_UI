@@ -589,6 +589,7 @@ export default function DealsHistory() {
             clientNameById={clientNameById}
             companyNameById={companyNameById}
             userNameById={userNameById}
+            sourceById={sourceById}
             onOpen={(id) => router.push(`/admin/deals/${id}`)}
             formatMoney={formatMoney}
             formatDate={formatDate}
@@ -725,7 +726,7 @@ function FilterChip({
 }
 
 function FlatTable({
-  rows, pipelineById, clientNameById, companyNameById, userNameById,
+  rows, pipelineById, clientNameById, companyNameById, userNameById, sourceById,
   onOpen, formatMoney, formatDate,
 }: any) {
   if (rows.length === 0) {
@@ -740,6 +741,7 @@ function FlatTable({
             <th className="text-left px-3 py-2 font-normal">Название</th>
             <th className="text-left px-3 py-2 font-normal">Клиент</th>
             <th className="text-left px-3 py-2 font-normal">Компания</th>
+            <th className="text-left px-3 py-2 font-normal w-32">Источник</th>
             <th className="text-left px-3 py-2 font-normal">Воронка / стадия</th>
             <th className="text-left px-3 py-2 font-normal w-24">Статус</th>
             <th className="text-right px-3 py-2 font-normal w-28">Сумма</th>
@@ -751,6 +753,10 @@ function FlatTable({
           {rows.map((d: any) => {
             const pipeline = pipelineById.get(d.pipeline_id)
             const stage = pipeline?.stages?.find((s: any) => s.id === d.stage_id)
+            // Приоритет: ручной deal_source → автомат из ingest → '—'.
+            const sourceObj = d.source_id ? sourceById?.get(d.source_id) : null
+            const sourceLabel = sourceObj?.name || d.deal_source?.name || d.source_name || null
+            const sourceColor = sourceObj?.color || d.deal_source?.color || null
             return (
               <tr
                 key={d.id}
@@ -761,6 +767,16 @@ function FlatTable({
                 <td className="px-3 py-2 font-medium">{d.name}</td>
                 <td className="px-3 py-2 text-gray-700">{d.client_id ? clientNameById.get(d.client_id) || `#${d.client_id}` : "—"}</td>
                 <td className="px-3 py-2 text-gray-700">{d.company_id ? companyNameById.get(d.company_id) || `#${d.company_id}` : "—"}</td>
+                <td className="px-3 py-2 text-xs text-gray-700">
+                  {sourceLabel ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {sourceColor && (
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sourceColor }} />
+                      )}
+                      <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
+                    </span>
+                  ) : <span className="text-gray-400">—</span>}
+                </td>
                 <td className="px-3 py-2 text-gray-700 text-xs">
                   {pipeline?.name}
                   {stage && (
