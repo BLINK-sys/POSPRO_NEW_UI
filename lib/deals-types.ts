@@ -18,6 +18,10 @@ export interface DealStage {
   /** Если false — стадия скрыта в канбане и в большинстве селектов,
    *  но сделки остаются привязаны. */
   is_active?: boolean
+  /** Коды Dictionary.code, обязательные при входе на эту стадию.
+   *  Проверяется в POST /deals/<id>/move: если какие-то пусты в
+   *  deal.survey_values → 400 с missing_codes, фронт показывает модалку. */
+  required_dict_codes?: string[]
   created_at?: string | null
   updated_at?: string | null
 }
@@ -61,6 +65,8 @@ export interface Deal {
   /** Дочерний «вариант» источника — «Дополнительно об источнике». */
   source_variant_id: number | null
   source_variant?: { id: number; parent_source_id: number; name: string } | null
+  /** Значения справочников-опросника, {dict_code: dict_item_id}. */
+  survey_values?: Record<string, number>
   status: DealStatus
   tags: string[]
   notes: string | null

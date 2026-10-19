@@ -25,6 +25,7 @@ import {
   Ban,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   GripVertical,
   Loader2,
   Plus,
@@ -115,7 +116,15 @@ interface DraftStage {
   color: string
   type: DealStageType
   is_active: boolean
+  /** Коды Dictionary.code, обязательные при входе на стадию. */
+  required_dict_codes: string[]
   _deleted?: boolean
+}
+
+interface DictionaryLite {
+  id: number
+  code: string
+  label: string
 }
 
 interface DraftPipeline {
@@ -186,6 +195,9 @@ function fromServer(pipelines: DealPipeline[]): DraftPipeline[] {
           color: s.color,
           type: s.type,
           is_active: (s as any).is_active !== false,
+          required_dict_codes: Array.isArray((s as any).required_dict_codes)
+            ? ([...(s as any).required_dict_codes] as string[])
+            : [],
         })),
     }))
 }
@@ -221,6 +233,9 @@ export default function PipelinesManager() {
   const [snapshot, setSnapshot] = useState<DraftPipeline[]>([])
   const [draft, setDraft] = useState<DraftPipeline[]>([])
   const [activeKey, setActiveKey] = useState<string | null>(null)
+  /** Список справочников-опросника для чекбоксов на стадиях.
+   *  Загружается один раз. [] пока не пришло / если бэк пустой. */
+  const [allDicts, setAllDicts] = useState<DictionaryLite[]>([])
 
   const [newPipelineName, setNewPipelineName] = useState("")
   const [deletePipelineKey, setDeletePipelineKey] = useState<string | null>(null)
@@ -264,6 +279,14 @@ export default function PipelinesManager() {
       })
       .finally(() => {
         if (!ignore) setLoading(false)
+      })
+    crmGet<{ dictionaries: DictionaryLite[] }>("/api/admin/dictionaries")
+      .then((res) => {
+        if (ignore) return
+        setAllDicts(res.dictionaries || [])
+      })
+      .catch(() => {
+        // не критично — просто чекбоксов опросника не покажем
       })
     return () => {
       ignore = true
@@ -318,10 +341,14 @@ export default function PipelinesManager() {
           count++
           continue
         }
+        const osCodes = [...(os.required_dict_codes || [])].sort().join("|")
+        const nsCodes = [...(s.required_dict_codes || [])].sort().join("|")
         if (
           os.name !== s.name ||
           os.color !== s.color ||
-          os.type !== s.type
+          os.type !== s.type ||
+          os.is_active !== s.is_active ||
+          osCodes !== nsCodes
         ) {
           count++
         }
@@ -546,6 +573,7 @@ export default function PipelinesManager() {
       color: DEFAULT_STAGE_COLOR,
       type: "normal",
       is_active: true,
+      required_dict_codes: [],
     }
     setDraft((prev) =>
       prev.map((p) =>
@@ -662,6 +690,7 @@ export default function PipelinesManager() {
               name: s.name,
               color: s.color,
               type: s.type,
+              required_dict_codes: s.required_dict_codes,
             },
           )
           s.serverId = res.stage.id
@@ -683,6 +712,9 @@ export default function PipelinesManager() {
           if (os.color !== s.color) patch.color = s.color
           if (os.type !== s.type) patch.type = s.type
           if (os.is_active !== s.is_active) patch.is_active = s.is_active
+          const osCodes = [...(os.required_dict_codes || [])].sort().join("|")
+          const nsCodes = [...(s.required_dict_codes || [])].sort().join("|")
+          if (osCodes !== nsCodes) patch.required_dict_codes = s.required_dict_codes
           if (Object.keys(patch).length > 0) {
             await crmPut(`/api/admin/deal-stages/${s.serverId}`, patch)
           }
@@ -1009,6 +1041,7 @@ export default function PipelinesManager() {
                             {({ dragHandleProps }) => (
                               <StageRow
                                 stage={s}
+                                allDicts={allDicts}
                                 onUpdate={(patch) =>
                                   updateStage(active.clientKey, s.clientKey, patch)
                                 }
@@ -1231,6 +1264,7 @@ export default function PipelinesManager() {
 
 function StageRow({
   stage,
+  allDicts,
   onUpdate,
   onDelete,
   onMove,
@@ -1239,6 +1273,7 @@ function StageRow({
   dragHandleProps,
 }: {
   stage: DraftStage
+  allDicts: DictionaryLite[]
   onUpdate: (patch: Partial<DraftStage>) => void
   onDelete: () => void
   onMove: (dir: -1 | 1) => void
@@ -1341,6 +1376,14 @@ function StageRow({
         )}
       </button>
 
+      {allDicts.length > 0 && (
+        <StageRequiredDictsPicker
+          selected={stage.required_dict_codes}
+          allDicts={allDicts}
+          onChange={(codes) => onUpdate({ required_dict_codes: codes })}
+        />
+      )}
+
       <Button
         variant="ghost"
         size="icon"
@@ -1351,6 +1394,71 @@ function StageRow({
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
+  )
+}
+
+// ============================================================================
+// Required dicts picker (popover с чекбоксами по словарям на одной стадии)
+// ============================================================================
+
+function StageRequiredDictsPicker({
+  selected,
+  allDicts,
+  onChange,
+}: {
+  selected: string[]
+  allDicts: DictionaryLite[]
+  onChange: (codes: string[]) => void
+}) {
+  const count = selected.length
+  const toggle = (code: string) => {
+    if (selected.includes(code)) {
+      onChange(selected.filter((c) => c !== code))
+    } else {
+      onChange([...selected, code])
+    }
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-1 h-8 px-2.5 rounded-md border text-xs font-medium shrink-0 transition-colors",
+            count > 0
+              ? "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50",
+          )}
+          title="Какие справочники обязательны при переходе на эту стадию"
+        >
+          <ClipboardList className="h-3.5 w-3.5" />
+          Опросник{count > 0 && `: ${count}`}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="end">
+        <div className="text-xs text-gray-500 mb-2">
+          Отметь обязательные поля — их спросит модалка при перемещении
+          сделки на эту стадию.
+        </div>
+        <div className="space-y-2 max-h-64 overflow-auto">
+          {allDicts.map((d) => (
+            <label
+              key={d.id}
+              className="flex items-center gap-2 cursor-pointer text-sm py-0.5"
+            >
+              <Checkbox
+                checked={selected.includes(d.code)}
+                onCheckedChange={() => toggle(d.code)}
+              />
+              <span className="flex-1 truncate">{d.label}</span>
+              <span className="text-[10px] text-gray-400 font-mono">
+                {d.code}
+              </span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

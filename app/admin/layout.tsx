@@ -8,6 +8,7 @@ import AdminSidebar from "@/components/admin-sidebar"
 import AdminHeaderNav from "@/components/admin-header-nav"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
+import { AdminUIProvider, useAdminUI } from "@/context/admin-ui-context"
 import {
   buildAdminSections,
   findSectionForPath,
@@ -17,6 +18,15 @@ import {
 } from "@/lib/admin-nav-config"
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
+  return (
+    <AdminUIProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </AdminUIProvider>
+  )
+}
+
+function AdminLayoutInner({ children }: { children: ReactNode }) {
+  const { hideHeader } = useAdminUI()
   const pathname = usePathname()
   const router = useRouter()
   const { user, refreshUser } = useAuth()
@@ -172,15 +182,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       {/* min-w-0 нужен flex-child'у иначе он растягивается под свой
           content и `overflow-x-hidden` выше становится бесполезен. */}
       <div className="relative flex-1 min-w-0">
-        <AdminHeaderNav
-          isCollapsed={isSidebarCollapsed}
-          onCollapseToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          mode={mode}
-          onModeChange={handleModeChange}
-          sections={sections}
-          activeSectionId={activeSection?.id ?? null}
-          onSectionSelect={handleSectionSelect}
-        />
+        {!hideHeader && (
+          <AdminHeaderNav
+            isCollapsed={isSidebarCollapsed}
+            onCollapseToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            mode={mode}
+            onModeChange={handleModeChange}
+            sections={sections}
+            activeSectionId={activeSection?.id ?? null}
+            onSectionSelect={handleSectionSelect}
+          />
+        )}
         <main
           className={cn(
             "p-4 md:p-6 transition-all duration-300 min-w-0",

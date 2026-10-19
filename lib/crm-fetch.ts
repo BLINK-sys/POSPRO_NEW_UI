@@ -49,7 +49,10 @@ export async function crmFetch<T = any>(
     const msg =
       (parsed && typeof parsed === "object" && (parsed.error || parsed.message)) ||
       `HTTP ${res.status}`
-    throw new Error(msg)
+    const err = new Error(msg) as Error & { payload?: any; status?: number }
+    err.payload = parsed
+    err.status = res.status
+    throw err
   }
   return parsed as T
 }

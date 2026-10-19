@@ -9,9 +9,20 @@
  * Бэк: /api/admin/deal-sources.
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Signpost, Trash2, X } from "lucide-react"
+import {
+  ChevronDown, ChevronRight, GripVertical, Layers, Loader2,
+  Pencil, Plus, Signpost, Trash2, X,
+} from "lucide-react"
+import {
+  DndContext, PointerSensor, closestCenter, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext, useSortable, rectSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -37,6 +48,7 @@ import {
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useAuth } from "@/context/auth-context"
+import { useAdminUI } from "@/context/admin-ui-context"
 import { useToast } from "@/hooks/use-toast"
 import { crmDelete, crmGet, crmPost, crmPut } from "@/lib/crm-fetch"
 import { cn } from "@/lib/utils"
@@ -84,6 +96,7 @@ const COLOR_PRESETS = [
 export default function DealSourcesList() {
   const { toast } = useToast()
   const { user } = useAuth()
+  const { setHideHeader } = useAdminUI()
   const router = useRouter()
 
   // Гейт как у воронок: owner / can_manage_pipelines (одна галочка на
@@ -95,6 +108,10 @@ export default function DealSourcesList() {
     if (user && !canManage) router.replace("/admin/deals")
   }, [user, canManage, router])
 
+  // Прячем AdminHeaderNav когда открыта панель вариантов — чтобы освободить
+  // вертикальное место (панель помещается от топа до низа viewport'а).
+  // На анмаунт/закрытии гарантированно возвращаем.
+
   const [sources, setSources] = useState<DealSource[]>([])
   const [loading, setLoading] = useState(true)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -102,15 +119,21 @@ export default function DealSourcesList() {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DealSource | null>(null)
 
-  // Разворот варианта — храним id развёрнутых источников и мапу
-  // вариантов. Lazy-fetch — только при разворачивании.
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  // Варианты открываются в отдельной модалке — здесь храним какой источник
+  // сейчас открыт (null = закрыто) и мапу загруженных вариантов (lazy).
+  const [variantsModalSource, setVariantsModalSource] = useState<DealSource | null>(null)
   const [variantsBySource, setVariantsBySource] = useState<Map<number, SourceVariant[]>>(new Map())
   const [variantsLoading, setVariantsLoading] = useState<Set<number>>(new Set())
   const [newVariantName, setNewVariantName] = useState<Map<number, string>>(new Map())
   const [variantDeleteTarget, setVariantDeleteTarget] = useState<SourceVariant | null>(null)
   const [variantEditTarget, setVariantEditTarget] = useState<SourceVariant | null>(null)
   const [variantEditName, setVariantEditName] = useState("")
+
+  // Прячем admin header когда открыта панель вариантов.
+  useEffect(() => {
+    setHideHeader(Boolean(variantsModalSource))
+    return () => setHideHeader(false)
+  }, [variantsModalSource, setHideHeader])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -179,6 +202,24 @@ export default function DealSourcesList() {
     }
   }
 
+  const toggleActive = async (s: DealSource) => {
+    try {
+      const r = await crmPut<{ source: DealSource }>(
+        `/api/admin/deal-sources/${s.id}`,
+        { is_active: !s.is_active },
+      )
+      setSources((prev) =>
+        prev.map((x) => (x.id === s.id ? { ...x, is_active: r.source.is_active } : x)),
+      )
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось переключить",
+        description: e?.message,
+      })
+    }
+  }
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
@@ -224,19 +265,43 @@ export default function DealSourcesList() {
     }
   }, [toast])
 
-  const toggleExpand = (sid: number) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(sid)) {
-        next.delete(sid)
-      } else {
-        next.add(sid)
-        if (!variantsBySource.has(sid)) {
-          void loadVariants(sid)
-        }
-      }
-      return next
-    })
+  const openVariants = (s: DealSource) => {
+    setVariantsModalSource(s)
+    if (!variantsBySource.has(s.id)) void loadVariants(s.id)
+  }
+
+  // DnD-сортировка карточек. Переставляем локально + шлём пачку
+  // {id, sort_order} на бэк. На ошибке — откатываем визуально.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const prev = [...sources]
+    const fromIdx = prev.findIndex((s) => s.id === Number(active.id))
+    const toIdx = prev.findIndex((s) => s.id === Number(over.id))
+    if (fromIdx < 0 || toIdx < 0) return
+    const next = [...prev]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    // Переопределим sort_order по новому порядку (0..N).
+    const reindexed = next.map((s, i) => ({ ...s, sort_order: i }))
+    setSources(reindexed)
+    try {
+      await crmPost(
+        "/api/admin/deal-sources/reorder",
+        reindexed.map((s) => ({ id: s.id, sort_order: s.sort_order })),
+      )
+    } catch (e: any) {
+      setSources(prev)
+      toast({
+        variant: "destructive",
+        title: "Не удалось сохранить порядок",
+        description: e?.message,
+      })
+    }
   }
 
   const handleCreateVariant = async (sid: number) => {
@@ -330,183 +395,115 @@ export default function DealSourcesList() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-brand-yellow/25 flex items-center justify-center">
-            <Signpost className="h-5 w-5" />
+    <div className={cn(
+      "space-y-4",
+      // В режиме панели вариантов берём всю оставшуюся высоту viewport'а и
+      // прячем общий скролл — скроллятся только внутренние колонки сетки.
+      variantsModalSource && "lg:h-[calc(100vh-200px)] lg:flex lg:flex-col lg:overflow-hidden",
+    )}>
+      {!variantsModalSource && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-brand-yellow/25 flex items-center justify-center">
+              <Signpost className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold leading-tight">Источники сделок</h1>
+              <p className="text-sm text-gray-500">
+                Откуда пришла сделка — Instagram, 2GIS, холодный звонок и т.д.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold leading-tight">Источники сделок</h1>
-            <p className="text-sm text-gray-500">
-              Откуда пришла сделка — Instagram, 2GIS, холодный звонок и т.д.
-            </p>
-          </div>
+          <Button
+            onClick={openCreate}
+            className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Новый источник
+          </Button>
         </div>
-        <Button
-          onClick={openCreate}
-          className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full"
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
+      ) : sources.length === 0 ? (
+        <Card className="rounded-xl border-gray-200 p-10 text-center text-sm text-gray-500">
+          Источников пока нет. Создайте первый — например «Instagram» или «2GIS».
+        </Card>
+      ) : (
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Новый источник
-        </Button>
-      </div>
-
-      <Card className="rounded-xl border-gray-200 p-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-          </div>
-        ) : sources.length === 0 ? (
-          <div className="text-sm text-gray-500 text-center py-10">
-            Источников пока нет. Создайте первый — например «Instagram» или «2GIS».
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {sources.map((s) => {
-              const expanded = expandedIds.has(s.id)
-              const variants = variantsBySource.get(s.id) || []
-              const loadingVars = variantsLoading.has(s.id)
-              const newName = newVariantName.get(s.id) || ""
-              return (
-                <li key={s.id} className="py-1">
-                  <div className="flex items-center gap-2 py-1.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(s.id)}
-                      className="h-6 w-6 inline-flex items-center justify-center text-gray-400 hover:text-gray-900 rounded"
-                      title={expanded ? "Свернуть" : "Развернуть варианты"}
-                    >
-                      {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </button>
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0 border border-gray-200"
-                      style={{ backgroundColor: s.color || "#e5e7eb" }}
+          <SortableContext
+            items={sources.map((s) => s.id)}
+            strategy={rectSortingStrategy}
+          >
+            {variantsModalSource ? (
+              // Split-layout: слева одна колонка карточек со скроллом,
+              // справа — панель вариантов выбранного источника.
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] gap-4 w-full min-w-0 lg:flex-1 lg:min-h-0">
+                <div className="space-y-2 lg:h-full lg:overflow-y-auto pr-1 min-w-0">
+                  {sources.map((s) => (
+                    <SortableSourceCard
+                      key={s.id}
+                      source={s}
+                      variantsCount={
+                        variantsBySource.has(s.id)
+                          ? (variantsBySource.get(s.id) || []).length
+                          : (s.variants_count ?? 0)
+                      }
+                      selected={s.id === variantsModalSource.id}
+                      onEdit={() => openEdit(s)}
+                      onDelete={() => setDeleteTarget(s)}
+                      onToggleActive={() => toggleActive(s)}
+                      onOpenVariants={() => openVariants(s)}
                     />
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => toggleExpand(s.id)}
-                    >
-                      <div
-                        className={cn(
-                          "text-sm font-medium truncate",
-                          !s.is_active && "text-gray-400 line-through",
-                        )}
-                      >
-                        {s.name}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        вариантов: {
-                          // Если локально уже загрузили список после разворота —
-                          // показываем актуальное число (включая только что
-                          // созданные/удалённые). Иначе — счётчик с бэка.
-                          variantsBySource.has(s.id) ? variants.length : (s.variants_count ?? 0)
-                        }
-                        {!s.is_active && " · выключен"}
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(s)}
-                      className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
-                      title="Редактировать"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeleteTarget(s)}
-                      className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
-                      title="Удалить"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Разворачиваемый блок с вариантами («Дополнительно об источнике»). */}
-                  {expanded && (
-                    <div className="pl-10 pr-2 pb-3 space-y-1.5">
-                      {loadingVars ? (
-                        <div className="text-xs text-gray-400 py-2">
-                          Загрузка вариантов…
-                        </div>
-                      ) : variants.length === 0 ? (
-                        <div className="text-xs text-gray-400 py-1">
-                          Вариантов пока нет
-                        </div>
-                      ) : (
-                        <ul className="space-y-1">
-                          {variants.map((v) => (
-                            <li
-                              key={v.id}
-                              className="flex items-center gap-2 text-sm py-1 pr-1 pl-2 rounded hover:bg-gray-50"
-                            >
-                              <span className="text-gray-400">→</span>
-                              <span className="flex-1 min-w-0 truncate" title={v.name}>
-                                {v.name}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => { setVariantEditTarget(v); setVariantEditName(v.name) }}
-                                className="h-7 w-7 rounded-full text-gray-500 hover:text-gray-900"
-                                title="Переименовать"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setVariantDeleteTarget(v)}
-                                className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50"
-                                title="Удалить"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {/* Строка добавления нового варианта */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <Input
-                          placeholder="Новый вариант — название"
-                          value={newName}
-                          onChange={(e) => setNewVariantName((prev) => {
-                            const next = new Map(prev)
-                            next.set(s.id, e.target.value)
-                            return next
-                          })}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault()
-                              handleCreateVariant(s.id)
-                            }
-                          }}
-                          className="h-8 text-xs"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => handleCreateVariant(s.id)}
-                          disabled={!newName.trim()}
-                          className="h-8 shrink-0 bg-brand-yellow text-black hover:bg-yellow-500"
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Добавить
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </Card>
+                  ))}
+                </div>
+                <VariantsPanel
+                  source={variantsModalSource}
+                  variants={variantsBySource.get(variantsModalSource.id) || []}
+                  loading={variantsLoading.has(variantsModalSource.id)}
+                  newName={newVariantName.get(variantsModalSource.id) || ""}
+                  onNewNameChange={(v) =>
+                    setNewVariantName((prev) => {
+                      const next = new Map(prev)
+                      next.set(variantsModalSource.id, v)
+                      return next
+                    })
+                  }
+                  onCreate={() => handleCreateVariant(variantsModalSource.id)}
+                  onEdit={(v) => { setVariantEditTarget(v); setVariantEditName(v.name) }}
+                  onDelete={(v) => setVariantDeleteTarget(v)}
+                  onClose={() => setVariantsModalSource(null)}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {sources.map((s) => (
+                  <SortableSourceCard
+                    key={s.id}
+                    source={s}
+                    variantsCount={
+                      variantsBySource.has(s.id)
+                        ? (variantsBySource.get(s.id) || []).length
+                        : (s.variants_count ?? 0)
+                    }
+                    onEdit={() => openEdit(s)}
+                    onDelete={() => setDeleteTarget(s)}
+                    onToggleActive={() => toggleActive(s)}
+                    onOpenVariants={() => openVariants(s)}
+                  />
+                ))}
+              </div>
+            )}
+          </SortableContext>
+        </DndContext>
+      )}
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-md">
@@ -558,30 +555,6 @@ export default function DealSourcesList() {
                   </div>
                 </PopoverContent>
               </Popover>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Порядок</Label>
-                <Input
-                  type="number"
-                  value={form.sort_order}
-                  onChange={(e) =>
-                    setForm({ ...form, sort_order: Number(e.target.value || 0) })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>&nbsp;</Label>
-                <div className="flex items-center gap-2 h-10">
-                  <Switch
-                    checked={form.is_active}
-                    onCheckedChange={(v) => setForm({ ...form, is_active: v })}
-                  />
-                  <span className="text-sm text-gray-700">
-                    {form.is_active ? "Активен" : "Выключен"}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -684,6 +657,239 @@ export default function DealSourcesList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+    </div>
+  )
+}
+
+
+// ===========================================================================
+// VariantsPanel — правая панель со списком вариантов выбранного источника.
+// ===========================================================================
+
+function VariantsPanel({
+  source,
+  variants,
+  loading,
+  newName,
+  onNewNameChange,
+  onCreate,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  source: DealSource
+  variants: SourceVariant[]
+  loading: boolean
+  newName: string
+  onNewNameChange: (v: string) => void
+  onCreate: () => void
+  onEdit: (v: SourceVariant) => void
+  onDelete: (v: SourceVariant) => void
+  onClose: () => void
+}) {
+  return (
+    <Card className="p-4 flex flex-col gap-3 rounded-xl border-gray-200 min-w-0 overflow-hidden lg:h-full">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="h-3.5 w-3.5 rounded-full border border-gray-200 shrink-0"
+            style={{ backgroundColor: source.color || "#e5e7eb" }}
+          />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate">{source.name}</div>
+            <div className="text-xs text-gray-500">Варианты «Доп. об источнике»</div>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="h-7 w-7 rounded-full text-gray-500 hover:text-gray-900"
+          title="Закрыть, вернуться к сетке"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {loading ? (
+          <div className="text-xs text-gray-400 py-2 text-center">
+            Загрузка вариантов…
+          </div>
+        ) : variants.length === 0 ? (
+          <div className="text-xs text-gray-400 py-3 text-center">
+            Вариантов пока нет
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {variants.map((v) => (
+              <li
+                key={v.id}
+                className="flex items-center gap-2 text-sm py-1 pr-1 pl-2 rounded hover:bg-gray-50"
+              >
+                <span className="text-gray-400">→</span>
+                <span className="flex-1 min-w-0 truncate" title={v.name}>
+                  {v.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(v)}
+                  className="h-7 w-7 rounded-full text-gray-500 hover:text-gray-900"
+                  title="Переименовать"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(v)}
+                  className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50"
+                  title="Удалить"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+        <Input
+          placeholder="Новый вариант — название"
+          value={newName}
+          onChange={(e) => onNewNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              onCreate()
+            }
+          }}
+          className="h-9 text-sm"
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={onCreate}
+          disabled={!newName.trim()}
+          className="h-9 shrink-0 bg-brand-yellow text-black hover:bg-yellow-500"
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Добавить
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+
+// ===========================================================================
+// SortableSourceCard — одна карточка источника в grid (с drag-handle).
+// ===========================================================================
+
+function SortableSourceCard({
+  source,
+  variantsCount,
+  selected,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  onOpenVariants,
+}: {
+  source: DealSource
+  variantsCount: number
+  selected?: boolean
+  onEdit: () => void
+  onDelete: () => void
+  onToggleActive: () => void
+  onOpenVariants: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: source.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={cn(
+        "p-3 rounded-xl border bg-white flex flex-col gap-2.5",
+        selected ? "border-brand-yellow ring-1 ring-brand-yellow" : "border-gray-200",
+        isDragging && "shadow-lg",
+      )}>
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="h-6 w-5 flex items-center justify-center text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
+            title="Перетащить"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <span
+            className="h-3.5 w-3.5 rounded-full shrink-0 border border-gray-200 mt-1"
+            style={{ backgroundColor: source.color || "#e5e7eb" }}
+          />
+          <div className="flex-1 min-w-0">
+            <div
+              className={cn(
+                "text-sm font-medium truncate",
+                !source.is_active && "text-gray-400 line-through",
+              )}
+              title={source.name}
+            >
+              {source.name}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenVariants}
+          className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 rounded px-1 self-start"
+          title="Варианты «Доп. об источнике»"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Варианты: {variantsCount}
+        </button>
+
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Switch
+              checked={source.is_active}
+              onCheckedChange={onToggleActive}
+            />
+            <span className="text-xs text-gray-500">
+              {source.is_active ? "активен" : "выкл"}
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
+              title="Редактировать"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
+              title="Удалить"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }

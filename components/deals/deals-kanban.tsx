@@ -58,6 +58,7 @@ import type {
 } from "@/lib/deals-types"
 import DealsFilters, { useDealsFilters, filtersToQuery } from "./deals-filters"
 import DealsTabsHeader from "./deals-tabs-header"
+import DealMoveSurveyDialog from "./deal-move-survey-dialog"
 
 interface Props {
   onCreate?: () => void       // клик по «+ Новая сделка» открывает модалку
@@ -110,6 +111,14 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
   const [loading, setLoading] = useState(true)
   const [movingId, setMovingId] = useState<number | null>(null)
   const [activeDrag, setActiveDrag] = useState<Deal | null>(null)
+  // Модалка опросника при move_deal когда бэк вернул missing_codes.
+  const [kanbanSurvey, setKanbanSurvey] = useState<{
+    dealId: number
+    fromStageId: number
+    toStageId: number
+    stageName?: string
+    missing: string[]
+  } | null>(null)
 
   // Фильтры канбана (период / клиент / компания / ответственный),
   // сохраняются per-user в /api/user-prefs/deals_canvas.
@@ -453,32 +462,65 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
     moveDealLocally(dealId, from, toStageId)
     setMovingId(dealId)
 
+    await _attemptKanbanMove(dealId, from, toStageId)
+    setMovingId(null)
+  }
+
+  // Отдельная функция чтобы можно было переиспользовать после заполнения
+  // опросника (повторный move с survey_values). Делает всё, кроме
+  // оптимистичного визуального перемещения — его надо сделать ДО, если это
+  // первый вызов (из handleDragEnd), а повторный вызов уже на нужной
+  // стадии стоит.
+  const _attemptKanbanMove = async (
+    dealId: number,
+    from: number,
+    toStageId: number,
+    surveyValues?: Record<string, number>,
+  ): Promise<boolean> => {
     try {
+      const body: Record<string, any> = { stage_id: toStageId }
+      if (surveyValues && Object.keys(surveyValues).length)
+        body.survey_values = surveyValues
       const res = await crmPost<{ success: boolean; deal: Deal }>(
         `/api/admin/deals/${dealId}/move`,
-        { stage_id: toStageId },
+        body,
       )
-      // Заменяем на серверную версию (там мог измениться status на won/lost + updated_at).
       setStageData((prev) => {
         const next = new Map(prev)
-        const row = next.get(toStageId!)
+        const row = next.get(toStageId)
         if (!row) return prev
-        next.set(toStageId!, {
+        next.set(toStageId, {
           deals: row.deals.map((d) => (d.id === dealId ? res.deal : d)),
           total: row.total,
         })
         return next
       })
+      setKanbanSurvey(null)
+      return true
     } catch (e: any) {
-      // Откатываем — ставим обратно.
+      const payload = e?.payload
+      if (
+        e?.status === 400 &&
+        Array.isArray(payload?.missing_codes) &&
+        payload.missing_codes.length > 0
+      ) {
+        const st = stages.find((s) => s.id === toStageId)
+        setKanbanSurvey({
+          dealId,
+          fromStageId: from,
+          toStageId,
+          stageName: st?.name,
+          missing: payload.missing_codes,
+        })
+        return false
+      }
       moveDealLocally(dealId, toStageId, from)
       toast({
         variant: "destructive",
         title: "Не удалось переместить",
         description: e?.message,
       })
-    } finally {
-      setMovingId(null)
+      return false
     }
   }
 
@@ -700,7 +742,7 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
                 <Link href="/admin/deals/pipelines">Настройка воронок</Link>
               </Button>
               <Button asChild variant="outline" size="sm" className="rounded-lg">
-                <Link href="/admin/deals/sources">Источники</Link>
+                <Link href="/admin/deals/sources">Справочники</Link>
               </Button>
             </>
           )}
@@ -730,6 +772,32 @@ export default function DealsKanban({ onCreate, onOpenDeal }: Props) {
           {canvasContent}
         </div>,
         document.body,
+      )}
+
+      {kanbanSurvey && activePipelineId && (
+        <DealMoveSurveyDialog
+          open={true}
+          pipelineId={activePipelineId}
+          missingCodes={kanbanSurvey.missing}
+          stageName={kanbanSurvey.stageName}
+          onCancel={() => {
+            // Откатываем визуальное перемещение.
+            moveDealLocally(
+              kanbanSurvey.dealId,
+              kanbanSurvey.toStageId,
+              kanbanSurvey.fromStageId,
+            )
+            setKanbanSurvey(null)
+          }}
+          onSubmit={async (vals) =>
+            _attemptKanbanMove(
+              kanbanSurvey.dealId,
+              kanbanSurvey.fromStageId,
+              kanbanSurvey.toStageId,
+              vals,
+            )
+          }
+        />
       )}
     </div>
   )

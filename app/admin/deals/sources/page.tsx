@@ -1,5 +1,5 @@
-import DealSourcesList from "@/components/deals/deal-sources-list"
+import DealDictionariesManager from "@/components/deals/deal-dictionaries-manager"
 
-export default function AdminDealSourcesPage() {
-  return <DealSourcesList />
+export default function AdminDealDictionariesPage() {
+  return <DealDictionariesManager />
 }

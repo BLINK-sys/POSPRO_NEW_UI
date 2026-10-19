@@ -63,6 +63,8 @@ import type {
 import DealInfoCard from "./deal-info-card"
 import DealMembersCard from "./deal-members-card"
 import DealDocumentsCard from "./deal-documents-card"
+import DealSurveyCard from "./deal-survey-card"
+import DealMoveSurveyDialog from "./deal-move-survey-dialog"
 import DealChatPanel from "./deal-chat-panel"
 import TabKp from "./tabs/tab-kp"
 import TabTasks from "./tabs/tab-tasks"
@@ -306,21 +308,62 @@ export default function DealDetail({ dealId }: Props) {
     }
   }
 
-  const handleMoveStage = async (newStageId: number) => {
-    if (!deal) return
+  // Состояние модалки опросника при move. Открывается, когда бэк возвращает
+  // 400 с missing_codes — тогда юзер заполняет селекты и мы повторяем move.
+  const [surveyDialog, setSurveyDialog] = useState<{
+    stageId: number
+    stageName?: string
+    missing: string[]
+  } | null>(null)
+
+  const _doMove = async (
+    newStageId: number,
+    surveyValues?: Record<string, number>,
+  ): Promise<boolean> => {
+    if (!deal) return false
     try {
+      const body: Record<string, any> = { stage_id: newStageId }
+      if (surveyValues && Object.keys(surveyValues).length)
+        body.survey_values = surveyValues
       const res = await crmPost<{ deal: FullDeal }>(
         `/api/admin/deals/${deal.id}/move`,
-        { stage_id: newStageId },
+        body,
       )
       setDeal(res.deal)
+      setDraft(makeDraft(res.deal))
+      setSurveyDialog(null)
+      return true
     } catch (e: any) {
+      const payload = e?.payload
+      if (
+        e?.status === 400 &&
+        Array.isArray(payload?.missing_codes) &&
+        payload.missing_codes.length > 0
+      ) {
+        // На этой стадии требуются непустые survey_values — показываем модалку.
+        let stageName: string | undefined
+        for (const p of pipelines) {
+          const s = p.stages?.find((x) => x.id === newStageId)
+          if (s) { stageName = s.name; break }
+        }
+        setSurveyDialog({
+          stageId: newStageId,
+          stageName,
+          missing: payload.missing_codes,
+        })
+        return false
+      }
       toast({
         variant: "destructive",
         title: "Не удалось сменить стадию",
         description: e?.message,
       })
+      return false
     }
+  }
+
+  const handleMoveStage = (newStageId: number) => {
+    void _doMove(newStageId)
   }
 
   const handleDelete = async () => {
@@ -531,6 +574,14 @@ export default function DealDetail({ dealId }: Props) {
             extraContactIds={extraContactIds}
             onExtraContactsChange={setExtraContactIds}
           />
+
+          <div className="mt-3">
+            <DealSurveyCard
+              deal={deal}
+              draft={draft}
+              onDraft={(patch) => setDraft((p) => ({ ...p, ...patch }))}
+            />
+          </div>
         </div>
 
         <div className="space-y-3 min-w-0 xl:overflow-y-auto xl:pr-1">
@@ -637,6 +688,17 @@ export default function DealDetail({ dealId }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {surveyDialog && deal && (
+        <DealMoveSurveyDialog
+          open={true}
+          pipelineId={deal.pipeline_id}
+          missingCodes={surveyDialog.missing}
+          stageName={surveyDialog.stageName}
+          onCancel={() => setSurveyDialog(null)}
+          onSubmit={async (vals) => _doMove(surveyDialog.stageId, vals)}
+        />
+      )}
     </div>
   )
 }
