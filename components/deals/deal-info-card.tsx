@@ -14,7 +14,7 @@
  * было раньше в «Обзоре».
  */
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { ExternalLink, Loader2, Plus, Save, User, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -31,10 +31,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAuth } from "@/context/auth-context"
+import { crmGet } from "@/lib/crm-fetch"
 import EntityPickerDialog from "./entity-picker-dialog"
 import ClientPickerDialog from "./client-picker-dialog"
 import CompanyPickerDialog from "./company-picker-dialog"
 import DealSourceQuickCreateDialog from "./deal-source-quick-create"
+import DealSourceVariantQuickCreate, {
+  type SourceVariant,
+} from "./deal-source-variant-quick-create"
 import KpCompanyQuickCreateDialog from "./kp-company-quick-create"
 import KpClientQuickCreateDialog from "./kp-client-quick-create"
 import { cn } from "@/lib/utils"
@@ -114,6 +118,10 @@ export default function DealInfoCard({
   const [respPicker, setRespPicker] = useState(false)
   const [sourcePicker, setSourcePicker] = useState(false)
   const [sourceCreateOpen, setSourceCreateOpen] = useState(false)
+  const [variantPicker, setVariantPicker] = useState(false)
+  const [variantCreateOpen, setVariantCreateOpen] = useState(false)
+  const [variants, setVariants] = useState<SourceVariant[]>([])
+  const [variantsLoading, setVariantsLoading] = useState(false)
   const [companyPicker, setCompanyPicker] = useState(false)
   const [companyCreateOpen, setCompanyCreateOpen] = useState(false)
   const [extraContactPicker, setExtraContactPicker] = useState(false)
@@ -126,6 +134,44 @@ export default function DealInfoCard({
   // Квик-плюсик для создания источника — только owner/can_manage_pipelines,
   // чтобы обычный менеджер не ловил 403 и не видел бесполезную кнопку.
   const canCreateSource = Boolean(user && (user.is_owner || user.can_manage_pipelines))
+
+  // Подгружаем варианты (DealSourceVariant) при смене основного источника.
+  // Если source_id null — очищаем список и обнуляем source_variant_id в
+  // драфте (вариант был от другого parent). Не трогаем draft при первом
+  // монтировании если draft.source_variant_id уже совпадает с сохранённым.
+  useEffect(() => {
+    const sid = (draft as any).source_id as number | null | undefined
+    if (!sid) {
+      setVariants([])
+      if ((draft as any).source_variant_id != null) {
+        onDraft({ source_variant_id: null } as any)
+      }
+      return
+    }
+    let ignore = false
+    setVariantsLoading(true)
+    crmGet<{ variants: SourceVariant[] }>(
+      `/api/admin/deal-sources/${sid}/variants`,
+    )
+      .then((res) => {
+        if (ignore) return
+        const list = res.variants || []
+        setVariants(list)
+        // Если текущий variant не из этого источника — обнуляем.
+        const vid = (draft as any).source_variant_id as number | null | undefined
+        if (vid && !list.some((v) => v.id === vid)) {
+          onDraft({ source_variant_id: null } as any)
+        }
+      })
+      .catch(() => {
+        if (!ignore) setVariants([])
+      })
+      .finally(() => {
+        if (!ignore) setVariantsLoading(false)
+      })
+    return () => { ignore = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(draft as any).source_id])
 
   const clientName = draft.client_id != null
     ? clientsById.get(draft.client_id) ?? `Клиент #${draft.client_id}`
@@ -312,6 +358,54 @@ export default function DealInfoCard({
           </FieldRow>
         </div>
 
+        {/* Доп. об источнике — виден только если выбран основной источник.
+            Пустой список → показываем «нет вариантов» + кнопку +. */}
+        {draft.source_id != null && (() => {
+          const currentVariant = variants.find(
+            (v) => v.id === (draft as any).source_variant_id,
+          )
+          return (
+            <FieldRow label="Дополнительно об источнике">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setVariantPicker(true)}
+                  disabled={variantsLoading}
+                  className={cn(
+                    "flex-1 min-w-0 h-8 px-3 text-sm text-left rounded-md border border-input bg-background",
+                    "flex items-center gap-2 hover:bg-gray-50 transition-colors",
+                    variantsLoading && "opacity-60 cursor-wait",
+                    NO_RING,
+                  )}
+                >
+                  {variantsLoading ? (
+                    <span className="text-gray-400">Загрузка…</span>
+                  ) : currentVariant ? (
+                    <span className="truncate" title={currentVariant.name}>
+                      {currentVariant.name}
+                    </span>
+                  ) : variants.length === 0 ? (
+                    <span className="text-gray-400">Нет вариантов — создайте</span>
+                  ) : (
+                    <span className="text-gray-400">Не указан</span>
+                  )}
+                </button>
+                {canCreateSource && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={() => setVariantCreateOpen(true)}
+                    className="h-8 w-8 shrink-0 bg-brand-yellow text-black hover:bg-yellow-500"
+                    title="Создать вариант"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </FieldRow>
+          )
+        })()}
+
         <div className="text-[11px] text-gray-400 -mt-1">
           Создана: {new Date(deal.created_at).toLocaleString("ru-RU")}
         </div>
@@ -462,6 +556,39 @@ export default function DealInfoCard({
           onDraft({ source_id: s.id } as any)
         }}
       />
+
+      {draft.source_id != null && (
+        <>
+          <EntityPickerDialog
+            open={variantPicker}
+            onOpenChange={setVariantPicker}
+            title="Дополнительно об источнике"
+            searchPlaceholder="Поиск"
+            emptyText="Вариантов нет — создайте через +"
+            clearText="Убрать выбор"
+            value={(draft as any).source_variant_id ?? null}
+            onChange={(id) => onDraft({ source_variant_id: id } as any)}
+            allowClear
+            items={variants.map((v) => ({ id: v.id, primary: v.name }))}
+            onCreateNew={canCreateSource ? () => setVariantCreateOpen(true) : undefined}
+            createNewLabel="Создать"
+          />
+          <DealSourceVariantQuickCreate
+            open={variantCreateOpen}
+            onOpenChange={setVariantCreateOpen}
+            parentSourceId={draft.source_id}
+            parentSourceName={sources.find((s) => s.id === draft.source_id)?.name}
+            onCreated={(v) => {
+              // Добавляем новый вариант в локальный список и сразу
+              // выставляем на draft, чтобы юзер увидел «назначено».
+              setVariants((prev) =>
+                prev.some((x) => x.id === v.id) ? prev : [...prev, v],
+              )
+              onDraft({ source_variant_id: v.id } as any)
+            }}
+          />
+        </>
+      )}
     </>
   )
 }

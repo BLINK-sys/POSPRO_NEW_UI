@@ -38,6 +38,9 @@ export interface DealsFilters {
   responsibleId?: number | null
   /** Источник сделки. 0 = «Без источника», число > 0 = конкретный DealSource. */
   sourceId?: number | null
+  /** Доп. источник (DealSourceVariant). 0 = «Без варианта», число > 0 = конкретный.
+   *  Применяется только когда выбран sourceId (у варианта есть parent). */
+  sourceVariantId?: number | null
 }
 
 const DEFAULTS: DealsFilters = {
@@ -46,6 +49,7 @@ const DEFAULTS: DealsFilters = {
   companyId: null,
   responsibleId: null,
   sourceId: null,
+  sourceVariantId: null,
 }
 
 const PRESETS: Array<{ key: PeriodKey; label: string; days: number | null }> = [
@@ -60,6 +64,7 @@ const PRESETS: Array<{ key: PeriodKey; label: string; days: number | null }> = [
  *  сделки где responsible_user_id IS NULL). Такой же паттерн — для источника. */
 export const RESPONSIBLE_NONE = 0
 export const SOURCE_NONE = 0
+export const SOURCE_VARIANT_NONE = 0
 
 /** Переводит фильтры в query-строку для /api/admin/deals. */
 export function filtersToQuery(f: DealsFilters): URLSearchParams {
@@ -82,6 +87,12 @@ export function filtersToQuery(f: DealsFilters): URLSearchParams {
   else if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
   if (f.sourceId === SOURCE_NONE) p.set("source_id", "none")
   else if (f.sourceId) p.set("source_id", String(f.sourceId))
+  // Доп. источник применяется только при выбранном основном (sourceId > 0),
+  // иначе теряет смысл (variant привязан к parent).
+  if (f.sourceId && f.sourceId > 0) {
+    if (f.sourceVariantId === SOURCE_VARIANT_NONE) p.set("source_variant_id", "none")
+    else if (f.sourceVariantId) p.set("source_variant_id", String(f.sourceVariantId))
+  }
   return p
 }
 
@@ -110,8 +121,10 @@ export default function DealsFilters({
   const [companyPicker, setCompanyPicker] = useState(false)
   const [respPicker, setRespPicker] = useState(false)
   const [sourcePicker, setSourcePicker] = useState(false)
+  const [variantPicker, setVariantPicker] = useState(false)
   const [rangeOpen, setRangeOpen] = useState(false)
   const [sources, setSources] = useState<Array<{ id: number; name: string; color?: string | null }>>([])
+  const [variants, setVariants] = useState<Array<{ id: number; name: string }>>([])
 
   // Справочник источников — один раз при монтировании (небольшой список).
   useEffect(() => {
@@ -121,6 +134,35 @@ export default function DealsFilters({
       .then((r) => setSources(r.sources || []))
       .catch(() => setSources([]))
   }, [])
+
+  // Варианты для текущего основного источника. При смене source — сбрасываем
+  // sourceVariantId (он был от другого parent), и подгружаем новый список.
+  useEffect(() => {
+    const sid = value.sourceId
+    if (!sid || sid === SOURCE_NONE) {
+      setVariants([])
+      if (value.sourceVariantId != null) {
+        onChange({ ...value, sourceVariantId: null })
+      }
+      return
+    }
+    let ignore = false
+    crmGet<{ variants: Array<{ id: number; name: string }> }>(
+      `/api/admin/deal-sources/${sid}/variants`,
+    )
+      .then((r) => {
+        if (ignore) return
+        const list = r.variants || []
+        setVariants(list)
+        if (value.sourceVariantId && value.sourceVariantId !== SOURCE_VARIANT_NONE
+            && !list.some((v) => v.id === value.sourceVariantId)) {
+          onChange({ ...value, sourceVariantId: null })
+        }
+      })
+      .catch(() => { if (!ignore) setVariants([]) })
+    return () => { ignore = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.sourceId])
 
   const client = useMemo(
     () => clients.find((c) => c.id === value.clientId) ?? null,
@@ -140,6 +182,11 @@ export default function DealsFilters({
     [sources, value.sourceId],
   )
   const sourceIsNone = value.sourceId === SOURCE_NONE
+  const variant = useMemo(
+    () => variants.find((v) => v.id === value.sourceVariantId) ?? null,
+    [variants, value.sourceVariantId],
+  )
+  const variantIsNone = value.sourceVariantId === SOURCE_VARIANT_NONE
 
   const setPeriod = (key: PeriodKey) => {
     if (key === "custom") {
@@ -237,12 +284,31 @@ export default function DealsFilters({
           onPick={() => setSourcePicker(true)}
           onClear={
             value.sourceId != null
-              ? () => onChange({ ...value, sourceId: null })
+              ? () => onChange({ ...value, sourceId: null, sourceVariantId: null })
               : undefined
           }
         />
 
-        {(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.period !== "3m") && (
+        {/* Доп. источник — виден только когда выбран основной (конкретный, не «без»). */}
+        {value.sourceId != null && value.sourceId !== SOURCE_NONE && (
+          <FilterChip
+            icon={<Tag className="h-3.5 w-3.5" />}
+            label="Доп. источник"
+            current={
+              variantIsNone
+                ? "Без варианта"
+                : variant?.name
+            }
+            onPick={() => setVariantPicker(true)}
+            onClear={
+              value.sourceVariantId != null
+                ? () => onChange({ ...value, sourceVariantId: null })
+                : undefined
+            }
+          />
+        )}
+
+        {(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.sourceVariantId != null || value.period !== "3m") && (
           <Button
             variant="ghost"
             size="sm"
@@ -255,7 +321,7 @@ export default function DealsFilters({
         {rightAction && (
           <div className={cn(
             // Если нет кнопки «Сбросить» выше — прижимаем rightAction вправо.
-            !(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.period !== "3m") && "ml-auto",
+            !(value.clientId || value.companyId || value.responsibleId != null || value.sourceId != null || value.sourceVariantId != null || value.period !== "3m") && "ml-auto",
           )}>
             {rightAction}
           </div>
@@ -305,7 +371,7 @@ export default function DealsFilters({
         searchPlaceholder="Поиск источника"
         emptyText="Источники не найдены"
         value={value.sourceId ?? null}
-        onChange={(id) => onChange({ ...value, sourceId: id })}
+        onChange={(id) => onChange({ ...value, sourceId: id, sourceVariantId: null })}
         allowClear
         nullOption={{
           id: SOURCE_NONE,
@@ -317,6 +383,23 @@ export default function DealsFilters({
           primary: s.name,
           colorDot: s.color ?? null,
         }))}
+      />
+
+      <EntityPickerDialog
+        open={variantPicker}
+        onOpenChange={setVariantPicker}
+        title="Доп. об источнике"
+        searchPlaceholder="Поиск"
+        emptyText="У источника пока нет вариантов"
+        value={value.sourceVariantId ?? null}
+        onChange={(id) => onChange({ ...value, sourceVariantId: id })}
+        allowClear
+        nullOption={{
+          id: SOURCE_VARIANT_NONE,
+          primary: "Без варианта",
+          secondary: "Сделки с источником, но без доп. варианта",
+        }}
+        items={variants.map((v) => ({ id: v.id, primary: v.name }))}
       />
 
       <DateRangeDialog

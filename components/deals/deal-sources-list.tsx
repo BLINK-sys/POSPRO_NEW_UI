@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Pencil, Plus, Signpost, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Signpost, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -47,6 +47,15 @@ interface DealSource {
   color: string | null
   sort_order: number
   is_active: boolean
+  /** Кол-во DealSourceVariant под этим источником — приходит с бэка. */
+  variants_count?: number
+}
+
+interface SourceVariant {
+  id: number
+  parent_source_id: number
+  name: string
+  order_pos: number
 }
 
 interface FormState {
@@ -92,6 +101,16 @@ export default function DealSourcesList() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DealSource | null>(null)
+
+  // Разворот варианта — храним id развёрнутых источников и мапу
+  // вариантов. Lazy-fetch — только при разворачивании.
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [variantsBySource, setVariantsBySource] = useState<Map<number, SourceVariant[]>>(new Map())
+  const [variantsLoading, setVariantsLoading] = useState<Set<number>>(new Set())
+  const [newVariantName, setNewVariantName] = useState<Map<number, string>>(new Map())
+  const [variantDeleteTarget, setVariantDeleteTarget] = useState<SourceVariant | null>(null)
+  const [variantEditTarget, setVariantEditTarget] = useState<SourceVariant | null>(null)
+  const [variantEditName, setVariantEditName] = useState("")
 
   const load = useCallback(() => {
     setLoading(true)
@@ -177,6 +196,131 @@ export default function DealSourcesList() {
     }
   }
 
+  // ─── Варианты (DealSourceVariant) ──────────────────────────────────
+
+  const loadVariants = useCallback(async (sid: number) => {
+    setVariantsLoading((prev) => new Set(prev).add(sid))
+    try {
+      const res = await crmGet<{ variants: SourceVariant[] }>(
+        `/api/admin/deal-sources/${sid}/variants`,
+      )
+      setVariantsBySource((prev) => {
+        const next = new Map(prev)
+        next.set(sid, res.variants || [])
+        return next
+      })
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось загрузить варианты",
+        description: e?.message,
+      })
+    } finally {
+      setVariantsLoading((prev) => {
+        const next = new Set(prev)
+        next.delete(sid)
+        return next
+      })
+    }
+  }, [toast])
+
+  const toggleExpand = (sid: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(sid)) {
+        next.delete(sid)
+      } else {
+        next.add(sid)
+        if (!variantsBySource.has(sid)) {
+          void loadVariants(sid)
+        }
+      }
+      return next
+    })
+  }
+
+  const handleCreateVariant = async (sid: number) => {
+    const name = (newVariantName.get(sid) || "").trim()
+    if (!name) return
+    try {
+      const res = await crmPost<{ variant: SourceVariant }>(
+        `/api/admin/deal-sources/${sid}/variants`,
+        { name },
+      )
+      setVariantsBySource((prev) => {
+        const next = new Map(prev)
+        const list = next.get(sid) || []
+        next.set(sid, [...list, res.variant])
+        return next
+      })
+      setNewVariantName((prev) => {
+        const next = new Map(prev)
+        next.set(sid, "")
+        return next
+      })
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось создать вариант",
+        description: e?.message,
+      })
+    }
+  }
+
+  const handleUpdateVariant = async () => {
+    if (!variantEditTarget) return
+    const name = variantEditName.trim()
+    if (!name || name === variantEditTarget.name) {
+      setVariantEditTarget(null)
+      return
+    }
+    try {
+      const res = await crmPut<{ variant: SourceVariant }>(
+        `/api/admin/deal-source-variants/${variantEditTarget.id}`,
+        { name },
+      )
+      setVariantsBySource((prev) => {
+        const next = new Map(prev)
+        const list = next.get(variantEditTarget.parent_source_id) || []
+        next.set(
+          variantEditTarget.parent_source_id,
+          list.map((v) => v.id === res.variant.id ? res.variant : v),
+        )
+        return next
+      })
+      setVariantEditTarget(null)
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось обновить вариант",
+        description: e?.message,
+      })
+    }
+  }
+
+  const handleDeleteVariant = async () => {
+    if (!variantDeleteTarget) return
+    try {
+      await crmDelete(`/api/admin/deal-source-variants/${variantDeleteTarget.id}`)
+      setVariantsBySource((prev) => {
+        const next = new Map(prev)
+        const list = next.get(variantDeleteTarget.parent_source_id) || []
+        next.set(
+          variantDeleteTarget.parent_source_id,
+          list.filter((v) => v.id !== variantDeleteTarget.id),
+        )
+        return next
+      })
+      setVariantDeleteTarget(null)
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Не удалось удалить вариант",
+        description: e?.message,
+      })
+    }
+  }
+
   if (user && !canManage) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -219,46 +363,147 @@ export default function DealSourcesList() {
           </div>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {sources.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 py-2">
-                <span
-                  className="h-3 w-3 rounded-full shrink-0 border border-gray-200"
-                  style={{ backgroundColor: s.color || "#e5e7eb" }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div
-                    className={cn(
-                      "text-sm font-medium truncate",
-                      !s.is_active && "text-gray-400 line-through",
-                    )}
-                  >
-                    {s.name}
+            {sources.map((s) => {
+              const expanded = expandedIds.has(s.id)
+              const variants = variantsBySource.get(s.id) || []
+              const loadingVars = variantsLoading.has(s.id)
+              const newName = newVariantName.get(s.id) || ""
+              return (
+                <li key={s.id} className="py-1">
+                  <div className="flex items-center gap-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(s.id)}
+                      className="h-6 w-6 inline-flex items-center justify-center text-gray-400 hover:text-gray-900 rounded"
+                      title={expanded ? "Свернуть" : "Развернуть варианты"}
+                    >
+                      {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
+                    <span
+                      className="h-3 w-3 rounded-full shrink-0 border border-gray-200"
+                      style={{ backgroundColor: s.color || "#e5e7eb" }}
+                    />
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => toggleExpand(s.id)}
+                    >
+                      <div
+                        className={cn(
+                          "text-sm font-medium truncate",
+                          !s.is_active && "text-gray-400 line-through",
+                        )}
+                      >
+                        {s.name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        вариантов: {
+                          // Если локально уже загрузили список после разворота —
+                          // показываем актуальное число (включая только что
+                          // созданные/удалённые). Иначе — счётчик с бэка.
+                          variantsBySource.has(s.id) ? variants.length : (s.variants_count ?? 0)
+                        }
+                        {!s.is_active && " · выключен"}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEdit(s)}
+                      className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteTarget(s)}
+                      className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    порядок: {s.sort_order}
-                    {!s.is_active && " · выключен"}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openEdit(s)}
-                  className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
-                  title="Редактировать"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTarget(s)}
-                  className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
-                  title="Удалить"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </li>
-            ))}
+
+                  {/* Разворачиваемый блок с вариантами («Дополнительно об источнике»). */}
+                  {expanded && (
+                    <div className="pl-10 pr-2 pb-3 space-y-1.5">
+                      {loadingVars ? (
+                        <div className="text-xs text-gray-400 py-2">
+                          Загрузка вариантов…
+                        </div>
+                      ) : variants.length === 0 ? (
+                        <div className="text-xs text-gray-400 py-1">
+                          Вариантов пока нет
+                        </div>
+                      ) : (
+                        <ul className="space-y-1">
+                          {variants.map((v) => (
+                            <li
+                              key={v.id}
+                              className="flex items-center gap-2 text-sm py-1 pr-1 pl-2 rounded hover:bg-gray-50"
+                            >
+                              <span className="text-gray-400">→</span>
+                              <span className="flex-1 min-w-0 truncate" title={v.name}>
+                                {v.name}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setVariantEditTarget(v); setVariantEditName(v.name) }}
+                                className="h-7 w-7 rounded-full text-gray-500 hover:text-gray-900"
+                                title="Переименовать"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setVariantDeleteTarget(v)}
+                                className="h-7 w-7 rounded-full text-red-500 hover:bg-red-50"
+                                title="Удалить"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {/* Строка добавления нового варианта */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <Input
+                          placeholder="Новый вариант — название"
+                          value={newName}
+                          onChange={(e) => setNewVariantName((prev) => {
+                            const next = new Map(prev)
+                            next.set(s.id, e.target.value)
+                            return next
+                          })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault()
+                              handleCreateVariant(s.id)
+                            }
+                          }}
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleCreateVariant(s.id)}
+                          disabled={!newName.trim()}
+                          className="h-8 shrink-0 bg-brand-yellow text-black hover:bg-yellow-500"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Добавить
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </Card>
@@ -369,6 +614,69 @@ export default function DealSourcesList() {
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Переименование варианта (DealSourceVariant). */}
+      <Dialog
+        open={Boolean(variantEditTarget)}
+        onOpenChange={(v) => !v && setVariantEditTarget(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Переименовать вариант</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label>Название *</Label>
+            <Input
+              autoFocus
+              value={variantEditName}
+              onChange={(e) => setVariantEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleUpdateVariant()
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVariantEditTarget(null)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={handleUpdateVariant}
+              disabled={!variantEditName.trim()}
+              className="bg-brand-yellow text-black hover:bg-yellow-500"
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Удаление варианта. */}
+      <AlertDialog
+        open={Boolean(variantDeleteTarget)}
+        onOpenChange={(v) => !v && setVariantDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить вариант?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Сделки, у которых стоял этот вариант, получат «пусто» в поле
+              «Доп. об источнике» (сам источник остаётся). Отменить нельзя.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVariant}
               className="bg-red-600 text-white hover:bg-red-700"
             >
               Удалить

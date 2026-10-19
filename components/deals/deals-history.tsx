@@ -61,6 +61,8 @@ interface Filters {
   companyId?: number | null
   responsibleId?: number | null
   sourceId?: number | "none" | null
+  /** Доп. источник (DealSourceVariant). 'none' = «Без варианта», число = конкретный. */
+  sourceVariantId?: number | "none" | null
   amountMin?: number | null
   amountMax?: number | null
   q?: string
@@ -99,6 +101,11 @@ function filtersToQuery(f: Filters, extra?: Record<string, string>): URLSearchPa
   else if (f.responsibleId) p.set("responsible_id", String(f.responsibleId))
   if (f.sourceId === "none") p.set("source_id", "none")
   else if (f.sourceId) p.set("source_id", String(f.sourceId))
+  // Доп. источник применяется только при выбранном конкретном источнике.
+  if (typeof f.sourceId === "number" && f.sourceId > 0) {
+    if (f.sourceVariantId === "none") p.set("source_variant_id", "none")
+    else if (f.sourceVariantId) p.set("source_variant_id", String(f.sourceVariantId))
+  }
   if (f.amountMin != null) p.set("amount_min", String(f.amountMin))
   if (f.amountMax != null) p.set("amount_max", String(f.amountMax))
   if (f.q && f.q.trim()) p.set("q", f.q.trim())
@@ -342,6 +349,7 @@ export default function DealsHistory() {
     (filters.companyId ? 1 : 0) +
     (filters.responsibleId != null ? 1 : 0) +
     (filters.sourceId ? 1 : 0) +
+    (filters.sourceVariantId ? 1 : 0) +
     (filters.amountMin != null ? 1 : 0) +
     (filters.amountMax != null ? 1 : 0) +
     (debouncedQ ? 1 : 0)
@@ -466,6 +474,8 @@ export default function DealsHistory() {
             onValueChange={(v) => setFilters({
               ...filters,
               sourceId: v === "all" ? null : v === "none" ? "none" : Number(v),
+              // Сброс варианта при смене источника — он привязан к другому parent.
+              sourceVariantId: null,
             })}
           >
             <SelectTrigger className="h-8 w-auto min-w-[120px] max-w-[220px] text-xs rounded-md">
@@ -479,6 +489,15 @@ export default function DealsHistory() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Доп. источник — только когда выбран конкретный основной источник. */}
+          {typeof filters.sourceId === "number" && filters.sourceId > 0 && (
+            <HistorySourceVariantSelect
+              sourceId={filters.sourceId}
+              value={filters.sourceVariantId ?? null}
+              onChange={(v) => setFilters({ ...filters, sourceVariantId: v })}
+            />
+          )}
 
           <FilterChip
             icon={<Users className="h-3.5 w-3.5" />}
@@ -670,6 +689,51 @@ export default function DealsHistory() {
 
 // ─────────────────────────────────────────────────────────────────
 
+/**
+ * Селект для фильтра «Доп. источник» на странице истории — тащит
+ * варианты из /api/admin/deal-sources/<sid>/variants при каждом
+ * изменении sid. Внешний интерфейс как у обычного Select.
+ */
+function HistorySourceVariantSelect({
+  sourceId, value, onChange,
+}: {
+  sourceId: number
+  value: number | "none" | null
+  onChange: (v: number | "none" | null) => void
+}) {
+  const [list, setList] = useState<Array<{ id: number; name: string }>>([])
+  useEffect(() => {
+    let ignore = false
+    crmGet<{ variants: Array<{ id: number; name: string }> }>(
+      `/api/admin/deal-sources/${sourceId}/variants`,
+    )
+      .then((r) => { if (!ignore) setList(r.variants || []) })
+      .catch(() => { if (!ignore) setList([]) })
+    return () => { ignore = true }
+  }, [sourceId])
+
+  return (
+    <Select
+      value={value === "none" ? "none" : (value != null ? String(value) : "all")}
+      onValueChange={(v) => onChange(
+        v === "all" ? null : v === "none" ? "none" : Number(v),
+      )}
+    >
+      <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[260px] text-xs rounded-md">
+        <SelectValue placeholder="Доп. источник" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Любой вариант</SelectItem>
+        <SelectItem value="none">Без варианта</SelectItem>
+        {list.map((v) => (
+          <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+
 function StatCard({ label, value, icon }: { label: string; value: any; icon: React.ReactNode }) {
   return (
     <Card className="rounded-xl border-gray-200 p-3 flex items-center gap-3">
@@ -769,12 +833,22 @@ function FlatTable({
                 <td className="px-3 py-2 text-gray-700">{d.company_id ? companyNameById.get(d.company_id) || `#${d.company_id}` : "—"}</td>
                 <td className="px-3 py-2 text-xs text-gray-700">
                   {sourceLabel ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      {sourceColor && (
-                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sourceColor }} />
+                    <div className="space-y-0.5 max-w-[200px]">
+                      <span className="inline-flex items-center gap-1.5">
+                        {sourceColor && (
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: sourceColor }} />
+                        )}
+                        <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
+                      </span>
+                      {d.source_variant?.name && (
+                        <div
+                          className="text-[10px] text-gray-500 truncate pl-3.5"
+                          title={d.source_variant.name}
+                        >
+                          → {d.source_variant.name}
+                        </div>
                       )}
-                      <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
-                    </span>
+                    </div>
                   ) : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-3 py-2 text-gray-700 text-xs">

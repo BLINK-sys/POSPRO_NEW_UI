@@ -1004,6 +1004,9 @@ function DealCard({
   // ingest (source_name). Если нет ни того, ни другого — поле не рендерим.
   const sourceLabel =
     deal.deal_source?.name || deal.source_name || null
+  // Вариант (DealSourceVariant) — «Дополнительно об источнике» —
+  // показываем мелкой строкой под источником, если он есть.
+  const sourceVariantLabel = deal.source_variant?.name || null
 
   return (
     <Card
@@ -1082,6 +1085,14 @@ function DealCard({
               <span className="truncate" title={sourceLabel}>{sourceLabel}</span>
             ) : (
               <span className="text-gray-400">—</span>
+            )}
+            {sourceVariantLabel && (
+              <div
+                className="text-[10px] text-gray-500 truncate -mt-0.5"
+                title={sourceVariantLabel}
+              >
+                → {sourceVariantLabel}
+              </div>
             )}
           </Field>
         </div>

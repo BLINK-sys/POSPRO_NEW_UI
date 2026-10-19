@@ -58,6 +58,9 @@ export interface Deal {
   source: string | null
   source_id: number | null
   deal_source?: { id: number; name: string; color: string | null } | null
+  /** Дочерний «вариант» источника — «Дополнительно об источнике». */
+  source_variant_id: number | null
+  source_variant?: { id: number; parent_source_id: number; name: string } | null
   status: DealStatus
   tags: string[]
   notes: string | null
