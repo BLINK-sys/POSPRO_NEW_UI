@@ -6,6 +6,17 @@ import Image from "next/image"
 import { MonitorSmartphone } from "lucide-react"
 import { FooterSettings, getFooterSettings } from "@/app/actions/public"
 
+// Если юзер в админке ввёл "t.me/..." без схемы — Next.js Link трактует
+// это как относительный путь и клеит с текущего домена (→ pospro.kz/t.me/...).
+// Нормализуем: если нет http:// или https:// — добавляем https://.
+function ensureAbsoluteUrl(url: string): string {
+  const trimmed = (url || "").trim()
+  if (!trimmed) return trimmed
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.startsWith("//")) return "https:" + trimmed
+  return "https://" + trimmed.replace(/^\/+/, "")
+}
+
 export default function Footer() {
   const [footerSettings, setFooterSettings] = useState<FooterSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,8 +77,8 @@ export default function Footer() {
             {/* Социальные сети */}
             <div className="flex gap-3">
               {footerSettings.whatsapp_url && footerSettings.whatsapp_url !== "#" && (
-                <Link 
-                  href={footerSettings.whatsapp_url} 
+                <Link
+                  href={ensureAbsoluteUrl(footerSettings.whatsapp_url)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-9 h-9 hover:opacity-80 hover:scale-110 hover:shadow-lg transition-all duration-300 ease-in-out rounded-full overflow-hidden"
@@ -83,8 +94,8 @@ export default function Footer() {
               )}
               
               {footerSettings.instagram_url && footerSettings.instagram_url !== "#" && (
-                <Link 
-                  href={footerSettings.instagram_url} 
+                <Link
+                  href={ensureAbsoluteUrl(footerSettings.instagram_url)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-9 h-9 hover:opacity-80 hover:scale-110 hover:shadow-lg transition-all duration-300 ease-in-out rounded-full overflow-hidden"
@@ -100,8 +111,8 @@ export default function Footer() {
               )}
               
               {footerSettings.telegram_url && footerSettings.telegram_url !== "#" && (
-                <Link 
-                  href={footerSettings.telegram_url} 
+                <Link
+                  href={ensureAbsoluteUrl(footerSettings.telegram_url)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="w-9 h-9 hover:opacity-80 hover:scale-110 hover:shadow-lg transition-all duration-300 ease-in-out rounded-full overflow-hidden"
