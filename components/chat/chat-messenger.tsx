@@ -181,7 +181,7 @@ export default function ChatMessenger() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] gap-3 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(520px,680px)_minmax(0,1fr)] gap-3 flex-1 min-h-0">
         {/* Sidebar — список комнат */}
         <Card className="rounded-xl border-gray-200 flex flex-col overflow-hidden min-h-0">
           <div className="p-2 border-b border-gray-100 shrink-0 space-y-2">
@@ -446,9 +446,19 @@ function roomDisplayName(
     const other = (room.member_ids || []).find((uid) => uid !== currentUserId)
     base = other != null ? (usersById.get(other) ?? `#${other}`) : "Личка"
   }
+  else if (room.kind === "deal" && room.related_deal_id) {
+    const title = room.deal_title?.trim() || room.name?.trim()
+    base = title
+      ? `№${room.related_deal_id} · ${title}`
+      : `Сделка №${room.related_deal_id}`
+  }
+  else if (room.kind === "task" && room.related_task_id) {
+    const title = room.task_title?.trim() || room.name?.trim()
+    base = title
+      ? `№${room.related_task_id} · ${title}`
+      : `Задача №${room.related_task_id}`
+  }
   else if (room.name) base = room.name
-  else if (room.kind === "deal" && room.related_deal_id) base = `Сделка №${room.related_deal_id}`
-  else if (room.kind === "task" && room.related_task_id) base = `Задача №${room.related_task_id}`
   else base = "Чат"
   return room.is_archived ? `${base} · архив` : base
 }

@@ -40,6 +40,9 @@ export interface ChatRoomSummary {
   name: string | null
   related_deal_id: number | null
   related_task_id: number | null
+  /** Реальное имя связанной сделки/задачи (бэк подгружает батчем). */
+  deal_title?: string | null
+  task_title?: string | null
   /** Чат сохранил историю удалённой сделки/задачи — read-only. */
   is_archived: boolean
   archived_at: string | null

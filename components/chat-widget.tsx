@@ -149,13 +149,13 @@ export default function ChatWidget() {
           мини-мессенджера — комнаты + чат одновременно. */}
       {open && (
         <div className="fixed top-40 bottom-2 right-2 z-50 flex pointer-events-none">
-          <Card className="pointer-events-auto w-[820px] max-w-[calc(100vw-1rem)] h-full flex flex-col overflow-hidden shadow-2xl rounded-xl border-gray-200">
+          <Card className="pointer-events-auto w-[920px] max-w-[calc(100vw-1rem)] h-full flex flex-col overflow-hidden shadow-2xl rounded-xl border-gray-200">
             <WidgetHeader
               rooms={rooms}
               selectedRoom={selectedRoom}
               onClose={closeWidget}
             />
-            <div className="flex-1 min-h-0 grid grid-cols-[240px_1fr]">
+            <div className="flex-1 min-h-0 grid grid-cols-[320px_1fr]">
               <div className="border-r border-gray-100 flex flex-col min-h-0">
                 <KindTabs
                   value={kindFilter}
@@ -515,9 +515,19 @@ function roomDisplayName(
     const other = (room.member_ids || []).find((uid) => uid !== currentUserId)
     base = other != null ? (usersById.get(other) ?? `#${other}`) : "Личка"
   }
+  else if (room.kind === "deal" && room.related_deal_id) {
+    const title = room.deal_title?.trim() || room.name?.trim()
+    base = title
+      ? `№${room.related_deal_id} · ${title}`
+      : `Сделка №${room.related_deal_id}`
+  }
+  else if (room.kind === "task" && room.related_task_id) {
+    const title = room.task_title?.trim() || room.name?.trim()
+    base = title
+      ? `№${room.related_task_id} · ${title}`
+      : `Задача №${room.related_task_id}`
+  }
   else if (room.name) base = room.name
-  else if (room.kind === "deal" && room.related_deal_id) base = `Сделка №${room.related_deal_id}`
-  else if (room.kind === "task" && room.related_task_id) base = `Задача №${room.related_task_id}`
   else base = "Чат"
   return room.is_archived ? `${base} · архив` : base
 }
