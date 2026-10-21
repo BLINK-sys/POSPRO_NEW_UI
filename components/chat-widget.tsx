@@ -511,10 +511,14 @@ function roomDisplayName(
 ): string {
   let base: string
   if (room.kind === "general") base = "Общий чат"
+  else if (room.kind === "direct") {
+    const other = (room.member_ids || []).find((uid) => uid !== currentUserId)
+    base = other != null ? (usersById.get(other) ?? `#${other}`) : "Личка"
+  }
   else if (room.name) base = room.name
   else if (room.kind === "deal" && room.related_deal_id) base = `Сделка №${room.related_deal_id}`
   else if (room.kind === "task" && room.related_task_id) base = `Задача №${room.related_task_id}`
-  else base = room.kind === "direct" ? "Личка" : "Чат"
+  else base = "Чат"
   return room.is_archived ? `${base} · архив` : base
 }
 
