@@ -182,6 +182,11 @@ export default function CrmChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const lastIdRef = useRef<number>(0)
+  // Синхронный lock против двойного POST из handleSend. React setState
+  // асинхронный, повторный Enter до завершения POST проскакивает проверку
+  // `sending` и шлёт второе сообщение (Данияр у себя задвоил сообщение
+  // именно поэтому).
+  const sendingRef = useRef(false)
 
   useLayoutEffect(() => {
     const ta = inputRef.current
@@ -508,8 +513,10 @@ export default function CrmChatPanel({
 
   const handleSend = useCallback(async () => {
     if (!roomId) return
+    if (sendingRef.current) return
     const value = text.trim()
     if (!value) return
+    sendingRef.current = true
     setSending(true)
     try {
       const body: { text: string; reply_to_id?: number } = { text: value }
@@ -518,7 +525,7 @@ export default function CrmChatPanel({
         `/api/admin/chat/rooms/${roomId}/messages`,
         body,
       )
-      setMessages((prev) => [...prev, res.message])
+      setMessages((prev) => mergeMessages(prev, [res.message]))
       lastIdRef.current = Math.max(lastIdRef.current, res.message.id)
       setText("")
       try { localStorage.removeItem(`chat_draft_${roomId}`) } catch {}
@@ -531,6 +538,7 @@ export default function CrmChatPanel({
         description: e?.message,
       })
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }, [roomId, text, replyTo, toast, onMessageSent])
@@ -719,7 +727,7 @@ export default function CrmChatPanel({
         `/api/admin/chat/rooms/${roomId}/messages/upload`,
         fd,
       )
-      setMessages((prev) => [...prev, res.message])
+      setMessages((prev) => mergeMessages(prev, [res.message]))
       lastIdRef.current = Math.max(lastIdRef.current, res.message.id)
       if (t) setText("")
       setReplyTo(null)

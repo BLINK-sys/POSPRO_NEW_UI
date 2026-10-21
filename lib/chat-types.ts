@@ -47,6 +47,9 @@ export interface ChatRoomSummary {
   updated_at: string | null
   last_message: ChatMessage | null
   unread: number
+  /** id всех участников комнаты. Нужно для direct — показать имя
+   *  второго участника вместо «Личка». */
+  member_ids?: number[]
 }
 
 export interface ChatMember {
