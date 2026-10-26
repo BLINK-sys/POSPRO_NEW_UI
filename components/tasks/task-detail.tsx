@@ -93,24 +93,11 @@ export default function TaskDetail({ taskId }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  // Чат по умолчанию свёрнут — освобождает место под описание,
-  // чек-листы и документы. Юзер разворачивает по клику. Выбор
-  // запоминаем в localStorage (per-browser), чтобы следующий заход
-  // не возвращал в свёрнутое, если юзер предпочитает развёрнутый.
-  const [chatCollapsed, setChatCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true
-    try {
-      const v = window.localStorage.getItem("task-chat-collapsed")
-      return v === null ? true : v === "1"
-    } catch { return true }
-  })
-  const toggleChat = useCallback(() => {
-    setChatCollapsed((v) => {
-      const next = !v
-      try { window.localStorage.setItem("task-chat-collapsed", next ? "1" : "0") } catch {}
-      return next
-    })
-  }, [])
+  // Чат при каждом входе на карточку свёрнут — освобождает место под
+  // описание, чек-листы и документы. Не персистим: при повторном
+  // заходе снова компактный вид. Юзер разворачивает кликом здесь.
+  const [chatCollapsed, setChatCollapsed] = useState<boolean>(true)
+  const toggleChat = useCallback(() => setChatCollapsed((v) => !v), [])
   const [addWatchersOpen, setAddWatchersOpen] = useState(false)
   // Куда уходим после подтверждения выхода без сохранения. null = диалога нет.
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)

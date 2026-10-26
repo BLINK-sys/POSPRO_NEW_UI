@@ -28,7 +28,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Loader2, Trash2, Circle, Save,
-  PanelRightClose, PanelLeftOpen,
+  MessageSquare, ChevronUp,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -133,22 +133,12 @@ export default function DealDetail({ dealId }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  // Свернут ли чат (3-я колонка). Храним в localStorage по сделке —
-  // юзер привыкает к своему layout'у. По умолчанию чат открыт.
-  const [chatCollapsed, setChatCollapsed] = useState(false)
+  // Чат при каждом входе на карточку свёрнут — освобождает место под
+  // Информацию. Не персистим — пользователь может развернуть прямо
+  // здесь, но при следующем заходе снова увидит компактный вид.
+  const [chatCollapsed, setChatCollapsed] = useState(true)
   // Путь для перехода после подтверждения выхода без сохранения. null = закрыто.
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem("deal-chat-collapsed")
-      if (v === "1") setChatCollapsed(true)
-    } catch {}
-  }, [])
-  useEffect(() => {
-    try {
-      localStorage.setItem("deal-chat-collapsed", chatCollapsed ? "1" : "0")
-    } catch {}
-  }, [chatCollapsed])
   // Инкрементим когда файл прилетел из чата — DocumentsCard видит это
   // через refreshKey и перечитывает список без reload страницы.
   const [docRefreshKey, setDocRefreshKey] = useState(0)
@@ -497,20 +487,6 @@ export default function DealDetail({ dealId }: Props) {
           </Button>
 
           <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setChatCollapsed((v) => !v)}
-            className="h-8 w-8 rounded-lg shrink-0"
-            title={chatCollapsed ? "Развернуть чат" : "Свернуть чат"}
-          >
-            {chatCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <PanelRightClose className="h-4 w-4" />
-            )}
-          </Button>
-
-          <Button
             variant="ghost"
             size="icon"
             onClick={() => setDeleteOpen(true)}
@@ -536,7 +512,7 @@ export default function DealDetail({ dealId }: Props) {
         className={cn(
           "grid grid-cols-1 gap-3 xl:flex-1 xl:min-h-0",
           chatCollapsed
-            ? "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)]"
+            ? "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(320px,1fr)]"
             : "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(440px,1.4fr)]",
         )}
       >
@@ -575,13 +551,18 @@ export default function DealDetail({ dealId }: Props) {
             onExtraContactsChange={setExtraContactIds}
           />
 
-          <div className="mt-3">
-            <DealSurveyCard
-              deal={deal}
-              draft={draft}
-              onDraft={(patch) => setDraft((p) => ({ ...p, ...patch }))}
-            />
-          </div>
+          {/* Пока чат развёрнут — опросник «Информация» сидит под
+              DealInfoCard в левой колонке (как было). Когда чат
+              свёрнут — опросник уезжает в 3-ю колонку (см. ниже). */}
+          {!chatCollapsed && (
+            <div className="mt-3">
+              <DealSurveyCard
+                deal={deal}
+                draft={draft}
+                onDraft={(patch) => setDraft((p) => ({ ...p, ...patch }))}
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 min-w-0 xl:overflow-y-auto xl:pr-1">
@@ -614,13 +595,37 @@ export default function DealDetail({ dealId }: Props) {
           />
         </div>
 
-        {!chatCollapsed && (
+        {chatCollapsed ? (
+          <div className="min-w-0 xl:overflow-y-auto xl:pr-1 flex flex-col">
+            <DealSurveyCard
+              deal={deal}
+              draft={draft}
+              onDraft={(patch) => setDraft((p) => ({ ...p, ...patch }))}
+            />
+            <button
+              type="button"
+              onClick={() => setChatCollapsed(false)}
+              className={cn(
+                "mt-auto self-end rounded-lg bg-brand-yellow/15 border border-brand-yellow/40",
+                "hover:bg-brand-yellow/25 text-black inline-flex items-center gap-1.5",
+                "px-3 py-1.5 text-sm font-semibold transition-colors",
+                "sticky bottom-0 shadow-sm",
+              )}
+              title="Развернуть обсуждения"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Обсуждения
+              <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
+            </button>
+          </div>
+        ) : (
           <div className="min-w-0 xl:h-full">
             <DealChatPanel
               dealId={deal.id}
               currentUserId={currentUserId}
               usersById={usersById}
               onAttachmentUploaded={() => setDocRefreshKey((k) => k + 1)}
+              onCollapse={() => setChatCollapsed(true)}
             />
           </div>
         )}

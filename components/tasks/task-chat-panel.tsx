@@ -33,7 +33,7 @@ export default function TaskChatPanel({
           variant="ghost"
           size="icon"
           onClick={onCollapse}
-          className="absolute top-2 right-2 z-10 rounded-full h-8 w-8 bg-white/80 hover:bg-gray-100 text-gray-600 hover:text-black shadow-sm"
+          className="absolute top-2 right-2 z-10 rounded-full h-8 w-8 bg-brand-yellow hover:bg-yellow-500 text-black shadow-sm"
           title="Свернуть обсуждения"
         >
           <ChevronRight className="h-4 w-4" />
