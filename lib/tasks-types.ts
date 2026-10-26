@@ -82,6 +82,8 @@ export interface TaskChecklistItem {
 export interface TaskFull extends TaskListItem {
   members: TaskMember[]
   checklist: TaskChecklistItem[]
+  /** user_id всех, у кого задача в «Отслеживаемые». */
+  watcher_ids?: number[]
 }
 
 export interface TasksListResponse {

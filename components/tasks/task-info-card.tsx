@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from "react"
-import { Loader2, Save, Briefcase, FolderKanban, Plus, X } from "lucide-react"
+import { Loader2, Save, Briefcase, FolderKanban, Plus, X, Eye } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -18,6 +18,9 @@ import { Input } from "@/components/ui/input"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -90,6 +93,8 @@ export default function TaskInfoCard({
   const [projectCreateOpen, setProjectCreateOpen] = useState(false)
   const [dealPickerOpen, setDealPickerOpen] = useState(false)
   const [projectPickerOpen, setProjectPickerOpen] = useState(false)
+  // Полноэкранный просмотр описания — кнопка-глаз у заголовка «Описание».
+  const [descViewerOpen, setDescViewerOpen] = useState(false)
 
   // Задача может быть привязана и к сделке, И к проекту одновременно —
   // два независимых блока «Привязка» без тумблера.
@@ -113,15 +118,28 @@ export default function TaskInfoCard({
         />
       </FieldRow>
 
-      <FieldRow label="Описание">
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-[11px] uppercase tracking-wider text-gray-500 font-normal">
+            Описание
+          </Label>
+          <button
+            type="button"
+            onClick={() => setDescViewerOpen(true)}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-full bg-brand-yellow text-black hover:bg-yellow-500 shadow-sm"
+            title="Открыть описание целиком"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+        </div>
         <Textarea
-          className={`${NO_RING} text-sm`}
-          rows={4}
+          className={`${NO_RING} text-sm resize-y`}
+          style={{ height: "180px", maxHeight: "320px", minHeight: "120px" }}
           value={draft.description ?? ""}
           onChange={(e) => onDraft({ description: e.target.value })}
           placeholder="Что нужно сделать, контекст, детали…"
         />
-      </FieldRow>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <FieldRow label="Приоритет">
@@ -258,6 +276,32 @@ export default function TaskInfoCard({
       <div className="text-[11px] text-gray-400 pt-1 border-t border-gray-100">
         Создана: {task.created_at ? new Date(task.created_at).toLocaleString("ru-RU") : "—"}
       </div>
+
+      {/* Полноэкранный просмотр описания. Модалка подстраивается под
+          текст — размер по контенту, но не больше 90x90% окна, дальше
+          внутренний скролл. */}
+      <Dialog open={descViewerOpen} onOpenChange={setDescViewerOpen}>
+        <DialogContent
+          className="p-0 gap-0 overflow-hidden"
+          style={{
+            width: "fit-content",
+            maxWidth: "90vw",
+            maxHeight: "90vh",
+          }}
+        >
+          <DialogHeader className="px-5 pt-4 pb-3 border-b border-gray-100">
+            <DialogTitle>Описание задачи</DialogTitle>
+          </DialogHeader>
+          <div
+            className="px-5 py-4 overflow-y-auto text-sm whitespace-pre-wrap break-words leading-relaxed"
+            style={{ maxHeight: "calc(90vh - 60px)", minWidth: "320px" }}
+          >
+            {(draft.description ?? "").trim()
+              ? draft.description
+              : <span className="text-gray-400">Описание не задано</span>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
