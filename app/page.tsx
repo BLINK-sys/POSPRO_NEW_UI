@@ -1,16 +1,84 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
 import { Loader2 } from "lucide-react"
-import { getHomepageData } from "./actions/public"
+import { getHomepageData, getFooterSettings } from "./actions/public"
 import HomepageBlockComponent from "@/components/homepage-block"
 import HomepageBannerWrapper from "@/components/homepage-banner-wrapper"
 import MobileHomeWrapper from "@/components/mobile/mobile-home-wrapper"
 import { getApiUrl } from "@/lib/api-address"
 
 export const dynamic = 'force-dynamic'
+
+const HOMEPAGE_TITLE =
+  "Оборудование для ресторанов, кафе и магазинов в Казахстане | PosPro"
+const HOMEPAGE_DESCRIPTION =
+  "Профессиональное оборудование для бизнеса: пекарни, рестораны, " +
+  "кафе, магазины. Большой каталог, доставка по Казахстану, безнал " +
+  "для ТОО."
+
+export const metadata: Metadata = {
+  title: HOMEPAGE_TITLE,
+  description: HOMEPAGE_DESCRIPTION,
+  alternates: { canonical: "https://pospro.kz/" },
+  openGraph: {
+    title: HOMEPAGE_TITLE,
+    description: HOMEPAGE_DESCRIPTION,
+    url: "https://pospro.kz/",
+    type: "website",
+  },
+}
+
+async function OrganizationLd() {
+  // Данные для разметки — те же что рендерятся в подвале (адрес,
+  // телефон, email). Берём через кешированный server action, чтобы
+  // не делать лишнего HTTP вызова при каждом рендере главной.
+  let footer: {
+    address?: string
+    phone?: string
+    email?: string
+  } = {}
+  try {
+    footer = await getFooterSettings()
+  } catch {
+    // тихо — главная всё равно отрендерится, просто без Organization
+  }
+  const org: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "PosPro",
+    url: "https://pospro.kz/",
+    logo: "https://pospro.kz/logo.png",
+  }
+  if (footer.address) {
+    org.address = {
+      "@type": "PostalAddress",
+      streetAddress: footer.address,
+      addressCountry: "KZ",
+    }
+  }
+  if (footer.phone) {
+    org.contactPoint = {
+      "@type": "ContactPoint",
+      telephone: footer.phone,
+      contactType: "sales",
+      areaServed: "KZ",
+      availableLanguage: ["ru", "kk"],
+    }
+  }
+  if (footer.email) {
+    org.email = footer.email
+  }
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(org) }}
+    />
+  )
+}
 
 // Компонент загрузки
 function LoadingSpinner() {
@@ -127,8 +195,11 @@ async function HomepageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <HomepageContent />
-    </Suspense>
+    <>
+      <OrganizationLd />
+      <Suspense fallback={<LoadingSpinner />}>
+        <HomepageContent />
+      </Suspense>
+    </>
   )
 }
