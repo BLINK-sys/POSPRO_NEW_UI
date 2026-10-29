@@ -2,9 +2,11 @@ import type { MetadataRoute } from "next"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pospro-new-server.onrender.com"
 
+// Канонический домен; падаем сразу на pospro.kz (не на onrender), чтобы
+// в sitemap никогда не утекли адреса технической копии.
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
   || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-  || "https://pospro-new-ui.onrender.com"
+  || "https://pospro.kz"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [

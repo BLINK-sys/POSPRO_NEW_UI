@@ -50,6 +50,22 @@ export async function middleware(request: NextRequest) {
   try {
     const pathname = request.nextUrl.pathname
 
+    // ── Канонический домен (SEO П.1) ───────────────────────────────────
+    // На Render фронт живёт на pospro-new-ui.onrender.com (технический
+    // адрес). Поисковики видели сайт на двух хостах с одинаковым
+    // контентом → каннибализм в выдаче. Отдаём 301 на pospro.kz с
+    // тем же путём и query. Делаем ДО всего остального, чтобы редирект
+    // работал и для ботов, и для статики, и для любых API-ссылок с
+    // онрендер-хоста.
+    const host = request.headers.get('host') || ''
+    if (host.includes('onrender.com')) {
+      const url = request.nextUrl.clone()
+      url.protocol = 'https:'
+      url.host = 'pospro.kz'
+      url.port = ''
+      return NextResponse.redirect(url, 301)
+    }
+
     // Только страницы, не API/статика — статика тоже триггерит middleware
     // если попадает в matcher; точечно фильтруем.
     if (
