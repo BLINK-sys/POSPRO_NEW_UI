@@ -67,18 +67,29 @@ export async function middleware(request: NextRequest) {
     }
 
     // ── Техническое обслуживание ───────────────────────────────────────
-    // Owner нажал «Выключить магазин» → все кроме owner видят страницу-
-    // заглушку (/maintenance). Админка, auth и API — работают, чтобы
-    // owner мог включить обратно.
-    const isAdminArea =
-      pathname.startsWith('/admin') ||
+    // Owner нажал «Выключить магазин» → ВСЕ кроме owner видят страницу-
+    // заглушку на любом URL, включая админку. Менеджеры/админы в это
+    // время не могут ничего делать — именно так и задумано.
+    //
+    // Из блокировки исключаем только то, без чего owner не сможет сам
+    // вернуться:
+    //   - /auth/*         — страница логина
+    //   - /api/*          — чтобы POST /auth/login работал, чтобы фронт
+    //                       мог прочитать /api/public/maintenance-status,
+    //                       и чтобы /admin/shop-control смог включить
+    //                       магазин обратно (все API-запросы — через
+    //                       Next-прокси в этом же пути)
+    //   - /_next/*        — статика Next (CSS/JS) для /auth и заглушки
+    //   - /maintenance    — сама заглушка
+    //   - пути с точкой   — любые файлы (favicon, картинки)
+    const isExemptPath =
       pathname.startsWith('/auth') ||
       pathname.startsWith('/api') ||
       pathname.startsWith('/_next') ||
       pathname === '/maintenance' ||
       pathname.startsWith('/maintenance/') ||
       pathname.includes('.')
-    if (!isAdminArea) {
+    if (!isExemptPath) {
       // 1) быстро читаем статус из публичной ручки с коротким ISR
       let maintenanceEnabled = false
       try {
