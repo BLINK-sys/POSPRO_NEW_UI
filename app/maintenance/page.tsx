@@ -71,13 +71,13 @@ export default async function MaintenancePage() {
   return (
     <main className="min-h-dvh bg-gray-50 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
-        {/* Логотип */}
+        {/* Логотип — тот же файл что в header.tsx. */}
         <Link href="/" className="mb-8" aria-label="PosPro">
           <Image
-            src="/logo.png"
+            src="/ui/big_logo.png"
             alt="PosPro"
-            width={160}
-            height={48}
+            width={200}
+            height={56}
             priority
             unoptimized
           />

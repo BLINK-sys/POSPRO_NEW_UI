@@ -19,6 +19,7 @@ import { BulkRecalcDialog } from "@/components/bulk-recalc-dialog"
 import { CompareReplaceDialog } from "@/components/compare-replace-dialog"
 import { getProfile } from "./actions/auth"
 import { Toaster } from "@/components/ui/toaster"
+import { headers } from "next/headers"
 import ConditionalLayout from "./conditional-layout"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -50,6 +51,11 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const user = await getProfile()
+  // Если middleware переписал запрос на /maintenance — показываем
+  // заглушку без общей обвязки (Header/Footer/ChatWidget и прочее),
+  // чтобы страница выглядела как изолированная «технические работы».
+  const h = await headers()
+  const isMaintenance = h.get("x-maintenance") === "1"
 
   return (
     <html lang="ru">
@@ -71,6 +77,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             style={{ display: "none", visibility: "hidden" }}
           />
         </noscript>
+        {isMaintenance ? (
+          // Чистая страница-заглушка без провайдеров и обвязки.
+          // Toaster здесь не нужен — заглушка ничего не триггерит.
+          <>{children}</>
+        ) : (
         <AuthProvider initialUser={user}>
           <ChatUnreadAutoProvider>
           <ChatButtonPositionProvider>
@@ -108,6 +119,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </ChatButtonPositionProvider>
           </ChatUnreadAutoProvider>
         </AuthProvider>
+        )}
       </body>
     </html>
   )

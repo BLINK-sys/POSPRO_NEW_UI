@@ -107,12 +107,18 @@ export async function middleware(request: NextRequest) {
           const url = request.nextUrl.clone()
           url.pathname = '/maintenance'
           url.search = ''
-          const r = NextResponse.rewrite(url, {
+          // Прокидываем флаг в request headers — root-layout его читает
+          // через `headers()` и отключает ConditionalLayout (чтобы не
+          // показать Header/Footer поверх заглушки). pathname после
+          // rewrite остаётся исходным, поэтому через usePathname()
+          // определить maintenance-страницу нельзя.
+          const requestHeaders = new Headers(request.headers)
+          requestHeaders.set('x-maintenance', '1')
+          return NextResponse.rewrite(url, {
+            request: { headers: requestHeaders },
             status: 503,
             headers: { 'Retry-After': '3600' },
           })
-          r.headers.set('x-maintenance', '1')
-          return r
         }
       }
     }
