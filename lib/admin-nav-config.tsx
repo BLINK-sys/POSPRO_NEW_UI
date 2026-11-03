@@ -15,6 +15,7 @@ import {
   Search,
   Share2,
   ShieldCheck,
+  Power,
   ShoppingCart,
   Sparkles,
   Tags,
@@ -71,6 +72,7 @@ const CRM_PATH_PREFIXES = [
   "/admin/permissions",
   "/admin/kp-management",
   "/admin/user-activity",
+  "/admin/shop-control",
 ] as const
 
 export function isCrmPath(pathname: string): boolean {
@@ -178,6 +180,7 @@ function buildCrmSections(a: AccessCtx): AdminNavSection[] {
         { href: "/admin/user-activity", label: "Активность", icon: Activity, ownerOnly: true },
         { href: "/admin/kp-management", label: "Управление КП", icon: Share2, ownerOnly: true },
         { href: "/admin/webhooks", label: "Веб хуки", icon: Webhook, ownerOnly: true },
+        { href: "/admin/shop-control", label: "Управление магазином", icon: Power, ownerOnly: true },
       ],
     })
   }

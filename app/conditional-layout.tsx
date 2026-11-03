@@ -16,6 +16,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const isAuthPage = pathname.startsWith("/auth")
   const isKPPage = pathname.startsWith("/kp")
   const isAIPage = pathname.startsWith("/ai")
+  const isMaintenancePage = pathname === "/maintenance" || pathname.startsWith("/maintenance/")
 
   const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined)
 
@@ -28,6 +29,12 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   }, [])
 
   if (isAdminPage) {
+    return <>{children}</>
+  }
+  // Страница-заглушка «Магазин выключен» рисует себе всё сама: своя
+  // шапка/логотип/контакты. Никаких общих Header/Footer сверху не
+  // наворачиваем — чтобы заглушка выглядела чистой.
+  if (isMaintenancePage) {
     return <>{children}</>
   }
 

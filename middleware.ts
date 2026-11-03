@@ -66,6 +66,57 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url, 301)
     }
 
+    // ── Техническое обслуживание ───────────────────────────────────────
+    // Owner нажал «Выключить магазин» → все кроме owner видят страницу-
+    // заглушку (/maintenance). Админка, auth и API — работают, чтобы
+    // owner мог включить обратно.
+    const isAdminArea =
+      pathname.startsWith('/admin') ||
+      pathname.startsWith('/auth') ||
+      pathname.startsWith('/api') ||
+      pathname.startsWith('/_next') ||
+      pathname === '/maintenance' ||
+      pathname.startsWith('/maintenance/') ||
+      pathname.includes('.')
+    if (!isAdminArea) {
+      // 1) быстро читаем статус из публичной ручки с коротким ISR
+      let maintenanceEnabled = false
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/public/maintenance-status`,
+          { next: { revalidate: 20 } },
+        )
+        if (res.ok) {
+          const data = await res.json()
+          maintenanceEnabled = Boolean(data?.enabled)
+        }
+      } catch {
+        // если бэк недоступен — не блокируем сайт
+      }
+      if (maintenanceEnabled) {
+        // 2) owner получает нормальную страницу
+        let viewerIsOwner = false
+        try {
+          const raw = request.cookies.get('user-data')?.value
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            viewerIsOwner = Boolean(parsed?.is_owner)
+          }
+        } catch { /* не owner */ }
+        if (!viewerIsOwner) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/maintenance'
+          url.search = ''
+          const r = NextResponse.rewrite(url, {
+            status: 503,
+            headers: { 'Retry-After': '3600' },
+          })
+          r.headers.set('x-maintenance', '1')
+          return r
+        }
+      }
+    }
+
     // Только страницы, не API/статика — статика тоже триггерит middleware
     // если попадает в matcher; точечно фильтруем.
     if (
