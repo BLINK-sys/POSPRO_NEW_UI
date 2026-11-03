@@ -295,7 +295,7 @@ export default function TaskDetail({ taskId }: Props) {
   )
 
   return (
-    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-6rem)] space-y-2">
+    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-8rem)] xl:overflow-hidden space-y-2">
       {/* Шапка */}
       <Card className="rounded-xl border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] shrink-0">
         <div className="px-3 py-2 flex items-center gap-3">
@@ -541,7 +541,12 @@ export default function TaskDetail({ taskId }: Props) {
           выводится маленькая горизонтальная кнопка «Обсуждения». */}
       <div
         className={cn(
-          "grid grid-cols-1 gap-2 xl:flex-1 xl:min-h-0",
+          // grid-rows-[minmax(0,1fr)] фиксирует высоту единственной
+          // строки по flex-1 родителя. Без этого grid-row = max-content,
+          // колонка с длинным контентом (чат с сообщениями или описание)
+          // растягивает всю задачу выше viewport'а, появляется внешний
+          // скролл страницы вместо внутреннего скролла колонки.
+          "grid grid-cols-1 gap-2 xl:flex-1 xl:min-h-0 xl:grid-rows-[minmax(0,1fr)]",
           chatCollapsed
             ? "xl:grid-cols-[minmax(360px,1.2fr)_minmax(0,1.1fr)]"
             : "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(440px,1.4fr)]",
