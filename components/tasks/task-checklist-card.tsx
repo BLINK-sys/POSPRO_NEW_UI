@@ -19,7 +19,7 @@
  *   DELETE /api/admin/tasks/<id>/checklist/<iid>
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Plus, ListChecks, Trash2, Pencil, Check, X, ChevronDown, Link2,
 } from "lucide-react"
@@ -329,20 +329,36 @@ function GroupEditor({
   const [saving, setSaving] = useState(false)
   const [confirmWipe, setConfirmWipe] = useState(false)
 
-  // Сброс при каждом открытии.
-  useEffect(() => {
-    if (!open) return
-    setName(initialName)
-    setItems(initialItems.map((i) => ({
-      id: i.id,
-      text: i.text,
-      done: i.done,
-      depends_on_group: i.depends_on_group,
-    })))
-    setConfirmWipe(false)
-  }, [open, initialName, initialItems])
-
+  // Сброс state ТОЛЬКО на переходе closed → open, а не на каждом
+  // ре-рендере с новыми initial* (родитель пересоздаёт массив
+  // initialItems каждый раз при reload задачи — например когда юзер
+  // отмечает чекбокс у другого пункта или виджет-polling сработал).
+  // Без этого useEffect затирал draft юзера посреди набора текста.
+  const prevOpen = useRef(false)
   const isNew = initialItems.length === 0 && initialName === ""
+  useEffect(() => {
+    if (open && !prevOpen.current) {
+      setName(initialName)
+      // При создании нового списка — сразу одна пустая строка, чтобы
+      // юзер мог начать печатать не ища кнопку «добавить».
+      if (isNew) {
+        setItems([{
+          id: `new-${Date.now()}-${Math.random()}`,
+          text: "", done: false, depends_on_group: null,
+        }])
+      } else {
+        setItems(initialItems.map((i) => ({
+          id: i.id,
+          text: i.text,
+          done: i.done,
+          depends_on_group: i.depends_on_group,
+        })))
+      }
+      setConfirmWipe(false)
+    }
+    prevOpen.current = open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const addItem = () => {
     setItems((prev) => [
@@ -371,25 +387,42 @@ function GroupEditor({
 
   const handleSave = async () => {
     const groupName = name.trim() || null
-    setSaving(true)
     // Считаем diff. Порядок операций: удаления, потом обновления, потом
     // создания — так у нового пункта не будет коллизии по названию с
     // удаляемым.
-    try {
-      const toDelete = items.filter((i) => i.toDelete && typeof i.id === "number")
-      const toCreate = items.filter((i) => typeof i.id === "string" && !i.toDelete && i.text.trim())
-      const toUpdate = items.filter((i) => {
-        if (typeof i.id !== "number" || i.toDelete) return false
-        const orig = initialItems.find((o) => o.id === i.id)
-        if (!orig) return false
-        return (
-          orig.text !== i.text.trim() ||
-          orig.done !== i.done ||
-          (orig.group_name ?? null) !== groupName ||
-          (orig.depends_on_group ?? null) !== (i.depends_on_group ?? null)
-        )
-      })
+    const toDelete = items.filter((i) => i.toDelete && typeof i.id === "number")
+    const toCreate = items.filter((i) => typeof i.id === "string" && !i.toDelete && i.text.trim())
+    const toUpdate = items.filter((i) => {
+      if (typeof i.id !== "number" || i.toDelete) return false
+      const orig = initialItems.find((o) => o.id === i.id)
+      if (!orig) return false
+      return (
+        orig.text !== i.text.trim() ||
+        orig.done !== i.done ||
+        (orig.group_name ?? null) !== groupName ||
+        (orig.depends_on_group ?? null) !== (i.depends_on_group ?? null)
+      )
+    })
 
+    // Пустой чек-лист (без пунктов) на бэке не хранится — группа это
+    // просто поле `group_name` у пунктов. Если юзер хотел сохранить
+    // «только заголовок» — предупреждаем и НЕ закрываем модалку.
+    const willHaveAnyItem =
+      toCreate.length +
+      items.filter((i) => typeof i.id === "number" && !i.toDelete).length -
+      toDelete.length
+    if (willHaveAnyItem <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Нужен хотя бы один пункт",
+        description:
+          "Чек-лист без пунктов не сохранится — добавьте строки через « + добавить пункт ».",
+      })
+      return
+    }
+
+    setSaving(true)
+    try {
       for (const it of toDelete) {
         await crmDelete(`/api/admin/tasks/${taskId}/checklist/${it.id}`)
       }
