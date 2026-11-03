@@ -47,7 +47,7 @@ export async function generateMetadata(
   const desc =
     (b.description && b.description.slice(0, 160)) ||
     `Товары марки ${b.name} — в наличии и под заказ. Доставка по Казахстану, безнал для ТОО.`
-  const canonical = `https://pospro.kz/brand/${encodeURIComponent(b.name)}`
+  const canonical = `https://pospro.kz/brand/${encodeURIComponent(b.name)}/`
   return {
     title,
     description: desc,
@@ -69,7 +69,7 @@ export default async function BrandPage(
   if (!data?.brand) notFound()
 
   const b = data.brand
-  const canonical = `https://pospro.kz/brand/${encodeURIComponent(b.name)}`
+  const canonical = `https://pospro.kz/brand/${encodeURIComponent(b.name)}/`
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -87,7 +87,7 @@ export default async function BrandPage(
             "@type": "ListItem",
             position: 2,
             name: "Бренды",
-            item: "https://pospro.kz/brands",
+            item: "https://pospro.kz/brands/",
           },
           {
             "@type": "ListItem",

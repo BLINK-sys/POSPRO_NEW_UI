@@ -197,6 +197,11 @@ export default function HomePage() {
   return (
     <>
       <OrganizationLd />
+      {/* SEO: один <h1> на страницу — Google его ищет. Визуально скрыт
+          (`sr-only`), в DOM присутствует. */}
+      <h1 className="sr-only">
+        Оборудование для ресторанов, кафе и магазинов в Казахстане — PosPro
+      </h1>
       <Suspense fallback={<LoadingSpinner />}>
         <HomepageContent />
       </Suspense>

@@ -9,9 +9,16 @@ const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
   || "https://pospro.kz"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // ВАЖНО: все URL со слэшом в конце — соответствует trailingSlash:true
+  // в next.config и canonical, который рендерит Next. Иначе Google
+  // засчитает каждый URL как редиректный (65k страниц → 65k 308).
+  //
+  // lastModified: НЕ ставим «сейчас» всем подряд — Google обесценит
+  // поле. Для главной — текущий момент (её редко переоткрываем),
+  // для карточек — ничего (пусть Google сам решает по контенту).
   const entries: MetadataRoute.Sitemap = [
     {
-      url: baseUrl,
+      url: `${baseUrl}/`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
@@ -32,8 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const slug of categories) {
       if (slug) {
         entries.push({
-          url: `${baseUrl}/category/${encodeURIComponent(slug)}`,
-          lastModified: new Date(),
+          url: `${baseUrl}/category/${encodeURIComponent(slug)}/`,
           changeFrequency: "weekly",
           priority: 0.8,
         })
@@ -43,8 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const slug of products) {
       if (slug) {
         entries.push({
-          url: `${baseUrl}/product/${encodeURIComponent(slug)}`,
-          lastModified: new Date(),
+          url: `${baseUrl}/product/${encodeURIComponent(slug)}/`,
           changeFrequency: "weekly",
           priority: 0.7,
         })

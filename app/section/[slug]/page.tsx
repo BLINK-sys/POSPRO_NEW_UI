@@ -38,7 +38,7 @@ export async function generateMetadata(
   const desc =
     data.section_card.description?.slice(0, 160) ||
     `Готовый комплект оборудования для ${name}. Доставка по Казахстану, безнал для ТОО.`
-  const canonical = `https://pospro.kz/section/${slug}`
+  const canonical = `https://pospro.kz/section/${slug}/`
   return {
     title,
     description: desc,
@@ -59,7 +59,7 @@ export default async function SectionPage(
   const data = await loadSection(slug)
   if (!data?.section_card) notFound()
 
-  const canonical = `https://pospro.kz/section/${slug}`
+  const canonical = `https://pospro.kz/section/${slug}/`
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -77,7 +77,7 @@ export default async function SectionPage(
             "@type": "ListItem",
             position: 2,
             name: "Готовые решения",
-            item: "https://pospro.kz/sections",
+            item: "https://pospro.kz/sections/",
           },
           {
             "@type": "ListItem",

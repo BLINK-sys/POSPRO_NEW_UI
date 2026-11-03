@@ -15,7 +15,7 @@ import SectionsClient from "./sections-client"
 
 export const revalidate = 1800
 
-const CANONICAL = "https://pospro.kz/sections"
+const CANONICAL = "https://pospro.kz/sections/"
 const PAGE_TITLE = "Оборудование под ключ для бизнеса в Казахстане | PosPro"
 const PAGE_DESCRIPTION =
   "Готовые комплекты оборудования под тип бизнеса: кафе, рестораны, " +
@@ -66,7 +66,7 @@ export default async function SectionsPage() {
           "@type": "ListItem",
           position: i + 1,
           name: c.name,
-          url: `https://pospro.kz/section/${c.slug}`,
+          url: `https://pospro.kz/section/${c.slug}/`,
         })),
       },
     ],

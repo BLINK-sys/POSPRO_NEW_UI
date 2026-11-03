@@ -39,6 +39,21 @@ function priceLine(price?: number | null): string {
   return `, цена ${formatted} ₸`
 }
 
+/**
+ * Если имя товара полностью заглавными («ЛАРЬ МОРОЗИЛЬНЫЙ XYZ») — в
+ * title/og получается крик. Переводим в «Sentence case»: первая буква
+ * заглавная, остальные строчные. Если в имени есть хоть одна строчная —
+ * значит кто-то специально так написал, не трогаем.
+ */
+function smartName(s: string): string {
+  const letters = s.match(/\p{L}/gu) ?? []
+  if (letters.length === 0) return s
+  const hasLower = letters.some((c) => c === c.toLowerCase() && c !== c.toUpperCase())
+  if (hasLower) return s
+  const low = s.toLowerCase()
+  return low.charAt(0).toUpperCase() + low.slice(1)
+}
+
 export async function generateMetadata(
   { params }: { params: Promise<{ slug: string }> },
 ): Promise<Metadata> {
@@ -47,15 +62,16 @@ export async function generateMetadata(
   if (!p) return { title: "Товар не найден | PosPro" }
 
   const brand = p.brand_info?.name || p.brand?.name || ""
-  const title = `${p.name} — купить в Казахстане${priceLine(p.price)} | PosPro`
+  const prettyName = smartName(p.name)
+  const title = `${prettyName} — купить в Казахстане${priceLine(p.price)} | PosPro`
   const brandPart = brand ? ` ${brand}.` : ""
   const availability =
     p.quantity > 0 ? "В наличии." : "Под заказ, уточните сроки."
   const desc =
-    `${p.name}.${brandPart} ${availability} Доставка по Казахстану, безнал для ТОО.`
+    `${prettyName}.${brandPart} ${availability} Доставка по Казахстану, безнал для ТОО.`
       .replace(/\s+/g, " ")
       .slice(0, 160)
-  const canonical = `https://pospro.kz/product/${slug}`
+  const canonical = `https://pospro.kz/product/${slug}/`
   const image = absoluteImageUrl(p.image || p.image_url)
 
   return {
@@ -79,8 +95,9 @@ export default async function ProductPage(
   const p = await loadProduct(slug)
   if (!p) notFound()
 
-  const canonical = `https://pospro.kz/product/${slug}`
+  const canonical = `https://pospro.kz/product/${slug}/`
   const brandName = p.brand_info?.name || p.brand?.name
+  const prettyName = smartName(p.name)
   const image = absoluteImageUrl(p.image || p.image_url)
   const inStock = (p.quantity ?? 0) > 0
 
@@ -100,19 +117,19 @@ export default async function ProductPage(
       "@type": "ListItem",
       position: 2,
       name: p.category.name,
-      item: `https://pospro.kz/category/${p.category.slug}`,
+      item: `https://pospro.kz/category/${p.category.slug}/`,
     })
   }
   breadcrumb.itemListElement.push({
     "@type": "ListItem",
     position: breadcrumb.itemListElement.length + 1,
-    name: p.name,
+    name: prettyName,
     item: canonical,
   })
 
   const product: any = {
     "@type": "Product",
-    name: p.name,
+    name: prettyName,
     description: p.description || undefined,
     sku: p.article || undefined,
     image: image || undefined,

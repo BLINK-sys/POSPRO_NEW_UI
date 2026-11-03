@@ -849,8 +849,10 @@ export default function ProductClient({
                   >
                     {formatAvailabilityStatusLabel(product.availability_status)}
                   </span>
-                ) : (
+                ) : product.quantity > 0 ? (
                   <span className="text-gray-600">{product.quantity} шт.</span>
+                ) : (
+                  <span className="text-gray-600">Под заказ</span>
                 )}
               </div>
             </div>

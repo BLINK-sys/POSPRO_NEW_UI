@@ -66,7 +66,7 @@ export async function generateMetadata(
   const desc =
     (c.description && c.description.slice(0, 160)) ||
     `${c.name} — большой выбор, цены и наличие. Доставка по Казахстану, безнал для ТОО.`
-  const canonical = `https://pospro.kz/category/${slug}`
+  const canonical = `https://pospro.kz/category/${slug}/`
   return {
     title,
     description: desc,
@@ -87,7 +87,7 @@ export default async function CategoryPage(
   const data = await loadCategory(slug)
   if (!data?.category) notFound()
 
-  const canonical = `https://pospro.kz/category/${slug}`
+  const canonical = `https://pospro.kz/category/${slug}/`
 
   const jsonLd = {
     "@context": "https://schema.org",
