@@ -482,15 +482,20 @@ function GroupEditor({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent
+          // Крупнее: 60% ширины экрана, 90% высоты. Внутри — flex-колонка,
+          // чтобы список пунктов занял всё свободное пространство и
+          // прокручивался сам, а шапка/название/футер оставались на месте.
+          className="w-[60vw] max-w-[60vw] max-h-[90vh] flex flex-col overflow-hidden p-0"
+        >
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-gray-100 shrink-0">
             <DialogTitle>
               {isNew ? "Новый чек-лист" : "Редактирование списка"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
+          <div className="flex-1 min-h-0 flex flex-col px-6 py-4 space-y-3 overflow-hidden">
+            <div className="space-y-1 shrink-0">
               <div className="text-[11px] uppercase tracking-wider text-gray-500">
                 Название
               </div>
@@ -502,8 +507,8 @@ function GroupEditor({
               />
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
+            <div className="flex-1 min-h-0 flex flex-col space-y-1">
+              <div className="flex items-center justify-between shrink-0">
                 <div className="text-[11px] uppercase tracking-wider text-gray-500">
                   Пункты
                 </div>
@@ -521,10 +526,12 @@ function GroupEditor({
                   Пунктов пока нет. Добавьте первый.
                 </div>
               ) : (
+                // flex-1 + min-h-0 = растянуться на всё оставшееся место
+                // модалки и дать overflow-y-auto работать (если пунктов
+                // много, появится вертикальный скролл внутри списка).
                 // `py-1 px-0.5` — запас чтобы focus-ring Input'а не резался
-                // краем overflow-y-auto. Тесно расположенные Input'ы иначе
-                // обрезаются сверху/снизу при фокусе.
-                <ul className="space-y-2 max-h-[50vh] overflow-y-auto py-1 px-0.5">
+                // краем overflow-y-auto.
+                <ul className="flex-1 min-h-0 space-y-2 overflow-y-auto py-1 px-0.5">
                   {items.map((it, idx) => {
                     if (it.toDelete) return null
                     return (
@@ -593,7 +600,7 @@ function GroupEditor({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-3 border-t border-gray-100 shrink-0">
             <Button variant="ghost" onClick={onClose} disabled={saving}>
               Отмена
             </Button>
