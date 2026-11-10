@@ -17,22 +17,34 @@ import {
   type AdminMode,
 } from "@/lib/admin-nav-config"
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default function AdminLayout({
+  children, editor,
+}: {
+  children: ReactNode
+  /** Параллельный слот для overlay'ев (Excel-редактор и т.п.). Открытие
+   *  изнутри админки через router.push intercept'ится в этот слот —
+   *  основная страница не выгружается, возврат мгновенный. */
+  editor: ReactNode
+}) {
   return (
     <AdminUIProvider>
-      <AdminLayoutInner>{children}</AdminLayoutInner>
+      <AdminLayoutInner editor={editor}>{children}</AdminLayoutInner>
     </AdminUIProvider>
   )
 }
 
-function AdminLayoutInner({ children }: { children: ReactNode }) {
-  const { hideHeader } = useAdminUI()
+function AdminLayoutInner({
+  children, editor,
+}: {
+  children: ReactNode
+  editor: ReactNode
+}) {
+  const { hideHeader, isSidebarCollapsed, setIsSidebarCollapsed } = useAdminUI()
   const pathname = usePathname()
   const router = useRouter()
   const { user, refreshUser } = useAuth()
 
   const [authChecked, setAuthChecked] = useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // Проверка авторизации при каждом переходе.
   useEffect(() => {
@@ -103,6 +115,9 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
       },
       aiSettingsAccess,
       kpManagementAccess,
+      canManageProjects: Boolean(
+        user && (user.is_owner || user.can_manage_projects),
+      ),
     }),
     [user, aiSettingsAccess, kpManagementAccess],
   )
@@ -199,9 +214,21 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
             isSidebarCollapsed ? "ml-0" : "ml-64",
           )}
         >
-          {React.cloneElement(children as React.ReactElement, { isSidebarCollapsed })}
+          {/* ВАЖНО: `cloneElement` НЕ используется — он ломает
+              intercepting routes (overlay-слот @editor), потому что
+              Next.js оборачивает children в специфичный ReactElement
+              (InnerLayoutRouter / RedirectBoundary), который при
+              клонировании с доп. prop'ами теряет корректную реконсиляцию
+              и каждая смена URL приводит к полному перемонтированию.
+              isSidebarCollapsed пробрасывается в страницы через
+              useAdminUI(). */}
+          {children}
         </main>
       </div>
+      {/* Overlay-слот (Excel-редактор и прочие intercept-маршруты).
+          Сам рендерится как fixed inset-0 поверх всего, parent'ы
+          ничего ему не ограничивают. */}
+      {editor}
     </div>
   )
 }

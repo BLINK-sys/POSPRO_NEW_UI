@@ -89,13 +89,26 @@ async function proxy(request: NextRequest, path: string[]) {
     const contentType =
       upstream.headers.get("content-type") || "application/json"
 
-    // Бинарные ответы (файлы, картинки) — как ArrayBuffer.
+    // Бинарные ответы (файлы, картинки) — как ArrayBuffer. Office
+    // форматы (xlsx/docx/pptx) и OpenDocument проверяем по префиксу —
+    // нужно для /raw эндпоинта редактора Excel.
+    const ctLower = contentType.toLowerCase()
+    const isOfficeBinary =
+      ctLower.includes("officedocument") ||
+      ctLower.includes("ms-excel") ||
+      ctLower.includes("msword") ||
+      ctLower.includes("ms-powerpoint") ||
+      ctLower.includes("opendocument") ||
+      ctLower === "application/zip" ||
+      ctLower === "application/x-zip-compressed" ||
+      ctLower === "application/vnd.rar"
     if (
       contentType.startsWith("image/") ||
       contentType.startsWith("video/") ||
       contentType.startsWith("audio/") ||
       contentType === "application/octet-stream" ||
-      contentType === "application/pdf"
+      contentType === "application/pdf" ||
+      isOfficeBinary
     ) {
       const buf = await upstream.arrayBuffer()
       const responseHeaders: Record<string, string> = { "Content-Type": contentType }

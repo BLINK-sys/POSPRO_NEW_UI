@@ -7,11 +7,7 @@ import { getSuppliers } from "@/app/actions/suppliers"
 
 export const dynamic = 'force-dynamic'
 
-interface ProductsPageProps {
-  isSidebarCollapsed?: boolean
-}
-
-export default async function ProductsPage({ isSidebarCollapsed = false }: ProductsPageProps) {
+export default async function ProductsPage() {
   const [initialData, categories, brands, statuses, suppliers] = await Promise.all([
     getProducts({ page: 1, perPage: 25 }),
     getCategories(),
@@ -20,6 +16,9 @@ export default async function ProductsPage({ isSidebarCollapsed = false }: Produ
     getSuppliers(),
   ])
 
+  // isSidebarCollapsed больше не приходит prop'ом (в AdminLayout убран
+  // cloneElement — ломал intercepting routes). ProductsTable берёт его
+  // напрямую из useAdminUI() в client-коде.
   return (
     <Card className="rounded-xl border border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <CardHeader>
@@ -33,7 +32,6 @@ export default async function ProductsPage({ isSidebarCollapsed = false }: Produ
           brands={brands}
           statuses={statuses}
           suppliers={suppliers}
-          isSidebarCollapsed={isSidebarCollapsed}
         />
       </CardContent>
     </Card>

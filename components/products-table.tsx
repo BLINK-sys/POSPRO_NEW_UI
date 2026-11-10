@@ -10,6 +10,7 @@ import type { Supplier } from "@/app/actions/suppliers"
 import { API_BASE_URL } from "@/lib/api-address"
 import { cn } from "@/lib/utils"
 import { getSupplierNames } from "@/lib/product-helpers"
+import { useAdminUI } from "@/context/admin-ui-context"
 
 // Общие классы для фильтров: лёгкая тень, на hover больше тени, без чёрного
 // фокус-кольца. Применяется ко всем SelectTrigger / Button / Input на этой
@@ -56,7 +57,6 @@ interface ProductsTableProps {
   brands: Brand[]
   statuses: Status[]
   suppliers: Supplier[]
-  isSidebarCollapsed?: boolean
 }
 
 export function ProductsTable({
@@ -65,8 +65,8 @@ export function ProductsTable({
   brands,
   statuses,
   suppliers,
-  isSidebarCollapsed = false,
 }: ProductsTableProps) {
+  const { isSidebarCollapsed } = useAdminUI()
   const searchParams = useSearchParams()
   const pathname = usePathname()
 

@@ -16,17 +16,29 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 interface AdminUIContextValue {
   hideHeader: boolean
   setHideHeader: (v: boolean) => void
+  /** Схлопнут ли сайдбар. Раньше пробрасывалось в страницы через
+   *  `React.cloneElement(children, { isSidebarCollapsed })`, но cloneElement
+   *  сбивает intercepting routes (детали см. комментарий в
+   *  app/admin/layout.tsx), поэтому перевели на контекст. */
+  isSidebarCollapsed: boolean
+  setIsSidebarCollapsed: (v: boolean) => void
 }
 
 const AdminUIContext = createContext<AdminUIContextValue>({
   hideHeader: false,
   setHideHeader: () => {},
+  isSidebarCollapsed: false,
+  setIsSidebarCollapsed: () => {},
 })
 
 export function AdminUIProvider({ children }: { children: ReactNode }) {
   const [hideHeader, setHideHeader] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   return (
-    <AdminUIContext.Provider value={{ hideHeader, setHideHeader }}>
+    <AdminUIContext.Provider value={{
+      hideHeader, setHideHeader,
+      isSidebarCollapsed, setIsSidebarCollapsed,
+    }}>
       {children}
     </AdminUIContext.Provider>
   )
