@@ -148,3 +148,11 @@
 /* Прижимаем контент вокруг float-картинок так, чтобы соседние блоки
    умели «сбрасывать» обтекание. Разделитель <hr> всегда прерывает поток. */
 .prose hr, .public-page hr { clear: both; }
+
+/* Подсветка карточки задачи после возврата из задачи в проект
+   (?focusTask=<id>). Быстрое мигание intensity'ю box-shadow'а,
+   цветом самой колонки — inline-стилями, см. project-kanban.tsx. */
+@keyframes taskFocusPulse {
+  from { filter: brightness(1); transform: scale(1); }
+  to   { filter: brightness(1.08); transform: scale(1.02); }
+}

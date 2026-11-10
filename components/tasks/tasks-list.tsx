@@ -726,14 +726,28 @@ function TaskRow({
             )}
             {task.project_ref && (
               <div
-                className="inline-flex items-center gap-1.5 text-sm text-gray-700 truncate max-w-full"
+                className="flex flex-col gap-0.5 text-sm text-gray-700 max-w-full"
                 title={`Проект: ${task.project_ref.name}`}
               >
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: task.project_ref.color || "#94a3b8" }}
-                />
-                <span className="truncate">{task.project_ref.name}</span>
+                <div className="inline-flex items-center gap-1.5 truncate">
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: task.project_ref.color || "#94a3b8" }}
+                  />
+                  <span className="truncate">{task.project_ref.name}</span>
+                </div>
+                {task.project_stage_ref && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] max-w-full truncate self-start"
+                    style={{
+                      backgroundColor: (task.project_stage_ref.color ?? "#94a3b8") + "22",
+                      color: task.project_stage_ref.color ?? "#374151",
+                    }}
+                    title={`Колонка канбана: ${task.project_stage_ref.name}`}
+                  >
+                    <span className="truncate">{task.project_stage_ref.name}</span>
+                  </span>
+                )}
               </div>
             )}
           </div>

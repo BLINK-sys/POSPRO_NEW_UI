@@ -32,6 +32,16 @@ export interface TaskProjectRef {
   color: string | null
 }
 
+/** Денормализованная ссылка на колонку канбана проекта (если задача
+ *  размещена в ней). Нужна для чипа «В проекте X / Колонка Y». */
+export interface TaskProjectStageRef {
+  id: number
+  name: string
+  color: string | null
+  /** Какой из 5 глобальных статусов эта колонка маркирует. */
+  maps_to_status: "pending" | "in_progress" | "waiting_check" | "done" | "paused"
+}
+
 export interface TaskListItem {
   id: number
   title: string
@@ -53,6 +63,10 @@ export interface TaskListItem {
   deal_ref: TaskDealRef | null
   /** Денормализовано на бэке — привязанный проект (если есть). */
   project_ref: TaskProjectRef | null
+  /** Колонка канбана проекта, где задача сейчас. Денормализовано на
+   *  бэке. Нужно, чтобы показать «В проекте X · Закупка» в UI задачи. */
+  project_stage_id?: number | null
+  project_stage_ref?: TaskProjectStageRef | null
   /** В личном списке «Отслеживаемые» у текущего пользователя. */
   is_watched?: boolean
 }

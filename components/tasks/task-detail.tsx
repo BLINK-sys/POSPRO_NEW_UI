@@ -88,6 +88,45 @@ export default function TaskDetail({ taskId }: Props) {
 
   const [task, setTask] = useState<TaskFull | null>(null)
   const [users, setUsers] = useState<Sys[]>([])
+
+  // ID проекта, из которого юзер пришёл в эту задачу (sessionStorage
+  // ставит ProjectKanban при клике по карточке). TTL = 30 мин. Если
+  // возвратный контекст есть — показываем кнопку «← В проект» рядом с
+  // «К списку», при клике возвращаемся с ?focusTask=<tid> для скролла
+  // и подсветки.
+  //
+  // ВАЖНО: кнопка должна исчезать, если юзер в UI отвязал задачу от
+  // проекта (или сменил на другой) — иначе переход кинет в пустой
+  // проект, где этой задачи уже нет. Поэтому final-значение = пересечение
+  // между sessionStorage-контекстом и актуальным `task.project_ref`.
+  const [returnProjectRaw, setReturnProjectRaw] = useState<number | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const raw = sessionStorage.getItem("task_return_to_project")
+      if (!raw) return
+      const parsed = JSON.parse(raw) as {
+        taskId: number; projectId: number; ts: number
+      }
+      const fresh = Date.now() - (parsed.ts || 0) < 30 * 60 * 1000
+      if (fresh && parsed.taskId === taskId && parsed.projectId) {
+        setReturnProjectRaw(parsed.projectId)
+      }
+    } catch { /* noop */ }
+  }, [taskId])
+
+  // Реальный projectId для кнопки «В проект»: валиден, только если
+  // текущая задача всё ещё в том же проекте. Иначе null — кнопку
+  // прячем и чистим sessionStorage.
+  const returnProjectId = useMemo(() => {
+    if (returnProjectRaw == null) return null
+    if (!task?.project_ref || task.project_ref.id !== returnProjectRaw) {
+      // Контекст протух — убираем, чтобы не показывать стрелку в пустоту.
+      try { sessionStorage.removeItem("task_return_to_project") } catch { /* noop */ }
+      return null
+    }
+    return returnProjectRaw
+  }, [returnProjectRaw, task?.project_ref])
   const [projects, setProjects] = useState<Project[]>([])
   const [deals, setDeals] = useState<DealLite[]>([])
   const [loading, setLoading] = useState(true)
@@ -295,7 +334,7 @@ export default function TaskDetail({ taskId }: Props) {
   )
 
   return (
-    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-8rem)] xl:overflow-hidden space-y-2">
+    <div className="xl:flex xl:flex-col xl:h-[calc(100dvh-6.5rem)] xl:overflow-hidden space-y-2">
       {/* Шапка */}
       <Card className="rounded-xl border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.06)] shrink-0">
         <div className="px-3 py-2 flex items-center gap-3">
@@ -311,6 +350,26 @@ export default function TaskDetail({ taskId }: Props) {
             <ArrowLeft className="h-4 w-4 mr-1.5" />
             К списку
           </Button>
+          {returnProjectId !== null && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full h-8 px-2.5 border-brand-yellow bg-brand-yellow/10 text-black hover:bg-brand-yellow/20"
+              onClick={() => {
+                // Чистим контекст — он одноразовый. Если юзер снова
+                // зайдёт в задачу из проекта — ProjectKanban поставит
+                // новый.
+                try { sessionStorage.removeItem("task_return_to_project") } catch { /* noop */ }
+                const dest = `/admin/projects/${returnProjectId}?focusTask=${taskId}`
+                if (isDirty) setPendingNavigation(dest)
+                else router.push(dest)
+              }}
+              title="Вернуться в проект, откуда пришли"
+            >
+              <Briefcase className="h-4 w-4 mr-1.5" />
+              В проект
+            </Button>
+          )}
 
           <div className="min-w-0 max-w-[520px] shrink">
             <div className="flex items-center gap-2 min-w-0">
@@ -338,13 +397,32 @@ export default function TaskDetail({ taskId }: Props) {
                 {task.project_ref && (
                   <>
                     {task.deal_ref && <span>·</span>}
-                    <span className="inline-flex items-center gap-1.5">
+                    <a
+                      href={`/admin/projects/${task.project_ref.id}`}
+                      className="inline-flex items-center gap-1.5 hover:underline"
+                    >
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: task.project_ref.color || "#94a3b8" }}
                       />
                       {task.project_ref.name}
-                    </span>
+                    </a>
+                    {task.project_stage_ref && (
+                      <>
+                        <span>›</span>
+                        <a
+                          href={`/admin/projects/${task.project_ref.id}`}
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:underline"
+                          style={{
+                            backgroundColor: (task.project_stage_ref.color ?? "#94a3b8") + "22",
+                            color: task.project_stage_ref.color ?? "#374151",
+                          }}
+                          title="Колонка канбана проекта"
+                        >
+                          {task.project_stage_ref.name}
+                        </a>
+                      </>
+                    )}
                   </>
                 )}
                 {overdue && (
@@ -546,7 +624,11 @@ export default function TaskDetail({ taskId }: Props) {
           // колонка с длинным контентом (чат с сообщениями или описание)
           // растягивает всю задачу выше viewport'а, появляется внешний
           // скролл страницы вместо внутреннего скролла колонки.
-          "grid grid-cols-1 gap-2 xl:flex-1 xl:min-h-0 xl:grid-rows-[minmax(0,1fr)]",
+          // relative — чтобы плашка «Обсуждения» в свёрнутом состоянии
+          // позиционировалась absolute к грид-контейнеру, а не отнимала
+          // место у колонки (иначе снизу появляется пустая полоса,
+          // срезающая контент колонок).
+          "relative grid grid-cols-1 gap-2 xl:flex-1 xl:min-h-0 xl:grid-rows-[minmax(0,1fr)]",
           chatCollapsed
             ? "xl:grid-cols-[minmax(360px,1.2fr)_minmax(0,1.1fr)]"
             : "xl:grid-cols-[minmax(320px,1fr)_minmax(0,0.9fr)_minmax(440px,1.4fr)]",
@@ -570,7 +652,7 @@ export default function TaskDetail({ taskId }: Props) {
           />
         </div>
 
-        <div className="min-w-0 xl:overflow-y-auto xl:pr-1 flex flex-col">
+        <div className="min-w-0 xl:overflow-y-auto xl:pr-1">
           <div className="space-y-3">
             <TaskChecklistCard
               taskId={task.id}
@@ -584,25 +666,27 @@ export default function TaskDetail({ taskId }: Props) {
               refreshKey={docRefreshKey}
             />
           </div>
-
-          {chatCollapsed && (
-            <button
-              type="button"
-              onClick={toggleChat}
-              className={cn(
-                "mt-auto self-end rounded-lg bg-brand-yellow/15 border border-brand-yellow/40",
-                "hover:bg-brand-yellow/25 text-black inline-flex items-center gap-1.5",
-                "px-3 py-1.5 text-sm font-semibold transition-colors",
-                "sticky bottom-0 shadow-sm",
-              )}
-              title="Развернуть обсуждения"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Обсуждения
-              <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
-            </button>
-          )}
         </div>
+
+        {/* Плашка «Обсуждения» — absolute поверх грида, не отнимает
+            места у колонок. Правый нижний угол, тень, непрозрачный фон. */}
+        {chatCollapsed && (
+          <button
+            type="button"
+            onClick={toggleChat}
+            className={cn(
+              "absolute bottom-2 right-2 z-10 rounded-lg bg-white border border-brand-yellow/50",
+              "hover:bg-brand-yellow/10 text-black inline-flex items-center gap-1.5",
+              "px-3 py-1.5 text-sm font-semibold transition-colors",
+              "shadow-[0_4px_12px_rgba(0,0,0,0.12)]",
+            )}
+            title="Развернуть обсуждения"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Обсуждения
+            <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
+          </button>
+        )}
 
         {!chatCollapsed && (
           <div className="min-w-0 xl:h-full">

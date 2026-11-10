@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from "react"
-import { Loader2, Save, Briefcase, FolderKanban, Plus, X, Eye } from "lucide-react"
+import { Loader2, Save, Briefcase, FolderKanban, Plus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -119,17 +119,17 @@ export default function TaskInfoCard({
       </FieldRow>
 
       <div className="space-y-0.5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <Label className="text-[11px] uppercase tracking-wider text-gray-500 font-normal">
             Описание
           </Label>
           <button
             type="button"
             onClick={() => setDescViewerOpen(true)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-full bg-brand-yellow text-black hover:bg-yellow-500 shadow-sm"
+            className="text-[11px] text-gray-500 hover:text-gray-900 underline decoration-dotted underline-offset-2 focus:outline-none"
             title="Открыть описание целиком"
           >
-            <Eye className="h-4 w-4" />
+            Просмотреть полное описание
           </button>
         </div>
         <Textarea
