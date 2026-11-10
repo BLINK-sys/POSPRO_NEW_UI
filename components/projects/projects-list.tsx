@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
-import { Plus, Pencil, Trash2, Loader2, FolderKanban } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, FolderKanban, Archive, ArrowUpRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -83,10 +83,13 @@ export default function ProjectsList() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
+  // Активные / Архив — отдельный фильтр, т.к. эти два мира не пересекаются
+  // в повседневной работе (архивные редко открывают).
+  const [status, setStatus] = useState<"active" | "archived">("active")
 
   const load = useCallback(() => {
     setLoading(true)
-    crmGet<{ projects: Project[] }>("/api/admin/projects")
+    crmGet<{ projects: Project[] }>(`/api/admin/projects?status=${status}`)
       .then((res) => setProjects(res.projects || []))
       .catch((e) =>
         toast({
@@ -96,7 +99,7 @@ export default function ProjectsList() {
         }),
       )
       .finally(() => setLoading(false))
-  }, [toast])
+  }, [toast, status])
 
   useEffect(() => { load() }, [load])
 
@@ -186,13 +189,35 @@ export default function ProjectsList() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={openCreate}
-          className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full"
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Новый проект
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-full border border-gray-200 bg-white p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setStatus("active")}
+              className={`rounded-full px-3 h-7 ${
+                status === "active" ? "bg-brand-yellow text-black font-medium" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Активные
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus("archived")}
+              className={`rounded-full px-3 h-7 ${
+                status === "archived" ? "bg-gray-200 text-black font-medium" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Архив
+            </button>
+          </div>
+          <Button
+            onClick={openCreate}
+            className="bg-brand-yellow text-black hover:bg-yellow-500 rounded-full"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Новый проект
+          </Button>
+        </div>
       </div>
 
       <Card className="rounded-xl border-gray-200 p-3">
@@ -207,7 +232,11 @@ export default function ProjectsList() {
         ) : (
           <ul className="divide-y divide-gray-100">
             {projects.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 py-2">
+              <li
+                key={p.id}
+                className="group flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 -mx-3 px-3 rounded transition-colors"
+                onClick={() => router.push(`/admin/projects/${p.id}`)}
+              >
                 <span
                   className="h-3 w-3 rounded-full shrink-0"
                   style={{ backgroundColor: p.color }}
@@ -221,19 +250,59 @@ export default function ProjectsList() {
                 <div className="text-xs text-gray-500 tabular-nums shrink-0">
                   задач: {p.task_count ?? 0}
                 </div>
+                <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-gray-500 shrink-0" />
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => openEdit(p)}
+                  onClick={(e) => { e.stopPropagation(); openEdit(p) }}
                   className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
                   title="Редактировать"
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
+                {status === "active" ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      try {
+                        await crmPost(`/api/admin/projects/${p.id}/archive`, {})
+                        toast({ title: "Проект в архиве" })
+                        load()
+                      } catch (err: any) {
+                        toast({ variant: "destructive", title: "Ошибка", description: err?.message })
+                      }
+                    }}
+                    className="h-8 w-8 rounded-full text-gray-500 hover:text-gray-900"
+                    title="В архив"
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      try {
+                        await crmPost(`/api/admin/projects/${p.id}/unarchive`, {})
+                        toast({ title: "Проект активирован" })
+                        load()
+                      } catch (err: any) {
+                        toast({ variant: "destructive", title: "Ошибка", description: err?.message })
+                      }
+                    }}
+                    className="h-8 w-8 rounded-full text-emerald-600 hover:bg-emerald-50"
+                    title="Вернуть в активные"
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setDeleteTarget(p)}
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }}
                   className="h-8 w-8 rounded-full text-red-500 hover:bg-red-50"
                   title="Удалить"
                 >

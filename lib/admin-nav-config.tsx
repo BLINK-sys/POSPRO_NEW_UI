@@ -16,6 +16,7 @@ import {
   Share2,
   ShieldCheck,
   Power,
+  FolderKanban,
   ShoppingCart,
   Sparkles,
   Tags,
@@ -58,6 +59,7 @@ export interface AccessCtx {
   hasKey: (key: string) => boolean
   aiSettingsAccess: boolean
   kpManagementAccess: boolean
+  canManageProjects: boolean
 }
 
 /** Пути CRM-режима — используются для авто-переключения режима по URL. */
@@ -164,6 +166,16 @@ function buildCrmSections(a: AccessCtx): AdminNavSection[] {
     { id: "chat", label: "Чат", items: [{ href: "/admin/chat", label: "Чат", icon: MessageSquare }] },
     { id: "clients", label: "Клиенты", items: [{ href: "/admin/clients", label: "Клиенты", icon: Users }] },
   ]
+  // «Проекты» — доступны owner'у и тем, у кого can_manage_projects.
+  // Обычный менеджер их не видит, но открывает свои задачи проекта
+  // через общий /admin/tasks.
+  if (a.canManageProjects) {
+    sections.push({
+      id: "projects",
+      label: "Проекты",
+      items: [{ href: "/admin/projects", label: "Проекты", icon: FolderKanban }],
+    })
+  }
   // «Проекты» — справочник для колонки «Проект» в задачах. В шапку не
   // выносим (дублируется с кнопкой на /admin/tasks), но /admin/projects
   // всё ещё в CRM_PATH_PREFIXES выше, чтобы страница считалась CRM'ной.
