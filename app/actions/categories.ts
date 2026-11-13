@@ -198,17 +198,24 @@ export type CategorySortMode =
   | "products_desc"
   | "products_asc"
   | "children_desc"
+  | "views_desc"
+  | "views_asc"
+
+/** Период, за который считается «посещаемость» (customer_activity).
+ *  1m/6m/12m/all — те же ключи понимает бэк. */
+export type CategoryViewsPeriod = "1m" | "6m" | "12m" | "all"
 
 export async function applyCategorySort(
   mode: CategorySortMode,
   includeChildren: boolean,
+  period?: CategoryViewsPeriod,
 ): Promise<CategoryActionState> {
-  const token = getToken()
+  const token = await getToken()
   try {
     const res = await fetch(`${API_BASE_URL}/categories/apply-sort`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ mode, include_children: includeChildren }),
+      body: JSON.stringify({ mode, include_children: includeChildren, period: period ?? "1m" }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -220,6 +227,31 @@ export async function applyCategorySort(
     return { success: true, message: `Порядок применён (${data.updated} категорий обновлено).` }
   } catch (e) {
     return { error: "Ошибка сети." }
+  }
+}
+
+/** Карта {category_id: count_views} за период. Используется в превью
+ *  сортировки по посещаемости; тот же эндпоинт читает apply-sort на бэке. */
+export async function getCategoryViewsMap(
+  period: CategoryViewsPeriod,
+): Promise<{ counts: Record<number, number>; error?: string }> {
+  try {
+    const token = await getToken()
+    const res = await fetch(
+      `${API_BASE_URL}/api/admin/customer-activity/category-views-map?period=${encodeURIComponent(period)}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      },
+    )
+    if (!res.ok) {
+      return { counts: {}, error: `HTTP ${res.status}` }
+    }
+    const data = await res.json()
+    return { counts: (data?.counts as Record<number, number>) || {} }
+  } catch (e) {
+    return { counts: {}, error: "Ошибка сети." }
   }
 }
 

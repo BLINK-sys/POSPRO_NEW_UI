@@ -1,18 +1,26 @@
 "use client"
 
-import { useState, useCallback, useMemo, useTransition, useEffect } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { type Category, type CategorySortMode, getCategories, applyCategorySort } from "@/app/actions/categories"
+import {
+  type Category,
+  type CategoryViewsPeriod,
+  getCategories,
+} from "@/app/actions/categories"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { PlusCircle, Search, ChevronsDownUp, ChevronsUpDown, Shuffle, ArrowDownAZ, Loader2, Check } from "lucide-react"
+import { PlusCircle, Search, ChevronsDownUp, ChevronsUpDown, Shuffle, ArrowDownAZ } from "lucide-react"
 import Link from "next/link"
 import { CategoryTreeItem } from "./category-tree-item"
 import { CategoryEditDialog } from "./category-edit-dialog"
-import { useToast } from "@/hooks/use-toast"
+import {
+  CategorySortPanel,
+  modeLabel,
+  type SortModeAll,
+} from "./category-sort-panel"
+import { cn } from "@/lib/utils"
 
 function flattenTree(tree: Category[]): Category[] {
   return tree.reduce<Category[]>((acc, category) => {
@@ -34,11 +42,15 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
   const [forceResetManual, setForceResetManual] = useState(0) // Для принудительного сброса ручного управления
   // Локальная сортировка (preview на клиенте) + флаг «включая подкатегории».
   // 'default' = порядок из БД (поле `order`). Прочие режимы применяются
-  // сразу к отображению; кнопка «Применить к сайту» записывает order в БД.
-  const [sortMode, setSortMode] = useState<CategorySortMode | "default">("default")
+  // сразу к отображению; кнопка «ОК» в боковой модалке записывает order в БД.
+  const [sortMode, setSortMode] = useState<SortModeAll>("default")
   const [sortIncludeChildren, setSortIncludeChildren] = useState(false)
-  const [isApplyingSort, startApplySort] = useTransition()
-  const { toast } = useToast()
+  const [sortPanelOpen, setSortPanelOpen] = useState(false)
+  const [viewsPeriod, setViewsPeriod] = useState<CategoryViewsPeriod>("1m")
+  // {category_id: views_count} — приходит из /admin/customer-activity/category-views-map.
+  // Используется клиентским превью сортировки views_*; apply-sort на бэке
+  // считает те же числа независимо.
+  const [viewsMap, setViewsMap] = useState<Record<number, number>>({})
   // Deep-link: `?edit=<categoryId>` открывает модалку конкретной категории
   // (используется кнопкой «Открыть в админке» из карточек магазина).
   const searchParams = useSearchParams()
@@ -253,6 +265,10 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
             return (a.products_count ?? 0) - (b.products_count ?? 0)
           case "children_desc":
             return (b.children?.length ?? 0) - (a.children?.length ?? 0)
+          case "views_desc":
+            return (viewsMap[b.id] ?? 0) - (viewsMap[a.id] ?? 0)
+          case "views_asc":
+            return (viewsMap[a.id] ?? 0) - (viewsMap[b.id] ?? 0)
           default:
             return 0
         }
@@ -268,22 +284,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
     }
 
     return sortByMode(filteredCategories)
-  }, [filteredCategories, sortMode, sortIncludeChildren])
-
-  const handleApplySort = useCallback(() => {
-    if (sortMode === "default") return
-    startApplySort(async () => {
-      const res = await applyCategorySort(sortMode, sortIncludeChildren)
-      if (res.success) {
-        toast({ title: "Порядок сохранён", description: res.message })
-        // Перезагружаем список с новыми order-значениями из БД
-        await updateCategories()
-        setSortMode("default")
-      } else {
-        toast({ title: "Ошибка", description: res.error, variant: "destructive" })
-      }
-    })
-  }, [sortMode, sortIncludeChildren, toast, updateCategories])
+  }, [filteredCategories, sortMode, sortIncludeChildren, viewsMap])
 
   const autoExpandedCategories = useMemo(
     () => getCategoriesToExpand(categories),
@@ -392,24 +393,24 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
             </SelectContent>
           </Select>
 
-          {/* Сортировка (превью на клиенте; сохранить в БД — кнопкой ниже) */}
-          <Select
-            value={sortMode}
-            onValueChange={(v) => setSortMode(v as CategorySortMode | "default")}
+          {/* Сортировка: открывает боковую модалку справа. Там выбор режима,
+              период посещаемости (для views_*), свитч «Включая подкатегории»
+              и кнопка ОК, сохраняющая порядок в БД. Превью применяется сразу
+              при клике по режиму — до того, как закрыть модалку. */}
+          <Button
+            variant="outline"
+            onClick={() => setSortPanelOpen(true)}
+            title="Сортировка категорий"
+            className={cn(
+              "w-[220px] justify-start rounded-lg",
+              sortMode !== "default" && "border-brand-yellow bg-brand-yellow/10",
+            )}
           >
-            <SelectTrigger className={`w-[220px] ${selectNoRingCls}`}>
-              <ArrowDownAZ className="h-4 w-4 mr-2 shrink-0 text-gray-500" />
-              <SelectValue placeholder="Сортировка" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По умолчанию (порядок в БД)</SelectItem>
-              <SelectItem value="alpha_asc">А → Я (по алфавиту)</SelectItem>
-              <SelectItem value="alpha_desc">Я → А (обратный)</SelectItem>
-              <SelectItem value="products_desc">По кол-ву товаров ↓</SelectItem>
-              <SelectItem value="products_asc">По кол-ву товаров ↑</SelectItem>
-              <SelectItem value="children_desc">По кол-ву подкатегорий ↓</SelectItem>
-            </SelectContent>
-          </Select>
+            <ArrowDownAZ className="h-4 w-4 mr-2 shrink-0 text-gray-500" />
+            <span className="truncate text-left flex-1">
+              {sortMode === "default" ? "Сортировка" : modeLabel(sortMode)}
+            </span>
+          </Button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -455,40 +456,19 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
         </div>
       </div>
 
-      {/* Строка 2 (только при активной сортировке): свитч + Применить/Сброс.
-          Отдельная строка — чтобы не ломать layout основной шапки. */}
+      {/* Тонкая строка-подсказка под шапкой: напоминает что сейчас показан
+          клиентский превью, какой именно и с каким периодом. Управление —
+          в модалке по кнопке «Сортировка» в шапке. */}
       {sortMode !== "default" && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50/60 px-3 py-2 text-xs">
-          <span className="font-medium text-gray-700">Превью сортировки:</span>
-          <label className="flex items-center gap-2 text-gray-700 select-none cursor-pointer">
-            <Switch checked={sortIncludeChildren} onCheckedChange={setSortIncludeChildren} />
-            Включая подкатегории
-          </label>
-          <div className="flex gap-2 ml-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSortMode("default")}
-              disabled={isApplyingSort}
-              title="Вернуть отображение к порядку в БД"
-            >
-              Сброс
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApplySort}
-              disabled={isApplyingSort}
-              className="bg-brand-yellow text-black hover:bg-yellow-500"
-              title="Записать текущий порядок в БД — станет виден на сайте"
-            >
-              {isApplyingSort ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4 mr-1.5" />
-              )}
-              Применить к сайту
-            </Button>
-          </div>
+          <span className="font-medium text-gray-700">Превью на клиенте:</span>
+          <span className="text-gray-700">{modeLabel(sortMode)}</span>
+          {sortIncludeChildren && (
+            <span className="text-gray-500">· включая подкатегории</span>
+          )}
+          {(sortMode === "views_desc" || sortMode === "views_asc") && (
+            <span className="text-gray-500">· период {viewsPeriod}</span>
+          )}
         </div>
       )}
 
@@ -536,6 +516,19 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
           onUpdate={handleCategoryUpdate}
         />
       )}
+
+      <CategorySortPanel
+        open={sortPanelOpen}
+        onOpenChange={setSortPanelOpen}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        includeChildren={sortIncludeChildren}
+        onIncludeChildrenChange={setSortIncludeChildren}
+        viewsPeriod={viewsPeriod}
+        onViewsPeriodChange={setViewsPeriod}
+        onViewsMapLoaded={setViewsMap}
+        onApplied={updateCategories}
+      />
     </div>
   )
 }
