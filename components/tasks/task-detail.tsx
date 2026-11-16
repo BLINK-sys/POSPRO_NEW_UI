@@ -10,7 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useChatUnread } from "@/context/chat-unread-context"
 import {
   ArrowLeft, Loader2, Trash2, CheckCircle2, Circle, Clock,
   AlertCircle, PauseCircle, Briefcase, RotateCcw, Check, Save,
@@ -137,6 +138,27 @@ export default function TaskDetail({ taskId }: Props) {
   // заходе снова компактный вид. Юзер разворачивает кликом здесь.
   const [chatCollapsed, setChatCollapsed] = useState<boolean>(true)
   const toggleChat = useCallback(() => setChatCollapsed((v) => !v), [])
+
+  // Unread для чата этой задачи — чтобы на свёрнутой кнопке «Обсуждения»
+  // и в табе задачи было видно без открытия панели.
+  const chatUnread = useChatUnread()
+  const taskChatUnread = useMemo(() => {
+    const room = chatUnread.rooms.find(
+      (r) => r.kind === "task" && r.related_task_id === task.id,
+    )
+    return room?.unread ?? 0
+  }, [chatUnread.rooms, task.id])
+
+  // Deep-link `?tab=chat` — приходит из колокольчика/push-уведомления.
+  // Разворачиваем чат ровно один раз после mount, чтобы потом юзер мог
+  // его снова свернуть руками.
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get("tab") === "chat") {
+      setChatCollapsed(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [addWatchersOpen, setAddWatchersOpen] = useState(false)
   // Куда уходим после подтверждения выхода без сохранения. null = диалога нет.
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
@@ -675,15 +697,26 @@ export default function TaskDetail({ taskId }: Props) {
             type="button"
             onClick={toggleChat}
             className={cn(
-              "absolute bottom-2 right-2 z-10 rounded-lg bg-white border border-brand-yellow/50",
-              "hover:bg-brand-yellow/10 text-black inline-flex items-center gap-1.5",
+              "absolute bottom-2 right-2 z-10 rounded-lg bg-white border inline-flex items-center gap-1.5",
               "px-3 py-1.5 text-sm font-semibold transition-colors",
               "shadow-[0_4px_12px_rgba(0,0,0,0.12)]",
+              // При наличии unread — красная рамка/тень и жирный бейдж,
+              // чтобы юзер сразу видел что в чате что-то новое.
+              taskChatUnread > 0
+                ? "border-red-400 bg-red-50 hover:bg-red-100 text-black"
+                : "border-brand-yellow/50 hover:bg-brand-yellow/10 text-black",
             )}
-            title="Развернуть обсуждения"
+            title={taskChatUnread > 0
+              ? `Новых сообщений в обсуждениях: ${taskChatUnread}`
+              : "Развернуть обсуждения"}
           >
             <MessageSquare className="h-4 w-4" />
             Обсуждения
+            {taskChatUnread > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                {taskChatUnread > 99 ? "99+" : taskChatUnread}
+              </span>
+            )}
             <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
           </button>
         )}

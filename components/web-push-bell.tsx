@@ -289,8 +289,17 @@ function notifSubtitle(n: NotificationRow): string {
 }
 
 function notifTargetUrl(n: NotificationRow): string | null {
-  if (n.entity_type === "deal" && n.entity_id) return `/admin/deals/${n.entity_id}`
-  if (n.entity_type === "task" && n.entity_id) return `/admin/tasks/${n.entity_id}`
+  // Для уведомлений из чата (chat_new_message / chat_mention) — сразу
+  // открываем нужный таб: deal/task/project карточка → ?tab=chat. Иначе
+  // пользователь оказывался на форме, а новое сообщение надо было ещё
+  // найти в табах руками.
+  const fromChat = n.kind === "chat_new_message" || n.kind === "chat_mention"
+  if (n.entity_type === "deal" && n.entity_id)
+    return fromChat ? `/admin/deals/${n.entity_id}?tab=chat` : `/admin/deals/${n.entity_id}`
+  if (n.entity_type === "task" && n.entity_id)
+    return fromChat ? `/admin/tasks/${n.entity_id}?tab=chat` : `/admin/tasks/${n.entity_id}`
+  if (n.entity_type === "project" && n.entity_id)
+    return fromChat ? `/admin/projects/${n.entity_id}?tab=chat` : `/admin/projects/${n.entity_id}`
   if (n.entity_type === "chat_room" && n.entity_id)
     return `/admin/chat?room=${n.entity_id}`
   return null

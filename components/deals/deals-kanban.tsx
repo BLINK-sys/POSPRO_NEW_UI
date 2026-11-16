@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { Loader2, Plus, Briefcase, Circle, Trophy, Ban, TrendingUp, Maximize2, Minimize2 } from "lucide-react"
+import { Loader2, Plus, Briefcase, Circle, Trophy, Ban, TrendingUp, Maximize2, Minimize2, MessageSquare } from "lucide-react"
+import { useChatUnread } from "@/context/chat-unread-context"
 import { createPortal } from "react-dom"
 import {
   DndContext,
@@ -1015,6 +1016,16 @@ function SortableDealCard({
     isDragging,
   } = useSortable({ id: deal.id })
 
+  // Unread чата этой сделки — подписка на контекст, у карточки свой
+  // ре-рендер при изменении rooms (SSE/poll). События редкие, ок.
+  const chatCtx = useChatUnread()
+  const chatUnread = useMemo(() => {
+    const room = chatCtx.rooms.find(
+      (r) => r.kind === "deal" && r.related_deal_id === deal.id,
+    )
+    return room?.unread ?? 0
+  }, [chatCtx.rooms, deal.id])
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -1031,6 +1042,7 @@ function SortableDealCard({
         usersById={usersById}
         stageColor={stageColor}
         stageType={stageType}
+        chatUnread={chatUnread}
       />
     </div>
   )
@@ -1045,6 +1057,7 @@ function DealCard({
   usersById,
   stageColor,
   stageType,
+  chatUnread,
 }: {
   deal: Deal
   onOpen?: (id: number) => void
@@ -1054,6 +1067,7 @@ function DealCard({
   usersById: Map<number, string>
   stageColor?: string
   stageType?: string
+  chatUnread?: number
 }) {
   const isWon = stageType === "won"
   const isLost = stageType === "lost"
@@ -1112,6 +1126,15 @@ function DealCard({
           )}
           {isLost && (
             <Ban className="h-3 w-3 mt-0.5 text-red-500 shrink-0" />
+          )}
+          {(chatUnread ?? 0) > 0 && (
+            <span
+              title={`Новых сообщений в чате: ${chatUnread}`}
+              className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-red-50 border border-red-300 px-1 py-0 text-[9px] font-bold text-red-700"
+            >
+              <MessageSquare className="h-2.5 w-2.5" />
+              {chatUnread! > 99 ? "99+" : chatUnread}
+            </span>
           )}
           <h4 className={cn(
             "text-[13px] font-semibold leading-tight line-clamp-2 flex-1",

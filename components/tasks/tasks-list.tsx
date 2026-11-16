@@ -18,8 +18,9 @@ import {
   Plus, Search, X, Loader2, ListTodo, CheckCircle2, Clock,
   Circle, PauseCircle, AlertCircle, Briefcase,
   FolderKanban, ChevronDown, CalendarDays,
-  ChevronLeft, ChevronRight, Star, User as UserIcon,
+  ChevronLeft, ChevronRight, Star, User as UserIcon, MessageSquare,
 } from "lucide-react"
+import { useChatUnread } from "@/context/chat-unread-context"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -129,6 +130,20 @@ export default function TasksList() {
   const [loading, setLoading] = useState(true)
   const [projects, setProjects] = useState<Project[]>([])
   const [users, setUsers] = useState<SystemUserLite[]>([])
+
+  // Map task_id → unread для чатов задач. Строится из `rooms` в
+  // ChatUnreadContext (где каждая task-комната знает свой related_task_id).
+  // Если задачи нет в map — unread = 0.
+  const chatUnread = useChatUnread()
+  const taskChatUnread = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const r of chatUnread.rooms) {
+      if (r.kind === "task" && r.related_task_id != null && r.unread > 0) {
+        m.set(r.related_task_id, r.unread)
+      }
+    }
+    return m
+  }, [chatUnread.rooms])
 
   const [createOpen, setCreateOpen] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -546,6 +561,7 @@ export default function TasksList() {
                         ? usersById.get(t.creator_id) ?? `#${t.creator_id}`
                         : null
                     }
+                    chatUnread={taskChatUnread.get(t.id) ?? 0}
                     onStatusChange={(s) => handleStatusChange(t, s)}
                     onPriorityChange={(p) => handlePriorityChange(t, p)}
                     onToggleWatch={() => handleToggleWatch(t)}
@@ -610,6 +626,7 @@ function TaskRow({
   task,
   responsibleName,
   creatorName,
+  chatUnread,
   onStatusChange,
   onPriorityChange,
   onToggleWatch,
@@ -617,6 +634,7 @@ function TaskRow({
   task: TaskListItem
   responsibleName: string | null
   creatorName: string | null
+  chatUnread: number
   onStatusChange: (s: TaskStatus) => void
   onPriorityChange: (p: TaskPriority) => void
   onToggleWatch: () => void
@@ -655,11 +673,31 @@ function TaskRow({
         </button>
       </td>
       <td className="px-3 py-2.5 align-middle border-b border-gray-100">
-        <div className={cn(
-          "text-sm truncate max-w-[500px] group-hover:text-brand-yellow-dark",
-          task.status === "done" && "line-through text-gray-400",
-        )}>
-          {task.title}
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Индикатор unread в чате задачи. Клик — сразу в задачу с
+              открытым табом «Чат». Сам tr-клик этот прыжок тоже делает,
+              но мы останавливаем bubbling на самом индикаторе, чтобы
+              hover-подсказка была конкретно про чат. */}
+          {chatUnread > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/admin/tasks/${task.id}?tab=chat`)
+              }}
+              title={`Новых сообщений в чате: ${chatUnread}`}
+              className="shrink-0 inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-300 px-1.5 py-0.5 text-[10px] font-bold text-red-700 hover:bg-red-100 transition-colors"
+            >
+              <MessageSquare className="h-3 w-3" />
+              {chatUnread > 99 ? "99+" : chatUnread}
+            </button>
+          )}
+          <div className={cn(
+            "text-sm truncate max-w-[500px] group-hover:text-brand-yellow-dark",
+            task.status === "done" && "line-through text-gray-400",
+          )}>
+            {task.title}
+          </div>
         </div>
       </td>
       <td className="px-3 py-2.5 align-middle border-b border-gray-100" onClick={(e) => e.stopPropagation()}>

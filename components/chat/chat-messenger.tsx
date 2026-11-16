@@ -21,9 +21,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import {
   MessageSquare, Plus, Search, X, Users2, Briefcase, ListTodo,
-  UserRound, Loader2, Layers, Archive,
+  UserRound, Loader2, Layers, Archive, ExternalLink,
 } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
@@ -360,8 +361,20 @@ function RoomRow({
               ? `📎 файл (${room.last_message.attachments.length})`
               : ""))
 
+  // Куда вести из иконки-ссылки у строки deal/task-комнаты: в карточку
+  // сущности, а не в сам чат (клик по самой строке продолжает открывать
+  // чат, как раньше).
+  const entityHref =
+    room.kind === "deal" && room.related_deal_id
+      ? `/admin/deals/${room.related_deal_id}`
+      : room.kind === "task" && room.related_task_id
+      ? `/admin/tasks/${room.related_task_id}`
+      : null
+  const entityTitle =
+    room.kind === "deal" ? "Открыть сделку" : "Открыть задачу"
+
   return (
-    <li>
+    <li className="relative group/room">
       <button
         type="button"
         onClick={onClick}
@@ -399,6 +412,20 @@ function RoomRow({
           </div>
         </div>
       </button>
+      {/* Иконка-ссылка в карточку сделки/задачи. Абсолют поверх кнопки
+          справа, видна при hover — сам клик по строке по-прежнему
+          открывает чат, а эта кнопка перебрасывает в карточку, где
+          уже можно развернуть чат через вкладку. */}
+      {entityHref && (
+        <Link
+          href={entityHref}
+          title={entityTitle}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/room:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-md bg-white border border-gray-200 text-gray-500 hover:text-black hover:border-gray-400 shadow-sm transition-opacity"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+      )}
     </li>
   )
 }

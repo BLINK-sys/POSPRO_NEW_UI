@@ -25,7 +25,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useChatUnread } from "@/context/chat-unread-context"
 import {
   ArrowLeft, Loader2, Trash2, Circle, Save,
   MessageSquare, ChevronUp,
@@ -137,6 +138,25 @@ export default function DealDetail({ dealId }: Props) {
   // Информацию. Не персистим — пользователь может развернуть прямо
   // здесь, но при следующем заходе снова увидит компактный вид.
   const [chatCollapsed, setChatCollapsed] = useState(true)
+
+  // Unread чата сделки (такой же паттерн как в task-detail).
+  const chatUnread = useChatUnread()
+  const dealChatUnread = useMemo(() => {
+    const room = chatUnread.rooms.find(
+      (r) => r.kind === "deal" && r.related_deal_id === dealId,
+    )
+    return room?.unread ?? 0
+  }, [chatUnread.rooms, dealId])
+
+  // Deep-link `?tab=chat` — из колокольчика/push. Разворачиваем чат один
+  // раз после mount; дальше юзер сам управляет.
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get("tab") === "chat") {
+      setChatCollapsed(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Путь для перехода после подтверждения выхода без сохранения. null = закрыто.
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
   // Инкрементим когда файл прилетел из чата — DocumentsCard видит это
@@ -609,15 +629,24 @@ export default function DealDetail({ dealId }: Props) {
               type="button"
               onClick={() => setChatCollapsed(false)}
               className={cn(
-                "mt-auto self-end rounded-lg bg-brand-yellow/15 border border-brand-yellow/40",
-                "hover:bg-brand-yellow/25 text-black inline-flex items-center gap-1.5",
+                "mt-auto self-end rounded-lg border inline-flex items-center gap-1.5",
                 "px-3 py-1.5 text-sm font-semibold transition-colors",
                 "sticky bottom-0 shadow-sm",
+                dealChatUnread > 0
+                  ? "bg-red-50 hover:bg-red-100 border-red-400 text-black"
+                  : "bg-brand-yellow/15 hover:bg-brand-yellow/25 border-brand-yellow/40 text-black",
               )}
-              title="Развернуть обсуждения"
+              title={dealChatUnread > 0
+                ? `Новых сообщений в обсуждениях: ${dealChatUnread}`
+                : "Развернуть обсуждения"}
             >
               <MessageSquare className="h-4 w-4" />
               Обсуждения
+              {dealChatUnread > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                  {dealChatUnread > 99 ? "99+" : dealChatUnread}
+                </span>
+              )}
               <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
             </button>
           </div>
