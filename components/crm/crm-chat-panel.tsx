@@ -90,6 +90,9 @@ interface Props {
   title?: string
   subtitle?: string
   emptyText?: string
+  /** Опциональный контент справа от заголовка чата — используется,
+   *  например, в /admin/chat для кнопки «Перейти в задачу/сделку». */
+  headerActions?: React.ReactNode
   /**
    * Родитель может передать колбэк — вызывается после успешной загрузки
    * файлов через `/messages/upload`. Мы используем это в deal/task
@@ -126,7 +129,7 @@ const POLL_FALLBACK_MS = 30_000
 export default function CrmChatPanel({
   chatRoomEndpoint, directRoomId,
   currentUserId, usersById,
-  title = "Чат", subtitle, emptyText,
+  title = "Чат", subtitle, emptyText, headerActions,
   onAttachmentUploaded, onMessageSent,
   readOnly = false,
   chromeless = false,
@@ -871,9 +874,16 @@ export default function CrmChatPanel({
               )}
             </div>
           ) : (
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-semibold truncate">{title}</h2>
-              {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+            <div className="flex-1 min-w-0 flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-semibold truncate">{title}</h2>
+                {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+              </div>
+              {headerActions && (
+                <div className="shrink-0 flex items-center gap-2">
+                  {headerActions}
+                </div>
+              )}
             </div>
           )}
           {searchOpen && (

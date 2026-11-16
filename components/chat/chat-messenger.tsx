@@ -305,6 +305,25 @@ export default function ChatMessenger() {
               usersById={usersById}
               title={selectedDisplay}
               subtitle={roomSubtitle(selectedRoom, usersById)}
+              headerActions={
+                selectedRoom.kind === "deal" && selectedRoom.related_deal_id ? (
+                  <Link
+                    href={`/admin/deals/${selectedRoom.related_deal_id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-yellow/15 border border-brand-yellow/50 px-2.5 py-1 text-xs font-semibold text-black hover:bg-brand-yellow/30 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Перейти в сделку
+                  </Link>
+                ) : selectedRoom.kind === "task" && selectedRoom.related_task_id ? (
+                  <Link
+                    href={`/admin/tasks/${selectedRoom.related_task_id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-yellow/15 border border-brand-yellow/50 px-2.5 py-1 text-xs font-semibold text-black hover:bg-brand-yellow/30 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Перейти в задачу
+                  </Link>
+                ) : null
+              }
             />
           ) : (
             <Card className="rounded-xl border-gray-200 h-full flex items-center justify-center text-sm text-gray-400">
@@ -361,20 +380,10 @@ function RoomRow({
               ? `📎 файл (${room.last_message.attachments.length})`
               : ""))
 
-  // Куда вести из иконки-ссылки у строки deal/task-комнаты: в карточку
-  // сущности, а не в сам чат (клик по самой строке продолжает открывать
-  // чат, как раньше).
-  const entityHref =
-    room.kind === "deal" && room.related_deal_id
-      ? `/admin/deals/${room.related_deal_id}`
-      : room.kind === "task" && room.related_task_id
-      ? `/admin/tasks/${room.related_task_id}`
-      : null
-  const entityTitle =
-    room.kind === "deal" ? "Открыть сделку" : "Открыть задачу"
-
+  // Переход в карточку сделки/задачи — через кнопку в шапке открытого
+  // чата (см. headerActions в CrmChatPanel из chat-messenger).
   return (
-    <li className="relative group/room">
+    <li>
       <button
         type="button"
         onClick={onClick}
@@ -412,20 +421,6 @@ function RoomRow({
           </div>
         </div>
       </button>
-      {/* Иконка-ссылка в карточку сделки/задачи. Абсолют поверх кнопки
-          справа, видна при hover — сам клик по строке по-прежнему
-          открывает чат, а эта кнопка перебрасывает в карточку, где
-          уже можно развернуть чат через вкладку. */}
-      {entityHref && (
-        <Link
-          href={entityHref}
-          title={entityTitle}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/room:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-md bg-white border border-gray-200 text-gray-500 hover:text-black hover:border-gray-400 shadow-sm transition-opacity"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </Link>
-      )}
     </li>
   )
 }

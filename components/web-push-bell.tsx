@@ -84,9 +84,9 @@ export default function WebPushBell({
       markEntityRead(n.entity_type, n.entity_id)
     }
     setOpen(false)
-    const url = notifTargetUrl(n)
+    const url = notifTargetUrl(n, rooms)
     if (url) router.push(url)
-  }, [markEntityRead, router])
+  }, [markEntityRead, router, rooms])
 
   const handleMarkOneRead = useCallback(async (n: NotificationRow, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -288,7 +288,10 @@ function notifSubtitle(n: NotificationRow): string {
   return ""
 }
 
-function notifTargetUrl(n: NotificationRow): string | null {
+function notifTargetUrl(
+  n: NotificationRow,
+  rooms: Array<{ id: number; kind: string; related_deal_id: number | null; related_task_id: number | null }> = [],
+): string | null {
   // Для уведомлений из чата (chat_new_message / chat_mention) — сразу
   // открываем нужный таб: deal/task/project карточка → ?tab=chat. Иначе
   // пользователь оказывался на форме, а новое сообщение надо было ещё
@@ -300,8 +303,19 @@ function notifTargetUrl(n: NotificationRow): string | null {
     return fromChat ? `/admin/tasks/${n.entity_id}?tab=chat` : `/admin/tasks/${n.entity_id}`
   if (n.entity_type === "project" && n.entity_id)
     return fromChat ? `/admin/projects/${n.entity_id}?tab=chat` : `/admin/projects/${n.entity_id}`
-  if (n.entity_type === "chat_room" && n.entity_id)
+  if (n.entity_type === "chat_room" && n.entity_id) {
+    // Fallback для старых уведомлений, сохранённых до правки бэка
+    // (`entity_type='chat_room'` для чатов задач/сделок). Если эта
+    // комната на самом деле принадлежит сделке/задаче — ведём туда.
+    const room = rooms.find((r) => r.id === n.entity_id)
+    if (room?.kind === "deal" && room.related_deal_id) {
+      return fromChat ? `/admin/deals/${room.related_deal_id}?tab=chat` : `/admin/deals/${room.related_deal_id}`
+    }
+    if (room?.kind === "task" && room.related_task_id) {
+      return fromChat ? `/admin/tasks/${room.related_task_id}?tab=chat` : `/admin/tasks/${room.related_task_id}`
+    }
     return `/admin/chat?room=${n.entity_id}`
+  }
   return null
 }
 
