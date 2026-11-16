@@ -4139,6 +4139,24 @@ const nextConfig = {
 
     ]
   },
+  // Security headers — минимум по аудиту: HSTS, запрет чужих iframe
+  // и запрет MIME-sniffing. Применяем ко всем путям.
+  // HSTS 1 год + subdomains — у нас уже давно только https, downgrade
+  // не планируется. SAMEORIGIN — мы pospro.kz в чужой iframe не вставляем
+  // (все наши <iframe> указывают на внешние сервисы, не наоборот),
+  // PosProDesk и превью медиа живут в нашем же origin.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig

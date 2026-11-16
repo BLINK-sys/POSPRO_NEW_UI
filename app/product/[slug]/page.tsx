@@ -40,18 +40,53 @@ function priceLine(price?: number | null): string {
 }
 
 /**
- * Если имя товара полностью заглавными («ЛАРЬ МОРОЗИЛЬНЫЙ XYZ») — в
- * title/og получается крик. Переводим в «Sentence case»: первая буква
- * заглавная, остальные строчные. Если в имени есть хоть одна строчная —
- * значит кто-то специально так написал, не трогаем.
+ * Нормализация имени товара для title/og/JSON-LD. Правило аудитора:
+ *   «меняйте только слова, целиком набранные капсом и без цифр,
+ *    бренды и артикулы не трогайте».
+ *
+ * Работаем по токенам (split по пробелам). Токен превращаем из
+ * «КРИЧАЩЕГО» в «Title case» только если ВСЁ сразу:
+ *   1) в токене есть хоть одна буква;
+ *   2) в токене НЕТ цифр (иначе это артикул/модель);
+ *   3) длина токена — минимум 4 буквы;
+ *   4) все буквы — заглавные;
+ *   5) в токене есть **кириллические** заглавные (хотя бы одна).
+ *
+ * П.5 спасает латинские бренды из 4+ капсовых букв: `UNOX`, `SONY`,
+ * `ROLLER` — в русскоязычном магазине это почти всегда бренд/артикул,
+ * оставляем как есть. «ЛАРЬ», «МОРОЗИЛЬНЫЙ», «СТОЛ» — наоборот,
+ * чинится корректно.
+ *
+ * Смешанный регистр (`Kayman`, `Roller Grill`) — не трогаем, автор
+ * сам так написал. Полностью lowercase (`kayman`, `спс-227/1008`) —
+ * тоже не трогаем: в БД такие имена ввёл менеджер / импорт, править
+ * надо данные, а не display. Разделители (`/`, `-`, `:`) сохраняем.
  */
 function smartName(s: string): string {
-  const letters = s.match(/\p{L}/gu) ?? []
-  if (letters.length === 0) return s
-  const hasLower = letters.some((c) => c === c.toLowerCase() && c !== c.toUpperCase())
-  if (hasLower) return s
-  const low = s.toLowerCase()
-  return low.charAt(0).toUpperCase() + low.slice(1)
+  const CYR_UPPER = /[А-ЯЁ]/
+  return s.replace(/\S+/g, (token) => {
+    if (/\d/.test(token)) return token
+    const letters = token.match(/\p{L}/gu) ?? []
+    if (letters.length < 4) return token
+    const allUpper = letters.every(
+      (c) => c === c.toUpperCase() && c !== c.toLowerCase(),
+    )
+    if (!allUpper) return token
+    if (!CYR_UPPER.test(token)) return token
+    let firstLetterSeen = false
+    return Array.from(token)
+      .map((ch) => {
+        if (/\p{L}/u.test(ch)) {
+          if (!firstLetterSeen) {
+            firstLetterSeen = true
+            return ch.toUpperCase()
+          }
+          return ch.toLowerCase()
+        }
+        return ch
+      })
+      .join("")
+  })
 }
 
 export async function generateMetadata(
