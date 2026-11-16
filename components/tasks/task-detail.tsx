@@ -141,13 +141,15 @@ export default function TaskDetail({ taskId }: Props) {
 
   // Unread для чата этой задачи — чтобы на свёрнутой кнопке «Обсуждения»
   // и в табе задачи было видно без открытия панели.
+  // task === null пока идёт первый fetch, поэтому safe-access.
   const chatUnread = useChatUnread()
   const taskChatUnread = useMemo(() => {
+    if (!task) return 0
     const room = chatUnread.rooms.find(
       (r) => r.kind === "task" && r.related_task_id === task.id,
     )
     return room?.unread ?? 0
-  }, [chatUnread.rooms, task.id])
+  }, [chatUnread.rooms, task?.id])
 
   // Deep-link `?tab=chat` — приходит из колокольчика/push-уведомления.
   // Разворачиваем чат ровно один раз после mount, чтобы потом юзер мог
