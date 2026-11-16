@@ -6,7 +6,15 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import HeaderInfoTab from "./header-info-tab"
 import CatalogVisibilityTab from "./catalog-visibility-tab"
-import { PayDeliveryTab, AboutTab, HelpTab } from "./static-page-tab"
+import {
+  PayDeliveryTab,
+  AboutTab,
+  HelpTab,
+  OfferTab,
+  PrivacyTab,
+  ReturnTab,
+  RequisitesTab,
+} from "./static-page-tab"
 import BannersTab from "./banners-tab"
 import MainBlocksTab from "./main-blocks-tab"
 import CardsTab from "./cards-tab"
@@ -24,10 +32,14 @@ interface Section {
   children?: SubItem[]
 }
 
-// Декларативная структура левого меню /admin/pages. «Шапка» — с 5
-// подпунктами, остальные — плоские. При клике по разделу с подпунктами
-// он раскрывается inline (accordion-стиль в стороне) и автоматически
-// выбирается первый подпункт.
+// Декларативная структура левого меню /admin/pages. Разделы с children
+// раскрываются inline (accordion-стиль) и автоматически выбирают первый
+// подпункт.
+// «Шапка» — только «Основное» и «Типы каталогов» (всё остальное про
+// шапку прямо рядом с ней).
+// «Инфо подвала» — всё, что показывается в подвале сайта и на его
+// страницах из колонки «Информация»: сами настройки подвала (контакты,
+// реквизиты, порядок), + все public-страницы, на которые подвал ссылается.
 const SECTIONS: Section[] = [
   {
     id: "header",
@@ -35,16 +47,26 @@ const SECTIONS: Section[] = [
     children: [
       { id: "header-main", label: "Основное" },
       { id: "catalog-types", label: "Типы каталогов" },
-      { id: "pay-delivery", label: "Оплата и доставка" },
-      { id: "about", label: "О компании" },
-      { id: "help", label: "Помощь" },
     ],
   },
   { id: "banners", label: "Баннеры" },
   { id: "main-blocks", label: "Блоки на главной" },
   { id: "cards", label: "Карточки" },
   { id: "search-page", label: "Страница поиска" },
-  { id: "footer-info", label: "Инфо подвала" },
+  {
+    id: "footer-info",
+    label: "Инфо подвала",
+    children: [
+      { id: "footer-info-main", label: "Информация" },
+      { id: "pay-delivery", label: "Оплата и доставка" },
+      { id: "about", label: "О компании" },
+      { id: "help", label: "Помощь" },
+      { id: "return", label: "Возврат и обмен" },
+      { id: "requisites", label: "Реквизиты" },
+      { id: "offer", label: "Публичная оферта" },
+      { id: "privacy", label: "Политика конфиденциальности" },
+    ],
+  },
 ]
 
 const VALID_TOP = new Set(SECTIONS.map((s) => s.id))
@@ -91,14 +113,30 @@ export default function PagesManagementTabs() {
           return <HeaderInfoTab />
         case "catalog-types":
           return <CatalogVisibilityTab />
+        default:
+          return <HeaderInfoTab />
+      }
+    }
+    if (top === "footer-info") {
+      switch (sub) {
+        case "footer-info-main":
+          return <FooterInfoTab />
         case "pay-delivery":
           return <PayDeliveryTab />
         case "about":
           return <AboutTab />
         case "help":
           return <HelpTab />
+        case "return":
+          return <ReturnTab />
+        case "requisites":
+          return <RequisitesTab />
+        case "offer":
+          return <OfferTab />
+        case "privacy":
+          return <PrivacyTab />
         default:
-          return <HeaderInfoTab />
+          return <FooterInfoTab />
       }
     }
     switch (top) {
@@ -110,8 +148,6 @@ export default function PagesManagementTabs() {
         return <CardsTab />
       case "search-page":
         return <SearchPageTab />
-      case "footer-info":
-        return <FooterInfoTab />
       default:
         return null
     }

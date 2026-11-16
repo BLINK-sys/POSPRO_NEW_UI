@@ -173,6 +173,21 @@ export interface FooterSettings {
   instagram_url: string
   whatsapp_url: string
   telegram_url: string
+  // Юридические реквизиты. В подвал выводится краткая строка
+  // (юрлицо + БИН + адрес), полный блок — на странице /requisites.
+  legal_name?: string
+  bin_number?: string
+  legal_address?: string
+  bank_name?: string
+  bank_bic?: string
+  bank_iik?: string
+  bank_kbe?: string
+  // Порядок пунктов внутри колонок «Контакты» и «Информация».
+  // null = использовать дефолтный порядок, зашитый во фронте.
+  // «Контакты»: массив из {"address","phone","email","working_hours"}.
+  // «Информация»: массив slug'ов StaticPage + допустимые "offer","privacy".
+  contacts_order?: string[] | null
+  info_order?: string[] | null
 }
 
 // Настройки шапки — строка уведомления + пункты нижней полосы

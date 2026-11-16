@@ -187,3 +187,51 @@ export function HelpTab() {
     />
   )
 }
+
+export function OfferTab() {
+  return (
+    <StaticPageTab
+      slug="offer"
+      defaultTitle="Публичная оферта"
+      cardTitle="Публичная оферта"
+      publicPath="/offer"
+      placeholder="Юридический текст публичной оферты."
+    />
+  )
+}
+
+export function PrivacyTab() {
+  return (
+    <StaticPageTab
+      slug="privacy"
+      defaultTitle="Политика конфиденциальности"
+      cardTitle="Политика конфиденциальности"
+      publicPath="/privacy"
+      placeholder="Как обрабатываются персональные данные."
+    />
+  )
+}
+
+export function ReturnTab() {
+  return (
+    <StaticPageTab
+      slug="return"
+      defaultTitle="Возврат и обмен"
+      cardTitle="Возврат и обмен"
+      publicPath="/return"
+      placeholder="Условия возврата, обмена и гарантии."
+    />
+  )
+}
+
+export function RequisitesTab() {
+  return (
+    <StaticPageTab
+      slug="requisites"
+      defaultTitle="Реквизиты"
+      cardTitle="Реквизиты (страница)"
+      publicPath="/requisites"
+      placeholder="Полные банковские реквизиты и контакты для платежей."
+    />
+  )
+}
