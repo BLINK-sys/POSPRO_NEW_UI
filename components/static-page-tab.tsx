@@ -15,15 +15,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Save, Loader2, ExternalLink } from "lucide-react"
+import {
+  Save, Loader2, ExternalLink,
+  AlignLeft, AlignCenter, AlignRight, Eye, EyeOff, Palette,
+} from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import AdminLoading from "@/components/admin-loading"
 import { PageBuilder } from "@/components/page-builder/page-builder"
+import { cn } from "@/lib/utils"
 import {
   getStaticPage,
   saveStaticPage,
   type StaticPage,
+  type StaticPageAlign,
 } from "@/app/actions/static-pages"
 
 const SOFT_INPUT =
@@ -58,6 +63,9 @@ export function StaticPageTab({
         title: defaultTitle,
         content: "",
         is_active: true,
+        title_color: "",
+        title_align: "left",
+        title_hidden: false,
       })
       setLoading(false)
     })()
@@ -70,6 +78,9 @@ export function StaticPageTab({
       title: page.title,
       content: page.content,
       is_active: page.is_active,
+      title_color: page.title_color || "",
+      title_align: (page.title_align as StaticPageAlign) || "left",
+      title_hidden: !!page.title_hidden,
     })
     setSaving(false)
     if (res.success) {
@@ -132,7 +143,81 @@ export function StaticPageTab({
             placeholder={defaultTitle}
             maxLength={200}
             className={SOFT_INPUT}
+            disabled={!!page.title_hidden}
           />
+          {/* Оформление H1 на странице: цвет, выравнивание, «не показывать».
+              Эти поля влияют только на вывод H1 на самой странице — на
+              <title> вкладки и SEO-метаданные не влияют. */}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+            {/* Цвет */}
+            <div className="inline-flex items-center gap-1.5">
+              <Palette className="h-3.5 w-3.5 text-gray-500" />
+              <span className="text-gray-600">Цвет:</span>
+              <input
+                type="color"
+                value={page.title_color || "#111827"}
+                onChange={(e) => setPage({ ...page, title_color: e.target.value })}
+                disabled={!!page.title_hidden}
+                className="h-7 w-10 rounded border border-gray-200 cursor-pointer p-0 bg-transparent disabled:opacity-40"
+                title="Цвет заголовка на странице"
+              />
+              {page.title_color && !page.title_hidden && (
+                <button
+                  type="button"
+                  onClick={() => setPage({ ...page, title_color: "" })}
+                  className="text-[11px] text-gray-500 hover:text-gray-900 underline-offset-2 hover:underline"
+                  title="Вернуть к цвету по умолчанию"
+                >
+                  сброс
+                </button>
+              )}
+            </div>
+
+            {/* Выравнивание */}
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded p-0.5">
+              {([
+                { v: "left" as const,   Icon: AlignLeft,   title: "Слева" },
+                { v: "center" as const, Icon: AlignCenter, title: "По центру" },
+                { v: "right" as const,  Icon: AlignRight,  title: "Справа" },
+              ]).map(({ v, Icon, title }) => {
+                const active = (page.title_align || "left") === v
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    title={title}
+                    onClick={() => setPage({ ...page, title_align: v })}
+                    disabled={!!page.title_hidden}
+                    className={cn(
+                      "p-1 rounded transition-colors",
+                      active
+                        ? "bg-white shadow-sm text-gray-900"
+                        : "text-gray-500 hover:text-gray-900",
+                      page.title_hidden && "opacity-40 cursor-not-allowed",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Не показывать заголовок на странице */}
+            <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-gray-700">
+              <Switch
+                checked={!!page.title_hidden}
+                onCheckedChange={(v) => setPage({ ...page, title_hidden: v })}
+              />
+              <span className="inline-flex items-center gap-1">
+                {page.title_hidden ? (
+                  <EyeOff className="h-3.5 w-3.5 text-gray-500" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5 text-gray-500" />
+                )}
+                Не отображать заголовок
+              </span>
+            </label>
+          </div>
         </div>
 
         <div>

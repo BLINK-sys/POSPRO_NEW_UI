@@ -13,6 +13,9 @@ export interface StaticPageData {
   title: string
   content: string
   is_active: boolean
+  title_color?: string
+  title_align?: "left" | "center" | "right"
+  title_hidden?: boolean
 }
 
 export async function fetchStaticPage(slug: string): Promise<StaticPageData | null> {
@@ -24,12 +27,24 @@ export async function fetchStaticPage(slug: string): Promise<StaticPageData | nu
 }
 
 export function StaticPageView({ page, fallbackTitle }: { page: StaticPageData; fallbackTitle: string }) {
-  const showTitle = page.title.trim().length > 0
+  // Если админ поставил «Не отображать заголовок» — H1 не рендерим вообще
+  // (но <title> вкладки/метаданные остаются — они берутся в page.tsx отдельно).
+  const showTitle = !page.title_hidden && page.title.trim().length > 0
   const blocks = parsePageContent(page.content)
+  const alignClass =
+    page.title_align === "center" ? "text-center"
+    : page.title_align === "right" ? "text-right"
+    : "text-left"
+  const titleStyle: React.CSSProperties = page.title_color
+    ? { color: page.title_color }
+    : {}
   return (
     <div className="container mx-auto px-4 md:px-6 py-8 public-page">
       {showTitle && (
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+        <h1
+          className={`text-3xl md:text-4xl font-bold text-gray-900 mb-6 ${alignClass}`}
+          style={titleStyle}
+        >
           {page.title}
         </h1>
       )}

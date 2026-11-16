@@ -13,11 +13,20 @@ import { API_BASE_URL } from "@/lib/api-address"
  * без action-обёртки, чтобы использовать Next `revalidate` через `next.tags`.
  */
 
+export type StaticPageAlign = "left" | "center" | "right"
+
 export interface StaticPage {
   slug: string
   title: string
   content: string
   is_active: boolean
+  /** Hex color для H1 на странице. Пусто — используется цвет темы.
+   *  На <title> вкладки и SEO-метаданные не влияет. */
+  title_color?: string
+  /** Выравнивание H1 на странице. Дефолт — left. */
+  title_align?: StaticPageAlign
+  /** Не рендерить H1 на странице (title вкладки/метаданных остаётся). */
+  title_hidden?: boolean
   updated_at?: string | null
 }
 
@@ -47,7 +56,14 @@ export async function getStaticPage(slug: string): Promise<StaticPage | null> {
 
 export async function saveStaticPage(
   slug: string,
-  payload: { title?: string; content?: string; is_active?: boolean }
+  payload: {
+    title?: string
+    content?: string
+    is_active?: boolean
+    title_color?: string
+    title_align?: StaticPageAlign
+    title_hidden?: boolean
+  }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/admin/static-page/${encodeURIComponent(slug)}`, {
