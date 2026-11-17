@@ -22,6 +22,7 @@ import { QuickViewButton } from "@/components/quick-view-modal"
 import { CompareButton } from "@/components/compare-button"
 import { CardAdminEditButton } from "@/components/card-admin-edit-button"
 import { formatAvailabilityStatusLabel } from "@/lib/availability-status-format"
+import { smartProductName } from "@/lib/product-name"
 
 export interface ProductCardProps {
   product: ProductData
@@ -132,7 +133,7 @@ export function ProductCard({
 
               <div className="flex flex-col flex-1 gap-0.5">
                 <div className="text-[11px] text-gray-700 line-clamp-2 leading-tight">
-                  <span className="font-medium">Товар:</span> {product.name}
+                  <span className="font-medium">Товар:</span> {smartProductName(product.name)}
                 </div>
 
                 <div className={`text-[11px] font-bold ${getRetailPriceClass(wholesaleUser)}`}>

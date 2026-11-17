@@ -12,6 +12,7 @@ import { getProductBySlug } from "@/app/actions/products"
 import { getImageUrl } from "@/lib/image-utils"
 import { getSuppliersText, getWinningWarehouseSuffix } from "@/lib/product-helpers"
 import { formatProductPrice, formatPhone, getRetailPriceClass, getWholesalePriceClass, isWholesaleUser } from "@/lib/utils"
+import { smartProductName } from "@/lib/product-name"
 import { useAuth } from "@/context/auth-context"
 import { FavoriteButton } from "@/components/favorite-button"
 import { AddToCartButton } from "@/components/add-to-cart-button"
@@ -327,7 +328,7 @@ export default function MobileProductPage({ slug }: MobileProductPageProps) {
         )}
 
         {/* Название */}
-        <h1 className="text-lg font-bold leading-tight">{product.name}</h1>
+        <h1 className="text-lg font-bold leading-tight">{smartProductName(product.name)}</h1>
 
         {/* Бренд */}
         {product.brand_info && (

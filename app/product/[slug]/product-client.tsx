@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useIsMobile } from "@/hooks/use-mobile"
 import MobileProductPage from "@/components/mobile/mobile-product-page"
+import { smartProductName } from "@/lib/product-name"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -306,7 +307,7 @@ export default function ProductClient({
 
       // Секция 1 — карточка товара (без артикула). Название центрировано.
       const mainHtml = `
-        <div style="font-size:24px;font-weight:700;line-height:1.2;margin-bottom:16px;color:#111827;text-align:center;">${esc(product.name)}</div>
+        <div style="font-size:24px;font-weight:700;line-height:1.2;margin-bottom:16px;color:#111827;text-align:center;">${esc(smartProductName(product.name))}</div>
 
         ${mainImageDataUrl ? `
           <div style="display:flex;justify-content:center;align-items:center;background:#f9fafb;border-radius:12px;padding:16px;margin-bottom:20px;">
@@ -616,7 +617,7 @@ export default function ProductClient({
             </>
           )
         })()}
-        <span className="text-gray-800 font-medium truncate max-w-[400px]">{product.name}</span>
+        <span className="text-gray-800 font-medium truncate max-w-[400px]">{smartProductName(product.name)}</span>
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-[520px_1fr] gap-6 items-start">
@@ -775,7 +776,7 @@ export default function ProductClient({
                 inline-block + align-middle кнопки идут прямо за последним
                 словом текста. */}
             <h1 className="text-xl font-bold text-gray-900 mb-2 leading-tight">
-              {product.name}
+              {smartProductName(product.name)}
               {" "}
               <span className="inline-flex items-center gap-2 align-middle">
                 <CardAdminEditButton
