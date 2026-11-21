@@ -35,8 +35,13 @@ import { crmGet, crmPost } from "@/lib/crm-fetch"
 import { useAuth } from "@/context/auth-context"
 import type { ChatRoomSummary, ChatMessage } from "@/lib/chat-types"
 
-/** Fallback-опрос списка комнат на случай десинка после долгого разрыва SSE. */
-const FALLBACK_POLL_MS = 5 * 60_000
+/** Polling списка комнат / счётчиков уведомлений. Пока SSE отключён на
+ *  бэке (ENABLE_CHAT_SSE != '1', см. project_chat_sse_disabled.md в
+ *  memory), этот интервал — единственный источник обновлений для
+ *  бейджей вкладок, звука и индикаторов unread в списках. 30 сек —
+ *  компромисс между «моментально» и нагрузкой на бэк: 1 GET /chat/rooms
+ *  + 1 GET /notifications/counts на онлайн-юзера каждые 30 сек. */
+const FALLBACK_POLL_MS = 30_000
 
 interface State {
   /** Полный список моих комнат — используется в /admin/chat сайдбаром. */
@@ -335,6 +340,16 @@ export function ChatUnreadProvider({
           "/api/admin/notifications/counts",
         ).catch(() => null),
       ])
+
+      // Фиксируем предыдущие суммы — до applyRooms/applyNotifCounts,
+      // чтобы определить «появилось новое» и дать звук.
+      const prevCounts = { ...notifCountsRef.current }
+      const prevRoomsUnreadTotal = roomsRef.current.reduce(
+        (s, r) => s + (r.unread || 0),
+        0,
+      )
+      const prevHadInitialLoad = roomsRef.current.length > 0 || prevRoomsUnreadTotal > 0
+
       if (countsRes?.by_section) {
         notifCountsRef.current = {
           deals: countsRes.by_section.deals || 0,
@@ -343,6 +358,28 @@ export function ChatUnreadProvider({
         }
       }
       applyRooms(roomsRes.rooms || [])
+
+      // Пока SSE отключён, звук приходится триггерить именно здесь —
+      // при изменении счётчиков между двумя опросами. Звук играем
+      // только когда уже был первичный fetch: при самом старте
+      // приложения множество не нулевых unread не должно пикать.
+      if (prevHadInitialLoad) {
+        const nextCounts = notifCountsRef.current
+        const nextRoomsUnreadTotal = (roomsRes.rooms || []).reduce(
+          (s, r) => s + (r.unread || 0),
+          0,
+        )
+        if (nextCounts.deals > prevCounts.deals) {
+          playChime("deal")
+        } else if (nextCounts.tasks > prevCounts.tasks) {
+          playChime("task")
+        } else if (
+          nextCounts.chat > prevCounts.chat ||
+          nextRoomsUnreadTotal > prevRoomsUnreadTotal
+        ) {
+          playChime("message")
+        }
+      }
     } catch {
       /* silent */
     }
