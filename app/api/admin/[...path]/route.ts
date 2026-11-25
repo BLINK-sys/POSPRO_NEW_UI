@@ -120,11 +120,17 @@ async function proxy(request: NextRequest, path: string[]) {
       })
     }
 
-    // Иначе — текст/JSON как строка.
+    // Иначе — текст/JSON как строка. Content-Disposition от бэка тоже
+    // пробрасываем: для `.csv` / `.md` эндпоинт /download отдаёт
+    // text/* с attachment-дисозишеном, иначе браузер открывает файл
+    // inline вместо скачивания.
     const text = await upstream.text()
+    const responseHeaders: Record<string, string> = { "Content-Type": contentType }
+    const cd = upstream.headers.get("content-disposition")
+    if (cd) responseHeaders["Content-Disposition"] = cd
     return new NextResponse(text, {
       status: upstream.status,
-      headers: { "Content-Type": contentType },
+      headers: responseHeaders,
     })
   } catch (e: any) {
     console.error(`[/api/admin proxy] ${method} ${url} failed:`, e)

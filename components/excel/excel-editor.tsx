@@ -221,6 +221,39 @@ function detectBookType(fileName: string): XLSX.BookType {
   return "xlsx"
 }
 
+/**
+ * Декодирует байты CSV в строку, выбирая кодировку по содержимому.
+ * У нас приходят csv от разных источников — Google Sheets (UTF-8 с BOM),
+ * выгрузки из Б24 / 1С (cp1251), пользовательский экспорт (utf-8 без BOM).
+ * SheetJS без подсказки читает csv как UTF-8 → cp1251-файлы становятся
+ * «ÐºÐ¾Ð¿Ð¸Ñ€Ð°Ð¹Ñ‚».
+ *
+ * Логика:
+ *   - UTF-8 BOM (ef bb bf)  → срезаем BOM, декодируем UTF-8;
+ *   - UTF-16 LE/BE BOM      → декодируем соответствующим кодеком;
+ *   - иначе                 → пробуем strict UTF-8; если бросает — cp1251.
+ *     Эвристика strict работает, потому что файлы в cp1251 почти всегда
+ *     содержат байты, недопустимые в последовательностях UTF-8.
+ */
+function decodeCsvBytes(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes.slice(3))
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder("utf-16le").decode(bytes.slice(2))
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder("utf-16be").decode(bytes.slice(2))
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    // Фоллбэк — Windows-1251: самая частая локальная кодировка для русского.
+    return new TextDecoder("windows-1251").decode(bytes)
+  }
+}
+
 function cellKey(r: number, c: number): string {
   return `${r},${c}`
 }
@@ -901,17 +934,31 @@ export default function ExcelEditor({ attachmentId }: { attachmentId: number }) 
         throw new Error(msg)
       }
       const buf = await res.arrayBuffer()
-      const wb = XLSX.read(buf, {
-        type: "array", cellDates: true, cellStyles: true,
-      })
+      // CSV идёт через свой декодер — SheetJS без подсказки ломает кириллицу
+      // в cp1251-файлах (см. decodeCsvBytes). xlsx/ods/xls — бинарный
+      // read из массива, с ними decode не нужен.
+      // Опираться на fileName нельзя: имя подтягивается из sessionStorage
+      // позже этого fetch'а, поэтому детектим по сигнатуре байт.
+      // xlsx/ods — ZIP (PK\x03\x04), xls — OLE (D0 CF 11 E0), всё
+      // остальное считаем текстом → csv.
+      const sig = new Uint8Array(buf.slice(0, 4))
+      const isZip = sig[0] === 0x50 && sig[1] === 0x4b
+      const isOle = sig[0] === 0xd0 && sig[1] === 0xcf && sig[2] === 0x11 && sig[3] === 0xe0
+      const isCsv = !isZip && !isOle
+      const wb = isCsv
+        ? XLSX.read(decodeCsvBytes(buf), { type: "string", cellDates: true })
+        : XLSX.read(buf, { type: "array", cellDates: true, cellStyles: true })
       workbookRef.current = wb
       const parsed = parseWorkbook(wb)
       // Восстанавливаем font/fill/alignment/numFmt из styles.xml в обход
-      // бага xlsx-js-style (см. applyStylesFromZip).
-      try {
-        applyStylesFromZip(buf, wb, parsed)
-      } catch (e) {
-        console.warn("[excel] applyStylesFromZip failed:", e)
+      // бага xlsx-js-style (см. applyStylesFromZip). Для csv стилей
+      // в файле нет — пропускаем.
+      if (!isCsv) {
+        try {
+          applyStylesFromZip(buf, wb, parsed)
+        } catch (e) {
+          console.warn("[excel] applyStylesFromZip failed:", e)
+        }
       }
       setSheets(parsed)
       setActiveIdx(0)

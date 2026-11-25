@@ -1605,10 +1605,16 @@ function AttachmentChip({
     )
   }
 
+  // Файл идёт через /api/admin/chat/attachments/<id>/download — это
+  // наш фронт-прокси, он добавляет JWT и пробрасывает бэкенд-ответ
+  // с Content-Disposition: attachment. Прямой <a href={fullUrl}> на
+  // /uploads/… отдавал файл inline (csv/md открывались во вкладке
+  // вместо скачивания). download-атрибут — fallback, если CD не дойдёт.
+  const dlHref = `/api/admin/chat/attachments/${attachment.id}/download`
   return (
     <a
-      href={fullUrl}
-      target="_blank"
+      href={dlHref}
+      download={attachment.file_name || ""}
       rel="noopener noreferrer"
       className={cn(
         "flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",

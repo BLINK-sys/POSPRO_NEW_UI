@@ -150,7 +150,18 @@ export default function CrmDocumentsCard({
   }
 
   const handleDownload = (a: Attachment) => {
-    window.open(`/api/admin/attachments/${a.id}/download`, "_blank", "noopener,noreferrer")
+    // Программный клик по <a download> вместо window.open — некоторые
+    // popup-blocker режут новое окно, а <a> клик срабатывает всегда и
+    // не открывает лишней вкладки. Бэк уже выставляет Content-Disposition
+    // через send_file(as_attachment=True) + прокси его пробрасывает.
+    const el = document.createElement("a")
+    el.href = `/api/admin/attachments/${a.id}/download`
+    el.rel = "noopener"
+    // download-атрибут нужен только как fallback, если CD не приедет.
+    if (a.file_name) el.download = a.file_name
+    document.body.appendChild(el)
+    el.click()
+    el.remove()
   }
 
   return (
@@ -394,17 +405,21 @@ function FileThumb({
   const router = useRouter()
   const { Icon, label, tint } = typeMeta(item.mime_type, item.file_name)
   const displayName = item.title || item.file_name || "Без названия"
-  const editable = isEditableSpreadsheet(item.mime_type, item.file_name)
+  const kind = editableKind(item.mime_type, item.file_name)
+  const editable = kind !== null
 
   const openInEditor = () => {
     // Кладём имя файла для шапки редактора (URL несёт только id).
+    // Два типа редакторов — у каждого свой sessionStorage-ключ и роут.
+    const storageKey = kind === "markdown" ? `md-editor:${item.id}` : `excel-editor:${item.id}`
+    const path = kind === "markdown" ? `/admin/md/${item.id}` : `/admin/excel/${item.id}`
     try {
       sessionStorage.setItem(
-        `excel-editor:${item.id}`,
+        storageKey,
         JSON.stringify({ fileName: item.file_name || displayName }),
       )
     } catch { /* noop */ }
-    router.push(`/admin/excel/${item.id}`)
+    router.push(path)
   }
 
   return (
@@ -476,6 +491,22 @@ function isEditableSpreadsheet(mime: string | null, name: string | null): boolea
   if (m.includes("spreadsheetml") || m.includes("ms-excel")) return true
   if (m === "text/csv") return true
   return false
+}
+
+function isEditableMarkdown(mime: string | null, name: string | null): boolean {
+  const m = (mime || "").toLowerCase()
+  const ext = (name || "").split(".").pop()?.toLowerCase() || ""
+  if (ext === "md" || ext === "markdown") return true
+  if (m === "text/markdown" || m === "text/x-markdown") return true
+  return false
+}
+
+type EditableKind = "spreadsheet" | "markdown" | null
+
+function editableKind(mime: string | null, name: string | null): EditableKind {
+  if (isEditableSpreadsheet(mime, name)) return "spreadsheet"
+  if (isEditableMarkdown(mime, name)) return "markdown"
+  return null
 }
 
 /**
