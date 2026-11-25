@@ -4155,6 +4155,17 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
       },
+      // llms.txt — подсказка для ChatGPT/Perplexity/Claude и других LLM.
+      // Явный text/plain с UTF-8, чтобы кириллица читалась без сюрпризов,
+      // и Cache-Control с короткой свежестью (обновляем вручную по правкам
+      // от аудитора) + долгий stale-while-revalidate для CDN.
+      {
+        source: '/llms.txt',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=300, stale-while-revalidate=86400' },
+        ],
+      },
     ]
   },
 }
