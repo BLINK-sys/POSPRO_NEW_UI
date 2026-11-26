@@ -56,6 +56,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/auth-context"
 import { useChatUnread } from "@/context/chat-unread-context"
 import { cn } from "@/lib/utils"
 import { crmGet, crmPost, crmPut, crmDelete, crmUpload } from "@/lib/crm-fetch"
@@ -135,6 +136,8 @@ export default function CrmChatPanel({
   chromeless = false,
 }: Props) {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const isOwner = Boolean(user?.is_owner)
   const {
     markRoomRead, setActiveRoom,
     subscribeMessage, subscribeReaction, subscribeRead,
@@ -759,15 +762,20 @@ export default function CrmChatPanel({
     if (!deleteTarget) return
     const id = deleteTarget.id
     try {
-      await crmDelete(`/api/admin/chat/messages/${id}`)
-      // Soft-delete: заменяем локально, чтобы UI сразу показал
-      // «сообщение удалено». Polling это не подхватит — новых id > lastId
-      // не появится, а изменение существующего сообщения он не смотрит.
-      setMessages((prev) => prev.map((m) =>
-        m.id === id
-          ? { ...m, deleted_at: new Date().toISOString(), text: null }
-          : m,
-      ))
+      // Owner получает hard-delete (запись и её уведомления полностью
+      // исчезают, без «сообщение удалено»). Остальным — soft-delete,
+      // на бэке `?hard=1` они пробовать не могут, он игнорирует флаг.
+      const qs = isOwner ? "?hard=1" : ""
+      await crmDelete(`/api/admin/chat/messages/${id}${qs}`)
+      if (isOwner) {
+        setMessages((prev) => prev.filter((m) => m.id !== id))
+      } else {
+        setMessages((prev) => prev.map((m) =>
+          m.id === id
+            ? { ...m, deleted_at: new Date().toISOString(), text: null }
+            : m,
+        ))
+      }
     } catch (e: any) {
       toast({
         variant: "destructive",
@@ -1171,7 +1179,8 @@ export default function CrmChatPanel({
         onClose={() => setOpenReadFor(null)}
       />
 
-      {/* Подтверждение удаления сообщения (soft-delete на бэке) */}
+      {/* Подтверждение удаления. У owner'а — hard-delete (без следа),
+          у остальных — soft (остаётся «сообщение удалено»). */}
       <AlertDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(v) => !v && setDeleteTarget(null)}
@@ -1180,8 +1189,9 @@ export default function CrmChatPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить сообщение?</AlertDialogTitle>
             <AlertDialogDescription>
-              Останется отметка «сообщение удалено», текст и файлы
-              станут недоступны участникам чата.
+              {isOwner
+                ? "Сообщение, вложения и уведомления о нём будут удалены полностью, без отметки «сообщение удалено». Отменить нельзя."
+                : "Останется отметка «сообщение удалено», текст и файлы станут недоступны участникам чата."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
